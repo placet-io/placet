@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  displayName  String   @map("display_name")
+  passwordHash String   @map("password_hash")
+  role         String   @default("member") // 'owner' | 'member'
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  agents      Agent[]
+  apiLogs     ApiLog[]
+  preferences UserPreferences?
+
+  @@map("users")
+}
+
+model Agent {
+  id           String    @id @default(cuid())
+  ownerId      String    @map("owner_id")
+  name         String
+  description  String?
+  apiKeyHash   String    @unique @map("api_key_hash")
+  apiKeyPrefix String    @map("api_key_prefix") // first 8 chars for display: "hp_a3f8..."
+  avatarUrl    String?   @map("avatar_url")
+  lastActiveAt DateTime? @map("last_active_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  messages Message[]
+  apiLogs  ApiLog[]
+
+  @@map("agents")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  channelId  String   @map("channel_id") // = agent_id
+  senderType String   @map("sender_type") // 'agent' | 'user'
+  senderId   String   @map("sender_id")
+  text       String? // markdown content, nullable for pure attachments
+  status     String? // 'info' | 'success' | 'warning' | 'error'
+  review     Json? // Review object (see plan)
+  metadata   Json? // free-form additional data
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  agent       Agent        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+
+  @@index([channelId, createdAt(sort: Desc)], name: "idx_messages_channel")
+  @@map("messages")
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  messageId  String   @map("message_id")
+  pluginType String   @map("plugin_type") // e.g. '@uax/image', '@uax/pdf'
+  filename   String
+  mimeType   String   @map("mime_type")
+  size       BigInt
+  storageKey String   @map("storage_key") // MinIO object key
+  pluginData Json?    @map("plugin_data") // plugin-specific metadata
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model InstalledPlugin {
+  id          String   @id @default(cuid())
+  npmName     String   @unique @map("npm_name")
+  version     String
+  enabled     Boolean  @default(true)
+  installedAt DateTime @default(now()) @map("installed_at")
+
+  @@map("installed_plugins")
+}
+
+model ApiLog {
+  id           String   @id @default(cuid())
+  agentId      String?  @map("agent_id")
+  userId       String   @map("user_id")
+  method       String // 'POST' | 'GET' | 'DELETE'
+  path         String
+  requestBody  Json?    @map("request_body")
+  responseBody Json?    @map("response_body")
+  statusCode   Int      @map("status_code")
+  durationMs   Int      @map("duration_ms")
+  direction    String // 'inbound' | 'outbound'
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_api_logs_user")
+  @@map("api_logs")
+}
+
+model UserPreferences {
+  userId    String   @id @map("user_id")
+  theme     String   @default("system") // 'light' | 'dark' | 'system'
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}

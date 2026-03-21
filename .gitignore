@@ -44,3 +44,6 @@ npm-debug.log*
 
 # MinIO data (local)
 minio-data/
+
+# notes
+notes/
