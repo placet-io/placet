@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+.turbo
+.git
+.github
+notes
+coverage
+*.md
+!package.json
+.env
+.env.*
