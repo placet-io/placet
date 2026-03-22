@@ -1,0 +1,14 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+.next
+.turbo
+
+# Generated files
+apps/backend/generated
+apps/frontend/next-env.d.ts
+
+# Package lock
+package-lock.json
