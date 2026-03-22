@@ -1,12 +1,6 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { UpdatePreferencesSchema } from '@humanproxy/shared';
 
-export class UpdatePreferencesDto {
-  @ApiPropertyOptional({
-    example: 'dark',
-    enum: ['light', 'dark', 'system'],
-  })
-  @IsOptional()
-  @IsIn(['light', 'dark', 'system'])
-  theme?: string;
-}
+export class UpdatePreferencesDto extends createZodDto(
+  UpdatePreferencesSchema,
+) {}

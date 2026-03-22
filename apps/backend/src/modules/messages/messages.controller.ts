@@ -10,10 +10,20 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import {
+  ErrorResponse,
+  MessageItemResponse,
+  PaginatedMessagesResponse,
+} from '../../common/swagger-responses';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../common/types';
 import { MessagesService } from './messages.service';
@@ -29,6 +39,9 @@ export class MessagesController {
 
   @Get()
   @ApiOperation({ summary: 'Get messages for a channel (agent)' })
+  @ApiOkResponse({ description: 'Paginated messages', type: PaginatedMessagesResponse })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
   @ApiQuery({
     name: 'channel',
     required: true,
@@ -58,12 +71,17 @@ export class MessagesController {
 
   @Get('reviews')
   @ApiOperation({ summary: 'Get all pending reviews across agents' })
+  @ApiOkResponse({ description: 'List of messages with pending reviews', type: [MessageItemResponse] })
+  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
   getPendingReviews(@Req() req: RequestWithUser) {
     return this.messagesService.getPendingReviews(req.user.id);
   }
 
   @Post()
   @ApiOperation({ summary: 'User sends a message to an agent channel' })
+  @ApiCreatedResponse({ description: 'Message created', type: MessageItemResponse })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
   create(@Req() req: RequestWithUser, @Body() dto: CreateUserMessageDto) {
     return this.messagesService.createFromUser(
       req.user.id,
@@ -74,6 +92,10 @@ export class MessagesController {
 
   @Post(':id/respond')
   @ApiOperation({ summary: 'User responds to a review' })
+  @ApiCreatedResponse({ description: 'Review response recorded', type: MessageItemResponse })
+  @ApiNotFoundResponse({ description: 'Message or review not found', type: ErrorResponse })
+  @ApiForbiddenResponse({ description: 'Not your agent / Review already responded', type: ErrorResponse })
+  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
   respond(
     @Req() req: RequestWithUser,
     @Param('id') id: string,

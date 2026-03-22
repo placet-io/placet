@@ -1,10 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsObject } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { RespondReviewSchema } from '@humanproxy/shared';
 
-export class RespondReviewDto {
-  @ApiProperty({
-    example: { selectedOption: 'approve', comment: 'Looks good!' },
-  })
-  @IsObject()
-  response: Record<string, unknown>;
-}
+export class RespondReviewDto extends createZodDto(RespondReviewSchema) {}

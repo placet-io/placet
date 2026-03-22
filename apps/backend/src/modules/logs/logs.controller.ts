@@ -1,10 +1,18 @@
 import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import {
+  ApiLogResponse,
+  ErrorResponse,
+  PaginatedLogsResponse,
+} from '../../common/swagger-responses';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../common/types';
 import { LogsService } from './logs.service';
@@ -18,6 +26,8 @@ export class LogsController {
 
   @Get()
   @ApiOperation({ summary: 'List API logs (paginated, filterable)' })
+  @ApiOkResponse({ description: 'Paginated API logs', type: PaginatedLogsResponse })
+  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
   @ApiQuery({
     name: 'agent',
     required: false,
@@ -62,6 +72,9 @@ export class LogsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get log detail' })
+  @ApiOkResponse({ description: 'Log entry details', type: ApiLogResponse })
+  @ApiNotFoundResponse({ description: 'Log not found', type: ErrorResponse })
+  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
   findOne(@Req() req: RequestWithUser, @Param('id') id: string) {
     return this.logsService.findOne(id, req.user.id);
   }

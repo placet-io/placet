@@ -1,14 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { CreateUserMessageSchema } from '@humanproxy/shared';
 
-export class CreateUserMessageDto {
-  @ApiProperty({ example: 'agent-uuid-here' })
-  @IsString()
-  @MinLength(1)
-  channelId: string;
-
-  @ApiProperty({ example: 'Hello, please review this.' })
-  @IsString()
-  @MinLength(1)
-  text: string;
-}
+export class CreateUserMessageDto extends createZodDto(
+  CreateUserMessageSchema,
+) {}

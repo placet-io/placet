@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { HealthResponse } from './common/swagger-responses';
 import { AppService } from './app.service';
 
 @ApiTags('System')
@@ -9,6 +10,7 @@ export class AppController {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check endpoint for Docker/load balancer' })
+  @ApiOkResponse({ description: 'Service is healthy', type: HealthResponse })
   getHealth() {
     return this.appService.getHealth();
   }

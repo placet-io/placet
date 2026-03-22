@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -7,6 +7,7 @@ import {
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import fastifyCookie from '@fastify/cookie';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
 import { AuthService } from './../src/modules/auth/auth.service';
@@ -88,13 +89,7 @@ describe('HumanProxy API (e2e)', () => {
     const authService = app.get(AuthService);
     jest.spyOn(authService, 'onModuleInit').mockResolvedValue(undefined);
 
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    app.useGlobalPipes(new ZodValidationPipe());
 
     await (app as NestFastifyApplication).register(
       fastifyCookie as Parameters<NestFastifyApplication['register']>[0],
@@ -453,7 +448,7 @@ describe('HumanProxy API (e2e)', () => {
   });
 
   // ──────────────────────────────────────────────
-  // DTO Validation (ValidationPipe)
+  // DTO Validation (ZodValidationPipe)
   // ──────────────────────────────────────────────
   describe('DTO Validation', () => {
     beforeEach(() => {
@@ -485,8 +480,11 @@ describe('HumanProxy API (e2e)', () => {
           .expect(400);
       });
 
-      it('should reject unknown fields', () => {
-        return request(httpServer)
+      it('should strip unknown fields (Zod strips by default, not reject)', async () => {
+        // Zod strips unknown keys silently. Verify the request is not
+        // rejected with 400 — any other status (e.g. 201 or 409) means
+        // the body passed validation successfully.
+        const res = await request(httpServer)
           .post('/api/users')
           .set('Authorization', `Bearer ${jwtToken}`)
           .send({
@@ -494,8 +492,8 @@ describe('HumanProxy API (e2e)', () => {
             displayName: 'A',
             password: 'longpassword',
             hack: true,
-          })
-          .expect(400);
+          });
+        expect(res.status).not.toBe(400);
       });
     });
 

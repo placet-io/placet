@@ -11,10 +11,20 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import {
+  DeletedResponse,
+  ErrorResponse,
+  MessageItemResponse,
+  PaginatedMessagesResponse,
+} from '../../common/swagger-responses';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import type { RequestWithAgent } from '../../common/types';
 import { MessagesService } from './messages.service';
@@ -29,12 +39,16 @@ export class MessagesAgentController {
 
   @Post()
   @ApiOperation({ summary: 'Agent: Send a message' })
+  @ApiCreatedResponse({ description: 'Message created', type: MessageItemResponse })
+  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
   create(@Req() req: RequestWithAgent, @Body() dto: CreateMessageDto) {
     return this.messagesService.createFromAgent(req.agent.id, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Agent: List messages (chat-as-storage)' })
+  @ApiOkResponse({ description: 'Paginated messages', type: PaginatedMessagesResponse })
+  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
   @ApiQuery({
     name: 'limit',
     required: false,
@@ -73,12 +87,18 @@ export class MessagesAgentController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Agent: Get a single message + review status' })
+  @ApiOkResponse({ description: 'Message details', type: MessageItemResponse })
+  @ApiNotFoundResponse({ description: 'Message not found', type: ErrorResponse })
+  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
   findOne(@Req() req: RequestWithAgent, @Param('id') id: string) {
     return this.messagesService.findOneByAgent(id, req.agent.id);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Agent: Delete (retract) a message' })
+  @ApiOkResponse({ description: 'Message deleted', type: DeletedResponse })
+  @ApiNotFoundResponse({ description: 'Message not found', type: ErrorResponse })
+  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
   remove(@Req() req: RequestWithAgent, @Param('id') id: string) {
     return this.messagesService.deleteByAgent(id, req.agent.id);
   }
