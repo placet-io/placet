@@ -38,7 +38,6 @@ prisma/*.db-journal
 docker-compose.override.yml
 
 # Logs
-logs/
 *.log
 npm-debug.log*
 
