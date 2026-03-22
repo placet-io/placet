@@ -39,16 +39,28 @@ export class MessagesAgentController {
 
   @Post()
   @ApiOperation({ summary: 'Agent: Send a message' })
-  @ApiCreatedResponse({ description: 'Message created', type: MessageItemResponse })
-  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
+  @ApiCreatedResponse({
+    description: 'Message created',
+    type: MessageItemResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
   create(@Req() req: RequestWithAgent, @Body() dto: CreateMessageDto) {
     return this.messagesService.createFromAgent(req.agent.id, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Agent: List messages (chat-as-storage)' })
-  @ApiOkResponse({ description: 'Paginated messages', type: PaginatedMessagesResponse })
-  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
+  @ApiOkResponse({
+    description: 'Paginated messages',
+    type: PaginatedMessagesResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
   @ApiQuery({
     name: 'limit',
     required: false,
@@ -88,8 +100,14 @@ export class MessagesAgentController {
   @Get(':id')
   @ApiOperation({ summary: 'Agent: Get a single message + review status' })
   @ApiOkResponse({ description: 'Message details', type: MessageItemResponse })
-  @ApiNotFoundResponse({ description: 'Message not found', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
   findOne(@Req() req: RequestWithAgent, @Param('id') id: string) {
     return this.messagesService.findOneByAgent(id, req.agent.id);
   }
@@ -97,8 +115,14 @@ export class MessagesAgentController {
   @Delete(':id')
   @ApiOperation({ summary: 'Agent: Delete (retract) a message' })
   @ApiOkResponse({ description: 'Message deleted', type: DeletedResponse })
-  @ApiNotFoundResponse({ description: 'Message not found', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Invalid API key', type: ErrorResponse })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
   remove(@Req() req: RequestWithAgent, @Param('id') id: string) {
     return this.messagesService.deleteByAgent(id, req.agent.id);
   }

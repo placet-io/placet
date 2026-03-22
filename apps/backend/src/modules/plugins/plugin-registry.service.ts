@@ -15,11 +15,11 @@ export class PluginRegistryService implements OnModuleInit {
   private readonly logger = new Logger(PluginRegistryService.name);
   private readonly plugins = new Map<string, RegisteredPlugin>();
 
-  async onModuleInit() {
-    await this.discover();
+  onModuleInit() {
+    this.discover();
   }
 
-  async discover() {
+  discover() {
     const pluginsDir = this.getPluginsDir();
 
     if (!fs.existsSync(pluginsDir)) {
@@ -42,7 +42,7 @@ export class PluginRegistryService implements OnModuleInit {
       }
 
       try {
-        const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        const raw: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
         const manifest = PluginManifestSchema.parse(raw);
 
         const renderHtml = fs.existsSync(renderPath)

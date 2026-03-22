@@ -27,7 +27,8 @@ describe('PluginRegistryService', () => {
     service = module.get<PluginRegistryService>(PluginRegistryService);
 
     // Override getPluginsDir to use tmpDir
-    (service as any).getPluginsDir = () => tmpDir;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    (service as any)['getPluginsDir'] = () => tmpDir;
   });
 
   afterEach(() => {
@@ -38,7 +39,7 @@ describe('PluginRegistryService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should discover plugins with valid manifest', async () => {
+  it('should discover plugins with valid manifest', () => {
     const pluginDir = path.join(tmpDir, 'test-plugin');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
@@ -47,7 +48,7 @@ describe('PluginRegistryService', () => {
     );
     fs.writeFileSync(path.join(pluginDir, 'render.html'), validHtml);
 
-    await service.discover();
+    service.discover();
 
     expect(service.isRegistered('test-plugin')).toBe(true);
     expect(service.getManifests()).toHaveLength(1);
@@ -55,17 +56,17 @@ describe('PluginRegistryService', () => {
     expect(service.getRenderHtml('test-plugin')).toBe(validHtml);
   });
 
-  it('should skip directories without plugin.json', async () => {
+  it('should skip directories without plugin.json', () => {
     const pluginDir = path.join(tmpDir, 'no-manifest');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(path.join(pluginDir, 'render.html'), validHtml);
 
-    await service.discover();
+    service.discover();
 
     expect(service.getAllPlugins()).toHaveLength(0);
   });
 
-  it('should skip invalid manifest files', async () => {
+  it('should skip invalid manifest files', () => {
     const pluginDir = path.join(tmpDir, 'bad-plugin');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
@@ -73,12 +74,12 @@ describe('PluginRegistryService', () => {
       JSON.stringify({ invalid: true }),
     );
 
-    await service.discover();
+    service.discover();
 
     expect(service.getAllPlugins()).toHaveLength(0);
   });
 
-  it('should handle plugin without render.html gracefully', async () => {
+  it('should handle plugin without render.html gracefully', () => {
     const pluginDir = path.join(tmpDir, 'no-html');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
@@ -86,13 +87,13 @@ describe('PluginRegistryService', () => {
       JSON.stringify(validManifest),
     );
 
-    await service.discover();
+    service.discover();
 
     expect(service.isRegistered('test-plugin')).toBe(true);
     expect(service.getRenderHtml('test-plugin')).toBe('');
   });
 
-  it('should discover multiple plugins', async () => {
+  it('should discover multiple plugins', () => {
     const plugin1Dir = path.join(tmpDir, 'plugin-a');
     const plugin2Dir = path.join(tmpDir, 'plugin-b');
     fs.mkdirSync(plugin1Dir);
@@ -107,7 +108,7 @@ describe('PluginRegistryService', () => {
       JSON.stringify({ ...validManifest, name: 'plugin-b' }),
     );
 
-    await service.discover();
+    service.discover();
 
     expect(service.getAllPlugins()).toHaveLength(2);
     expect(service.isRegistered('plugin-a')).toBe(true);
@@ -120,19 +121,20 @@ describe('PluginRegistryService', () => {
     expect(service.isRegistered('nonexistent')).toBe(false);
   });
 
-  it('should handle empty plugins directory', async () => {
-    await service.discover();
+  it('should handle empty plugins directory', () => {
+    service.discover();
     expect(service.getAllPlugins()).toHaveLength(0);
   });
 
-  it('should handle nonexistent plugins directory', async () => {
-    (service as any).getPluginsDir = () => '/nonexistent/path';
+  it('should handle nonexistent plugins directory', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    (service as any)['getPluginsDir'] = () => '/nonexistent/path';
 
-    await service.discover();
+    service.discover();
     expect(service.getAllPlugins()).toHaveLength(0);
   });
 
-  it('should return full plugin details with getPlugin', async () => {
+  it('should return full plugin details with getPlugin', () => {
     const pluginDir = path.join(tmpDir, 'full-plugin');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
@@ -141,7 +143,7 @@ describe('PluginRegistryService', () => {
     );
     fs.writeFileSync(path.join(pluginDir, 'render.html'), validHtml);
 
-    await service.discover();
+    service.discover();
 
     const plugin = service.getPlugin('test-plugin');
     expect(plugin).toBeDefined();

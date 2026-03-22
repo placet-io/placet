@@ -9,6 +9,7 @@ A **Plugin** in HumanProxy defines a **custom message type**. It controls:
 3. **What logic runs client-side** — HTTP requests (send and receive), dynamic data fetching, user interactions
 
 A Plugin does **NOT** control:
+
 - Whether a message requires a review/response (that's the agent's decision per message)
 - The approve/reject buttons (that's the review system, orthogonal to plugins)
 - Authentication or routing (that's the platform)
@@ -27,6 +28,7 @@ Message
 ```
 
 A message can have:
+
 - **Plugin only** — renders custom UI, no user action needed (e.g. CRM product card)
 - **Review only** — default message rendering + approval/selection/form buttons
 - **Plugin + Review** — custom rendering + user action required
@@ -92,6 +94,7 @@ packages/plugins/
 ### render.html — Frontend Template
 
 A self-contained HTML document rendered in a **sandboxed iframe**. The platform injects:
+
 - **Tailwind CSS** (CDN or bundled)
 - A `HumanProxy` JavaScript bridge object
 - The plugin data as `window.__PLUGIN_DATA__`
@@ -118,7 +121,7 @@ A self-contained HTML document rendered in a **sandboxed iframe**. The platform 
   async function init() {
     try {
       const res = await HumanProxy.fetch(
-        `${data.apiBaseUrl || 'https://api.crm.io'}/products/${data.productId}`
+        `${data.apiBaseUrl || 'https://api.crm.io'}/products/${data.productId}`,
       );
       const product = await res.json();
 
@@ -208,6 +211,7 @@ The bridge is implemented via `window.postMessage`:
 ```
 
 **Why proxy fetch through the parent?**
+
 - The iframe sandbox doesn't have `allow-same-origin`, so cookies/auth won't leak
 - The parent can enforce domain allowlists from `plugin.json`
 - The parent can add rate limiting, logging, timeout enforcement
@@ -219,13 +223,13 @@ The bridge is implemented via `window.postMessage`:
 
 Reviews are **NOT plugins** — they are a built-in platform feature. The review system provides these types out of the box:
 
-| Type | Agent sends | User sees |
-|------|------------|-----------|
-| `approval` | `options: [{id, label, style}]` | Buttons (Approve/Reject/etc.) |
-| `selection` | `mode: "single"\|"multi", items: [{id, label}]` | Radio buttons or checkboxes |
-| `form` | `fields: [{name, type, label, required?}]` | Dynamic form |
-| `text-input` | `placeholder?, markdown?: boolean` | Textarea |
-| `freeform` | `{}` | Generic JSON response (used with custom plugin UIs) |
+| Type         | Agent sends                                     | User sees                                           |
+| ------------ | ----------------------------------------------- | --------------------------------------------------- |
+| `approval`   | `options: [{id, label, style}]`                 | Buttons (Approve/Reject/etc.)                       |
+| `selection`  | `mode: "single"\|"multi", items: [{id, label}]` | Radio buttons or checkboxes                         |
+| `form`       | `fields: [{name, type, label, required?}]`      | Dynamic form                                        |
+| `text-input` | `placeholder?, markdown?: boolean`              | Textarea                                            |
+| `freeform`   | `{}`                                            | Generic JSON response (used with custom plugin UIs) |
 
 The `freeform` type is the bridge between plugins and reviews: the plugin renders its own UI, and when the user interacts, the plugin calls `HumanProxy.emit('respond', { ... })` which submits the review response.
 
@@ -351,14 +355,14 @@ function PluginRenderer({ pluginName, data, message }: Props) {
 
 ## 6. Security Model
 
-| Concern | Solution |
-|---------|----------|
-| **DOM access** | `sandbox="allow-scripts"` — no `allow-same-origin`, no parent DOM access |
-| **Cookies/Storage** | Sandboxed iframe has no access to parent cookies or localStorage |
-| **HTTP requests** | Proxied through parent via postMessage; domain allowlist enforced |
-| **Script injection** | Plugin HTML is static per-plugin, not user-generated; loaded from disk |
-| **Resource limits** | Max iframe height, fetch timeout (30s), response size limit (5MB) |
-| **Plugin trust** | Built-in = trusted. Community = explicit install by admin + domain allowlist |
+| Concern              | Solution                                                                     |
+| -------------------- | ---------------------------------------------------------------------------- |
+| **DOM access**       | `sandbox="allow-scripts"` — no `allow-same-origin`, no parent DOM access     |
+| **Cookies/Storage**  | Sandboxed iframe has no access to parent cookies or localStorage             |
+| **HTTP requests**    | Proxied through parent via postMessage; domain allowlist enforced            |
+| **Script injection** | Plugin HTML is static per-plugin, not user-generated; loaded from disk       |
+| **Resource limits**  | Max iframe height, fetch timeout (30s), response size limit (5MB)            |
+| **Plugin trust**     | Built-in = trusted. Community = explicit install by admin + domain allowlist |
 
 ---
 
@@ -420,6 +424,7 @@ curl -X POST https://humanproxy.example.com/api/v1/messages \
 ## 9. Implementation Phases
 
 ### Phase 3a — Plugin Foundation (current)
+
 - [ ] Define `PluginManifest` TypeScript interface in `packages/shared`
 - [ ] Create `packages/plugins/` directory structure
 - [ ] Implement `PluginRegistryService` (backend discovery + validation)
@@ -428,11 +433,13 @@ curl -X POST https://humanproxy.example.com/api/v1/messages \
 - [ ] Build one example plugin: `crm-product` (demonstrates fetch, rendering, resize)
 
 ### Phase 3b — Built-in Review Types
+
 - [ ] Implement review type components (approval, selection, form, text-input)
 - [ ] These are React components, NOT plugins (no iframe needed)
 - [ ] Review response flow: Frontend → Backend → optional webhook callback
 
 ### Phase 5 — Community Plugins
+
 - [ ] `plugins.json` config file
 - [ ] Auto-install missing plugins on startup
 - [ ] Plugin settings UI in frontend

@@ -27,6 +27,7 @@ import {
   PresignDownloadResponse,
   PresignUploadResponse,
 } from '../../common/swagger-responses';
+import type { FastifyReply } from 'fastify';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -45,8 +46,14 @@ export class FilesController {
 
   @Get()
   @ApiOperation({ summary: 'List all files across chats' })
-  @ApiOkResponse({ description: 'List of attachments', type: [AttachmentResponse] })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiOkResponse({
+    description: 'List of attachments',
+    type: [AttachmentResponse],
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   @ApiQuery({
     name: 'type',
     required: false,
@@ -67,17 +74,32 @@ export class FilesController {
 
   @Post('presign-upload')
   @ApiOperation({ summary: 'Get presigned upload URL' })
-  @ApiCreatedResponse({ description: 'Presigned upload URL', type: PresignUploadResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiCreatedResponse({
+    description: 'Presigned upload URL',
+    type: PresignUploadResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   presignUpload(@Body() dto: PresignUploadDto) {
     return this.filesService.presignUpload(dto.filename, dto.mimeType);
   }
 
   @Get(':id/presign-download')
   @ApiOperation({ summary: 'Get presigned download URL by attachment ID' })
-  @ApiOkResponse({ description: 'Presigned download URL', type: PresignDownloadResponse })
-  @ApiNotFoundResponse({ description: 'Attachment not found', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiOkResponse({
+    description: 'Presigned download URL',
+    type: PresignDownloadResponse,
+  })
+  @ApiNotFoundResponse({
+    description: 'Attachment not found',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   async presignDownload(
     @Req() req: RequestWithUser,
     @Param('id') attachmentId: string,
@@ -91,42 +113,55 @@ export class FilesController {
   @ApiOperation({ summary: 'Download file directly by attachment ID' })
   @ApiProduces('application/octet-stream')
   @ApiOkResponse({ description: 'File stream' })
-  @ApiNotFoundResponse({ description: 'Attachment not found', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiNotFoundResponse({
+    description: 'Attachment not found',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   async download(
     @Req() req: RequestWithUser,
-    @Res() res: any,
+    @Res({ passthrough: false }) res: FastifyReply,
     @Param('id') attachmentId: string,
   ) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
     await this.verifyOwnership(req.user.id, attachment.message.channelId);
 
-    const s3Response = await this.filesService.getFileStream(attachment.storageKey);
+    const s3Response = await this.filesService.getFileStream(
+      attachment.storageKey,
+    );
 
-    res.header('Content-Type', attachment.mimeType);
-    res.header(
+    const safeFilename = attachment.filename.replace(/["\\\r\n]/g, '_');
+    void res.header('Content-Type', attachment.mimeType);
+    void res.header(
       'Content-Disposition',
-      `inline; filename="${attachment.filename}"`,
+      `inline; filename="${safeFilename}"`,
     );
     if (s3Response.ContentLength) {
-      res.header('Content-Length', String(s3Response.ContentLength));
+      void res.header('Content-Length', String(s3Response.ContentLength));
     }
 
     if (!s3Response.Body) {
-      res.status(404).send({ message: 'File body empty' });
+      void res.status(404).send({ message: 'File body empty' });
       return;
     }
 
+    const raw = res.raw;
     const stream = s3Response.Body.transformToWebStream();
     const reader = stream.getReader();
-    const pump = async () => {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { res.raw.end(); break; }
-        res.raw.write(value);
+    try {
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        raw.write(chunk.value as Buffer);
       }
-    };
-    await pump();
+      raw.end();
+    } catch {
+      reader.cancel().catch(() => {});
+      if (!raw.destroyed) raw.destroy();
+    }
   }
 
   private async verifyOwnership(userId: string, channelId: string) {

@@ -16,12 +16,7 @@ export type UserRole = z.infer<typeof UserRoleSchema>;
 export const MessageSenderTypeSchema = z.enum(['agent', 'user']);
 export type MessageSenderType = z.infer<typeof MessageSenderTypeSchema>;
 
-export const MessageStatusSchema = z.enum([
-  'info',
-  'success',
-  'warning',
-  'error',
-]);
+export const MessageStatusSchema = z.enum(['info', 'success', 'warning', 'error']);
 export type MessageStatus = z.infer<typeof MessageStatusSchema>;
 
 export const ReviewStatusSchema = z.enum(['pending', 'completed', 'expired']);
@@ -177,9 +172,7 @@ export const CreateAgentMessageSchema = z.object({
   review: ReviewSchema.omit({ status: true, response: true, completedAt: true }).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
-export type CreateAgentMessageRequest = z.infer<
-  typeof CreateAgentMessageSchema
->;
+export type CreateAgentMessageRequest = z.infer<typeof CreateAgentMessageSchema>;
 
 export const CreateUserMessageSchema = z.object({
   channelId: z.string().min(1),

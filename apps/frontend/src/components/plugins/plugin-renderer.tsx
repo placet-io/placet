@@ -36,6 +36,8 @@ export function PluginRenderer({
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [allowedDomains, setAllowedDomains] = useState<string[] | null>(null);
+  const [httpAllowed, setHttpAllowed] = useState(false);
 
   // Fetch the plugin's render.html from the backend
   useEffect(() => {
@@ -56,8 +58,25 @@ export function PluginRenderer({
         }
 
         const json = await res.json();
+
+        // Fetch plugin manifest to get permissions
+        let domains: string[] | null = null;
+        let canHttp = false;
+        try {
+          const manifestRes = await fetch(`/api/plugins/${pluginName}`, { credentials: 'include' });
+          if (manifestRes.ok) {
+            const manifest = await manifestRes.json();
+            canHttp = manifest.permissions?.httpRequests === true;
+            domains = manifest.permissions?.maxHttpDomains ?? null;
+          }
+        } catch {
+          // If manifest fetch fails, default to no HTTP
+        }
+
         if (!cancelled) {
           setRenderHtml(json.html);
+          setAllowedDomains(domains);
+          setHttpAllowed(canHttp);
           setLoading(false);
         }
       } catch (err) {
@@ -85,10 +104,7 @@ export function PluginRenderer({
 
       switch (msg.type) {
         case 'hp:resize': {
-          const h = Math.min(
-            Math.max(msg.payload?.height || DEFAULT_HEIGHT, 40),
-            MAX_HEIGHT,
-          );
+          const h = Math.min(Math.max(msg.payload?.height || DEFAULT_HEIGHT, 40), MAX_HEIGHT);
           setHeight(h);
           break;
         }
@@ -109,7 +125,54 @@ export function PluginRenderer({
 
         case 'hp:fetch': {
           // Proxy fetch on behalf of the sandboxed iframe
-          const { id, payload } = msg as { id: string; payload: { url: string; method?: string; headers?: Record<string, string>; body?: string } };
+          const { id, payload } = msg as {
+            id: string;
+            payload: {
+              url: string;
+              method?: string;
+              headers?: Record<string, string>;
+              body?: string;
+            };
+          };
+
+          // Enforce maxHttpDomains
+          if (!httpAllowed) {
+            iframe.contentWindow?.postMessage(
+              {
+                type: 'hp:fetch:response',
+                id,
+                payload: { ok: false, error: 'HTTP requests not permitted for this plugin' },
+              },
+              '*',
+            );
+            break;
+          }
+
+          if (allowedDomains && !allowedDomains.includes('*')) {
+            try {
+              const reqUrl = new URL(payload.url);
+              if (!allowedDomains.includes(reqUrl.hostname)) {
+                iframe.contentWindow?.postMessage(
+                  {
+                    type: 'hp:fetch:response',
+                    id,
+                    payload: {
+                      ok: false,
+                      error: `Domain "${reqUrl.hostname}" not in plugin allowlist`,
+                    },
+                  },
+                  '*',
+                );
+                break;
+              }
+            } catch {
+              iframe.contentWindow?.postMessage(
+                { type: 'hp:fetch:response', id, payload: { ok: false, error: 'Invalid URL' } },
+                '*',
+              );
+              break;
+            }
+          }
 
           try {
             const res = await fetch(payload.url, {
@@ -156,7 +219,10 @@ export function PluginRenderer({
 
         case 'hp:getFile': {
           // Download file content via internal endpoint and return as base64
-          const { id: fileId, payload: filePayload } = msg as { id: string; payload: { attachmentId: string } };
+          const { id: fileId, payload: filePayload } = msg as {
+            id: string;
+            payload: { attachmentId: string };
+          };
           try {
             const res = await fetch(`/api/files/${filePayload.attachmentId}/download`, {
               credentials: 'include',
@@ -171,7 +237,7 @@ export function PluginRenderer({
               reader.readAsDataURL(blob);
             });
 
-            const att = attachments.find(a => a.id === filePayload.attachmentId);
+            const att = attachments.find((a) => a.id === filePayload.attachmentId);
             iframe.contentWindow?.postMessage(
               {
                 type: 'hp:getFile:response',
@@ -179,7 +245,8 @@ export function PluginRenderer({
                 payload: {
                   ok: true,
                   data: base64,
-                  mimeType: att?.mimeType || res.headers.get('content-type') || 'application/octet-stream',
+                  mimeType:
+                    att?.mimeType || res.headers.get('content-type') || 'application/octet-stream',
                   filename: att?.filename || 'file',
                 },
               },
@@ -190,7 +257,10 @@ export function PluginRenderer({
               {
                 type: 'hp:getFile:response',
                 id: fileId,
-                payload: { ok: false, error: err instanceof Error ? err.message : 'getFile failed' },
+                payload: {
+                  ok: false,
+                  error: err instanceof Error ? err.message : 'getFile failed',
+                },
               },
               '*',
             );
@@ -200,7 +270,10 @@ export function PluginRenderer({
 
         case 'hp:getFileUrl': {
           // Get a presigned download URL for the attachment
-          const { id: urlId, payload: urlPayload } = msg as { id: string; payload: { attachmentId: string } };
+          const { id: urlId, payload: urlPayload } = msg as {
+            id: string;
+            payload: { attachmentId: string };
+          };
           try {
             const res = await fetch(`/api/files/${urlPayload.attachmentId}/presign-download`, {
               credentials: 'include',
@@ -221,7 +294,10 @@ export function PluginRenderer({
               {
                 type: 'hp:getFileUrl:response',
                 id: urlId,
-                payload: { ok: false, error: err instanceof Error ? err.message : 'getFileUrl failed' },
+                payload: {
+                  ok: false,
+                  error: err instanceof Error ? err.message : 'getFileUrl failed',
+                },
               },
               '*',
             );
@@ -230,7 +306,7 @@ export function PluginRenderer({
         }
       }
     },
-    [onAction, attachments],
+    [onAction, attachments, httpAllowed, allowedDomains],
   );
 
   useEffect(() => {
@@ -247,12 +323,13 @@ export function PluginRenderer({
     theme,
   };
 
-  const srcdoc =
-    renderHtml !== null ? buildSrcdoc(renderHtml, context) : undefined;
+  const srcdoc = renderHtml !== null ? buildSrcdoc(renderHtml, context) : undefined;
 
   if (error) {
     return (
-      <div className={`rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 p-3 text-sm text-red-600 dark:text-red-400 ${className || ''}`}>
+      <div
+        className={`rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 p-3 text-sm text-red-600 dark:text-red-400 ${className || ''}`}
+      >
         Plugin error: {error}
       </div>
     );
@@ -260,7 +337,9 @@ export function PluginRenderer({
 
   if (loading || !srcdoc) {
     return (
-      <div className={`rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-zinc-400 animate-pulse ${className || ''}`}>
+      <div
+        className={`rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-zinc-400 animate-pulse ${className || ''}`}
+      >
         Loading plugin…
       </div>
     );

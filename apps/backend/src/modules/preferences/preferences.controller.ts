@@ -25,15 +25,24 @@ export class PreferencesController {
   @Get()
   @ApiOperation({ summary: 'Get user preferences' })
   @ApiOkResponse({ description: 'User preferences', type: PreferencesResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   get(@Req() req: RequestWithUser) {
     return this.preferencesService.get(req.user.id);
   }
 
   @Patch()
   @ApiOperation({ summary: 'Update user preferences (theme)' })
-  @ApiOkResponse({ description: 'Preferences updated', type: PreferencesResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiOkResponse({
+    description: 'Preferences updated',
+    type: PreferencesResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   update(@Req() req: RequestWithUser, @Body() dto: UpdatePreferencesDto) {
     return this.preferencesService.update(req.user.id, dto);
   }

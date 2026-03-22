@@ -20,30 +20,30 @@ make setup
 
 Once complete:
 
-| Service | URL |
-|---------|-----|
-| **Frontend** | http://localhost:3000 |
-| **Backend API** | http://localhost:3001 |
-| **Swagger Docs** | http://localhost:3001/api/docs |
-| **MinIO Console** | http://localhost:9001 |
+| Service           | URL                            |
+| ----------------- | ------------------------------ |
+| **Frontend**      | http://localhost:3000          |
+| **Backend API**   | http://localhost:3001          |
+| **Swagger Docs**  | http://localhost:3001/api/docs |
+| **MinIO Console** | http://localhost:9001          |
 
 Default login: `admin@humanproxy.local` / `changeme` (configurable in `.env`).
 
 ### Make Commands
 
-| Command | Description |
-|---------|-------------|
-| `make setup` | First-time setup (install, build, Docker up, migrate) |
-| `make start` | Start all services |
-| `make stop` | Stop all services |
-| `make update` | Pull latest code, rebuild, migrate |
-| `make test` | Run unit + e2e tests |
-| `make lint` | Run linter across all packages |
-| `make validate` | Lint + format check + build |
-| `make logs` | Tail backend logs |
-| `make db-push` | Push Prisma schema to database |
-| `make clean` | Remove containers, volumes, node_modules |
-| `make reset` | Full reset (clean + setup) |
+| Command         | Description                                           |
+| --------------- | ----------------------------------------------------- |
+| `make setup`    | First-time setup (install, build, Docker up, migrate) |
+| `make start`    | Start all services                                    |
+| `make stop`     | Stop all services                                     |
+| `make update`   | Pull latest code, rebuild, migrate                    |
+| `make test`     | Run unit + e2e tests                                  |
+| `make lint`     | Run linter across all packages                        |
+| `make validate` | Lint + format check + build                           |
+| `make logs`     | Tail backend logs                                     |
+| `make db-push`  | Push Prisma schema to database                        |
+| `make clean`    | Remove containers, volumes, node_modules              |
+| `make reset`    | Full reset (clean + setup)                            |
 
 ### Environment
 
@@ -73,16 +73,16 @@ Full interactive docs available at `/api/docs` (Swagger). Below are the key endp
 
 ### Agent Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/messages` | Send a message (text, attachments, review request) |
-| `GET` | `/api/v1/messages` | List messages (paginated, searchable) |
-| `GET` | `/api/v1/messages/:id` | Get a single message with review status |
-| `DELETE` | `/api/v1/messages/:id` | Delete a message |
-| `POST` | `/api/v1/files/upload` | Get a presigned upload URL |
-| `GET` | `/api/v1/files` | List all files in the agent's chat |
-| `GET` | `/api/v1/files/:id/download` | Download file directly (streamed) |
-| `GET` | `/api/v1/files/:id/presign-download` | Get a presigned download URL (for external sharing) |
+| Method   | Endpoint                             | Description                                         |
+| -------- | ------------------------------------ | --------------------------------------------------- |
+| `POST`   | `/api/v1/messages`                   | Send a message (text, attachments, review request)  |
+| `GET`    | `/api/v1/messages`                   | List messages (paginated, searchable)               |
+| `GET`    | `/api/v1/messages/:id`               | Get a single message with review status             |
+| `DELETE` | `/api/v1/messages/:id`               | Delete a message                                    |
+| `POST`   | `/api/v1/files/upload`               | Get a presigned upload URL                          |
+| `GET`    | `/api/v1/files`                      | List all files in the agent's chat                  |
+| `GET`    | `/api/v1/files/:id/download`         | Download file directly (streamed)                   |
+| `GET`    | `/api/v1/files/:id/presign-download` | Get a presigned download URL (for external sharing) |
 
 ### Example: Send a Message
 
@@ -122,13 +122,13 @@ curl -X POST http://localhost:3001/api/v1/messages \
 
 ### Review Types
 
-| Type | Description |
-|------|-------------|
-| `approval` | Buttons (Approve / Reject / custom options) |
-| `selection` | Single or multi-select from a list |
-| `form` | Dynamic form with typed fields |
-| `text-input` | Free-text input with optional markdown |
-| `freeform` | Generic response (used with custom plugin UIs) |
+| Type         | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `approval`   | Buttons (Approve / Reject / custom options)    |
+| `selection`  | Single or multi-select from a list             |
+| `form`       | Dynamic form with typed fields                 |
+| `text-input` | Free-text input with optional markdown         |
+| `freeform`   | Generic response (used with custom plugin UIs) |
 
 ---
 
@@ -156,11 +156,11 @@ curl -X POST http://localhost:3001/api/v1/messages \
 
 ### Built-in Plugins
 
-| Plugin | Description |
-|--------|-------------|
-| `hello-world` | Minimal example — greeting card |
-| `status-badge` | Colored status badge with details |
-| `crm-product` | Product card with HTTP data fetching |
+| Plugin         | Description                          |
+| -------------- | ------------------------------------ |
+| `hello-world`  | Minimal example — greeting card      |
+| `status-badge` | Colored status badge with details    |
+| `crm-product`  | Product card with HTTP data fetching |
 
 For creating your own plugins, see **[Plugin Documentation](docs/plugins.md)**.
 

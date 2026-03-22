@@ -34,5 +34,8 @@ jobs:
       - name: Lint
         run: npx turbo lint
 
+      - name: Format check
+        run: npm run format:check
+
       - name: Test
         run: npx turbo test

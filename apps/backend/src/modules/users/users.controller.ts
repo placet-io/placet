@@ -43,8 +43,14 @@ export class UsersController {
   @Get()
   @ApiOperation({ summary: 'List all users (owner only)' })
   @ApiOkResponse({ description: 'List of users', type: [UserResponse] })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
-  @ApiForbiddenResponse({ description: 'Owner access required', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({
+    description: 'Owner access required',
+    type: ErrorResponse,
+  })
   findAll() {
     return this.usersService.findAll();
   }
@@ -52,9 +58,18 @@ export class UsersController {
   @Post()
   @ApiOperation({ summary: 'Create a new user (owner only)' })
   @ApiCreatedResponse({ description: 'User created', type: UserResponse })
-  @ApiConflictResponse({ description: 'Email already in use', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
-  @ApiForbiddenResponse({ description: 'Owner access required', type: ErrorResponse })
+  @ApiConflictResponse({
+    description: 'Email already in use',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({
+    description: 'Owner access required',
+    type: ErrorResponse,
+  })
   create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
   }
@@ -63,8 +78,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Update a user (owner only)' })
   @ApiOkResponse({ description: 'User updated', type: UserResponse })
   @ApiNotFoundResponse({ description: 'User not found', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
-  @ApiForbiddenResponse({ description: 'Owner access required', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({
+    description: 'Owner access required',
+    type: ErrorResponse,
+  })
   update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
   }
@@ -73,8 +94,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Delete a user (owner only)' })
   @ApiOkResponse({ description: 'User deleted', type: DeletedResponse })
   @ApiNotFoundResponse({ description: 'User not found', type: ErrorResponse })
-  @ApiForbiddenResponse({ description: 'Cannot delete own account / Owner access required', type: ErrorResponse })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated', type: ErrorResponse })
+  @ApiForbiddenResponse({
+    description: 'Cannot delete own account / Owner access required',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
   remove(@Req() req: RequestWithUser, @Param('id') id: string) {
     if (req.user.id === id) {
       throw new ForbiddenException('Cannot delete your own account');

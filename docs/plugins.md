@@ -42,7 +42,7 @@ mkdir packages/plugins/my-plugin
     "type": "object",
     "properties": {
       "title": { "type": "string", "description": "Title to display" },
-      "url":   { "type": "string", "format": "uri" }
+      "url": { "type": "string", "format": "uri" }
     },
     "required": ["title"]
   },
@@ -53,17 +53,17 @@ mkdir packages/plugins/my-plugin
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Unique plugin identifier (kebab-case) |
-| `displayName` | Yes | Human-readable name |
-| `version` | Yes | Semver version |
-| `description` | No | Short description |
-| `author` | No | Author name |
-| `icon` | No | Lucide icon name |
-| `inputSchema` | No | JSON Schema for the plugin's input data |
-| `permissions.httpRequests` | No | Whether the plugin can make HTTP requests |
-| `permissions.maxHttpDomains` | No | Allowed domains for HTTP requests (`["*"]` = any) |
+| Field                        | Required | Description                                       |
+| ---------------------------- | -------- | ------------------------------------------------- |
+| `name`                       | Yes      | Unique plugin identifier (kebab-case)             |
+| `displayName`                | Yes      | Human-readable name                               |
+| `version`                    | Yes      | Semver version                                    |
+| `description`                | No       | Short description                                 |
+| `author`                     | No       | Author name                                       |
+| `icon`                       | No       | Lucide icon name                                  |
+| `inputSchema`                | No       | JSON Schema for the plugin's input data           |
+| `permissions.httpRequests`   | No       | Whether the plugin can make HTTP requests         |
+| `permissions.maxHttpDomains` | No       | Allowed domains for HTTP requests (`["*"]` = any) |
 
 ### 3. Create `render.html`
 
@@ -128,29 +128,31 @@ HumanProxy.toast('Action completed', 'success');
 HumanProxy.emit('respond', { approved: true });
 
 // Listen for events from the parent
-HumanProxy.on('theme-changed', (data) => { /* ... */ });
+HumanProxy.on('theme-changed', (data) => {
+  /* ... */
+});
 ```
 
 ### Properties
 
-| Property | Description |
-|----------|-------------|
-| `HumanProxy.data` | Plugin input data from the message metadata |
-| `HumanProxy.attachments` | Array of attached files (`{ id, filename, mimeType, size }`) |
-| `HumanProxy.message` | Message context (`id`, `channelId`, `senderType`, `createdAt`) |
-| `HumanProxy.theme` | Current theme (`'light'` or `'dark'`) |
+| Property                 | Description                                                    |
+| ------------------------ | -------------------------------------------------------------- |
+| `HumanProxy.data`        | Plugin input data from the message metadata                    |
+| `HumanProxy.attachments` | Array of attached files (`{ id, filename, mimeType, size }`)   |
+| `HumanProxy.message`     | Message context (`id`, `channelId`, `senderType`, `createdAt`) |
+| `HumanProxy.theme`       | Current theme (`'light'` or `'dark'`)                          |
 
 ### Methods
 
-| Method | Description |
-|--------|-------------|
-| `HumanProxy.getFile(attachmentId)` | Get file content as base64 data URL (for rendering, parsing) |
-| `HumanProxy.getFileUrl(attachmentId)` | Get a presigned download URL (for sharing, external use) |
-| `HumanProxy.fetch(url, options?)` | Proxied HTTP request (respects `maxHttpDomains`) |
-| `HumanProxy.resize()` | Resize iframe to fit content |
-| `HumanProxy.toast(message, type?)` | Show toast (`'info'`, `'success'`, `'warning'`, `'error'`) |
-| `HumanProxy.emit(action, data?)` | Send action to parent |
-| `HumanProxy.on(event, handler)` | Listen for parent events |
+| Method                                | Description                                                  |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `HumanProxy.getFile(attachmentId)`    | Get file content as base64 data URL (for rendering, parsing) |
+| `HumanProxy.getFileUrl(attachmentId)` | Get a presigned download URL (for sharing, external use)     |
+| `HumanProxy.fetch(url, options?)`     | Proxied HTTP request (respects `maxHttpDomains`)             |
+| `HumanProxy.resize()`                 | Resize iframe to fit content                                 |
+| `HumanProxy.toast(message, type?)`    | Show toast (`'info'`, `'success'`, `'warning'`, `'error'`)   |
+| `HumanProxy.emit(action, data?)`      | Send action to parent                                        |
+| `HumanProxy.on(event, handler)`       | Listen for parent events                                     |
 
 ---
 
@@ -194,11 +196,11 @@ Plugins and reviews are independent — you can combine them:
 
 ## Built-in Plugins
 
-| Plugin | Description |
-|--------|-------------|
-| `hello-world` | Minimal example — renders a greeting card |
+| Plugin         | Description                                 |
+| -------------- | ------------------------------------------- |
+| `hello-world`  | Minimal example — renders a greeting card   |
 | `status-badge` | Colored status badge with label and details |
-| `crm-product` | Product card with HTTP data fetching |
+| `crm-product`  | Product card with HTTP data fetching        |
 
 ---
 

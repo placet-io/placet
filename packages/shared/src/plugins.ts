@@ -29,13 +29,7 @@ export type PluginManifest = z.infer<typeof PluginManifestSchema>;
 
 // ── Review Types (built-in, NOT plugins) ────────────────────────────────────
 
-export const ReviewTypeSchema = z.enum([
-  'approval',
-  'selection',
-  'form',
-  'text-input',
-  'freeform',
-]);
+export const ReviewTypeSchema = z.enum(['approval', 'selection', 'form', 'text-input', 'freeform']);
 export type ReviewType = z.infer<typeof ReviewTypeSchema>;
 
 // -- Approval
@@ -85,10 +79,14 @@ export const FormFieldSchema = z.object({
   label: z.string().min(1),
   required: z.boolean().optional(),
   placeholder: z.string().optional(),
-  options: z.array(z.object({
-    value: z.string(),
-    label: z.string(),
-  })).optional(),
+  options: z
+    .array(
+      z.object({
+        value: z.string(),
+        label: z.string(),
+      }),
+    )
+    .optional(),
   defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
 });
 
@@ -130,10 +128,7 @@ export type FreeformResponse = z.infer<typeof FreeformResponseSchema>;
 
 // ── Review Type Registry ────────────────────────────────────────────────────
 
-export const reviewTypeSchemas: Record<
-  ReviewType,
-  { input: z.ZodType; response: z.ZodType }
-> = {
+export const reviewTypeSchemas: Record<ReviewType, { input: z.ZodType; response: z.ZodType }> = {
   approval: { input: ApprovalInputSchema, response: ApprovalResponseSchema },
   selection: { input: SelectionInputSchema, response: SelectionResponseSchema },
   form: { input: FormInputSchema, response: FormResponseSchema },
@@ -175,16 +170,18 @@ export interface BridgeFetchRequest {
 export interface BridgeFetchResponse {
   type: 'hp:fetch:response';
   id: string;
-  payload: {
-    ok: boolean;
-    status: number;
-    statusText: string;
-    headers: Record<string, string>;
-    body: string;
-  } | {
-    ok: false;
-    error: string;
-  };
+  payload:
+    | {
+        ok: boolean;
+        status: number;
+        statusText: string;
+        headers: Record<string, string>;
+        body: string;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
 }
 
 export interface BridgeResizeMessage {
@@ -225,15 +222,17 @@ export interface BridgeGetFileRequest {
 export interface BridgeGetFileResponse {
   type: 'hp:getFile:response';
   id: string;
-  payload: {
-    ok: true;
-    data: string;
-    mimeType: string;
-    filename: string;
-  } | {
-    ok: false;
-    error: string;
-  };
+  payload:
+    | {
+        ok: true;
+        data: string;
+        mimeType: string;
+        filename: string;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
 }
 
 export interface BridgeGetFileUrlRequest {
@@ -245,13 +244,15 @@ export interface BridgeGetFileUrlRequest {
 export interface BridgeGetFileUrlResponse {
   type: 'hp:getFileUrl:response';
   id: string;
-  payload: {
-    ok: true;
-    url: string;
-  } | {
-    ok: false;
-    error: string;
-  };
+  payload:
+    | {
+        ok: true;
+        url: string;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
 }
 
 // ── Attachment Info (passed to plugin context) ──────────────────────────────

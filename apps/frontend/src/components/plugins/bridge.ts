@@ -6,27 +6,23 @@
  * the parent application via postMessage.
  */
 
-import type {
-  BridgeFetchRequest,
-  BridgeFetchResponse,
-  BridgeResizeMessage,
-  BridgeToastMessage,
-  BridgeEmitMessage,
-  BridgeEventMessage,
-  PluginRendererContext,
-} from '@humanproxy/shared';
+import type { PluginRendererContext } from '@humanproxy/shared';
 
 // ── Bridge script injected into iframe srcdoc ───────────────────────────────
+
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value).replace(/<\//g, '<\\/');
+}
 
 export function buildBridgeScript(context: PluginRendererContext): string {
   return `
 <script>
 (function() {
   // Plugin data injected by the platform
-  window.__PLUGIN_DATA__ = ${JSON.stringify(context.data)};
-  window.__PLUGIN_ATTACHMENTS__ = ${JSON.stringify(context.attachments)};
-  window.__PLUGIN_MESSAGE__ = ${JSON.stringify(context.message)};
-  window.__PLUGIN_THEME__ = ${JSON.stringify(context.theme)};
+  window.__PLUGIN_DATA__ = ${safeJsonForScript(context.data)};
+  window.__PLUGIN_ATTACHMENTS__ = ${safeJsonForScript(context.attachments)};
+  window.__PLUGIN_MESSAGE__ = ${safeJsonForScript(context.message)};
+  window.__PLUGIN_THEME__ = ${safeJsonForScript(context.theme)};
 
   var _callbackId = 0;
   var _pendingCallbacks = {};
@@ -162,10 +158,7 @@ export function buildBridgeScript(context: PluginRendererContext): string {
 
 const TAILWIND_CDN = 'https://cdn.tailwindcss.com';
 
-export function buildSrcdoc(
-  renderHtml: string,
-  context: PluginRendererContext,
-): string {
+export function buildSrcdoc(renderHtml: string, context: PluginRendererContext): string {
   const bridgeScript = buildBridgeScript(context);
   const darkClass = context.theme === 'dark' ? 'class="dark"' : '';
 

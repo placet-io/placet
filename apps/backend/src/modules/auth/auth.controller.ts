@@ -29,8 +29,14 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
-  @ApiOkResponse({ description: 'Login successful, JWT cookie set', type: LoginResponse })
-  @ApiUnauthorizedResponse({ description: 'Invalid credentials', type: ErrorResponse })
+  @ApiOkResponse({
+    description: 'Login successful, JWT cookie set',
+    type: LoginResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid credentials',
+    type: ErrorResponse,
+  })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: FastifyReply,

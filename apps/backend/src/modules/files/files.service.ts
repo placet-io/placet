@@ -19,11 +19,13 @@ export class FilesService {
     private readonly config: ConfigService,
   ) {
     this.bucket = this.config.get<string>('MINIO_BUCKET', 'humanproxy');
+
+    const host = this.config.get<string>('MINIO_ENDPOINT', 'localhost');
+    const port = this.config.get<string>('MINIO_PORT', '9000');
+    const endpoint = host.startsWith('http') ? host : `http://${host}:${port}`;
+
     this.s3 = new S3Client({
-      endpoint: this.config.get<string>(
-        'MINIO_ENDPOINT',
-        'http://localhost:9000',
-      ),
+      endpoint,
       region: 'us-east-1',
       credentials: {
         accessKeyId: this.config.get<string>('MINIO_ACCESS_KEY', 'minioadmin'),
@@ -64,7 +66,14 @@ export class FilesService {
       where: { ownerId: userId },
       select: { id: true },
     });
-    const agentIds = query.agentId ? [query.agentId] : agents.map((a) => a.id);
+    const ownedIds = new Set(agents.map((a) => a.id));
+
+    // If agentId filter is provided, verify the user owns it
+    if (query.agentId && !ownedIds.has(query.agentId)) {
+      return [];
+    }
+
+    const agentIds = query.agentId ? [query.agentId] : [...ownedIds];
 
     const where: Prisma.AttachmentWhereInput = {
       message: { channelId: { in: agentIds } },
