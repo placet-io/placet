@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import {
@@ -87,5 +87,28 @@ export class FilesService {
       where: { message: { channelId: agentId } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async findAttachmentById(attachmentId: string) {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { message: { select: { channelId: true } } },
+    });
+    if (!attachment) throw new NotFoundException('Attachment not found');
+    return attachment;
+  }
+
+  async getFileStream(storageKey: string) {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: storageKey,
+    });
+    const response = await this.s3.send(command);
+    return response;
+  }
+
+  async presignDownloadById(attachmentId: string) {
+    const attachment = await this.findAttachmentById(attachmentId);
+    return this.presignDownload(attachment.storageKey);
   }
 }

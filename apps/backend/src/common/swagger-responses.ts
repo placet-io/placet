@@ -273,16 +273,27 @@ export class HealthResponse {
 
 // ── Errors ─────────────────────────────────────────────────────────────────
 
+export class ZodValidationError {
+  @ApiProperty({ example: 'invalid_type' })
+  code: string;
+
+  @ApiProperty({ example: 'Expected string, received number' })
+  message: string;
+
+  @ApiProperty({ example: ['email'], type: [String] })
+  path: string[];
+}
+
 export class ErrorResponse {
   @ApiProperty({ example: 400 })
   statusCode: number;
 
-  @ApiProperty({ example: 'Bad Request' })
+  @ApiProperty({ example: 'Validation failed' })
   message: string;
 
   @ApiPropertyOptional({
-    example: ['email must be an email'],
-    type: [String],
+    description: 'Zod validation errors (only on 400)',
+    type: [ZodValidationError],
   })
-  errors?: string[];
+  errors?: ZodValidationError[];
 }

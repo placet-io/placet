@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: humanproxy
-      POSTGRES_PASSWORD: humanproxy
-      POSTGRES_DB: humanproxy
+      POSTGRES_USER: ${POSTGRES_USER:-humanproxy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-humanproxy}
+      POSTGRES_DB: ${POSTGRES_DB:-humanproxy}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U humanproxy"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-humanproxy}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,8 +21,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -43,17 +43,19 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      NODE_ENV: production
-      BACKEND_PORT: 3001
-      DATABASE_URL: postgresql://humanproxy:humanproxy@postgres:5432/humanproxy
+      NODE_ENV: ${NODE_ENV:-production}
+      BACKEND_PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-humanproxy}:${POSTGRES_PASSWORD:-humanproxy}@postgres:5432/${POSTGRES_DB:-humanproxy}
       MINIO_ENDPOINT: minio
-      MINIO_PORT: 9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: humanproxy
-      JWT_SECRET: change-me-in-production
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-humanproxy}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@humanproxy.local}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
     ports:
-      - "3001:3001"
+      - "${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}"
 
   frontend:
     build:
@@ -63,7 +65,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:3001
+      NEXT_PUBLIC_API_URL: http://backend:${BACKEND_PORT:-3001}
     ports:
       - "3000:3000"
 

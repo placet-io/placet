@@ -18,6 +18,7 @@ RUN cd apps/backend && npx prisma generate
 FROM prisma AS build
 COPY tsconfig.base.json ./
 COPY packages/shared/ ./packages/shared/
+COPY packages/plugins/ ./packages/plugins/
 RUN npm run build --workspace=@humanproxy/shared
 COPY apps/backend/ ./apps/backend/
 RUN npm run build --workspace=@humanproxy/backend
@@ -28,6 +29,7 @@ ENV NODE_ENV=production
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
+COPY --from=build /app/packages/plugins ./packages/plugins
 COPY --from=build /app/apps/backend/dist ./apps/backend/dist
 COPY --from=build /app/apps/backend/package.json ./apps/backend/
 COPY --from=build /app/apps/backend/prisma ./apps/backend/prisma

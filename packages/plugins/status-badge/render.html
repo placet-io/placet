@@ -1,0 +1,38 @@
+<div id="plugin-root">
+  <div id="badge" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium">
+    <span id="dot" class="w-2 h-2 rounded-full"></span>
+    <span id="label"></span>
+  </div>
+  <p id="details" class="hidden mt-2 text-sm text-zinc-500 dark:text-zinc-400"></p>
+</div>
+
+<script>
+  const data = window.__PLUGIN_DATA__;
+
+  const variants = {
+    success: { bg: 'bg-emerald-50 dark:bg-emerald-950', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
+    warning: { bg: 'bg-amber-50 dark:bg-amber-950', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
+    error:   { bg: 'bg-red-50 dark:bg-red-950', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
+    info:    { bg: 'bg-blue-50 dark:bg-blue-950', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
+    neutral: { bg: 'bg-zinc-100 dark:bg-zinc-800', text: 'text-zinc-700 dark:text-zinc-300', dot: 'bg-zinc-400' },
+  };
+
+  const v = variants[data.variant] || variants.neutral;
+  const badge = document.getElementById('badge');
+  badge.className += ` ${v.bg} ${v.text}`;
+  document.getElementById('dot').className += ` ${v.dot}`;
+  document.getElementById('label').textContent = data.label;
+
+  if (data.details) {
+    const el = document.getElementById('details');
+    el.textContent = data.details;
+    el.classList.remove('hidden');
+  }
+
+  if (data.url) {
+    badge.style.cursor = 'pointer';
+    badge.addEventListener('click', () => window.open(data.url, '_blank'));
+  }
+
+  HumanProxy.resize();
+</script>

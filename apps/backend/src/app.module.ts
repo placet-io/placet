@@ -14,6 +14,7 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { EventsModule } from './modules/gateway/events.module';
+import { PluginsModule } from './modules/plugins/plugins.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
 
 @Module({
@@ -38,6 +39,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
     LogsModule,
     WebhooksModule,
     EventsModule,
+    PluginsModule,
   ],
   controllers: [AppController],
   providers: [

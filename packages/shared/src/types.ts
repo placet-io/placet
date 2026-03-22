@@ -174,7 +174,7 @@ export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
 export const CreateAgentMessageSchema = z.object({
   text: z.string().optional(),
   status: MessageStatusSchema.optional(),
-  review: z.record(z.string(), z.unknown()).optional(),
+  review: ReviewSchema.omit({ status: true, response: true, completedAt: true }).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type CreateAgentMessageRequest = z.infer<
