@@ -13,7 +13,7 @@ import { FilesModule } from './modules/files/files.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
-import { EventsModule } from './modules/gateway/events.module';
+import { EventsModule } from './modules/events/events.module';
 import { PluginsModule } from './modules/plugins/plugins.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';

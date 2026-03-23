@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MessagesService } from './messages.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { EventsGateway } from '../gateway/events.gateway';
-import { WebhookService } from '../webhooks/webhook.service';
+import { EventsGateway } from '../events/events.gateway';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -44,7 +44,7 @@ describe('MessagesService', () => {
         MessagesService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventsGateway, useValue: events },
-        { provide: WebhookService, useValue: webhooks },
+        { provide: WebhooksService, useValue: webhooks },
       ],
     }).compile();
 

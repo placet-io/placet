@@ -15,12 +15,12 @@ import {
 } from '@nestjs/swagger';
 import { ErrorResponse } from '../../common/swagger-responses';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PluginRegistryService } from './plugin-registry.service';
+import { PluginsService } from './plugins.service';
 
 @ApiTags('Plugins')
 @Controller('api/plugins')
 export class PluginsController {
-  constructor(private readonly registry: PluginRegistryService) {}
+  constructor(private readonly registry: PluginsService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)

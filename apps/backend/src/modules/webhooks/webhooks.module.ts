@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
-import { WebhookService } from './webhook.service';
+import { WebhooksService } from './webhooks.service';
+import { LogsModule } from '../logs/logs.module';
 
 @Module({
-  providers: [WebhookService],
-  exports: [WebhookService],
+  imports: [LogsModule],
+  providers: [WebhooksService],
+  exports: [WebhooksService],
 })
 export class WebhooksModule {}

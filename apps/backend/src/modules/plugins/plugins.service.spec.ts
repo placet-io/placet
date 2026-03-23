@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PluginRegistryService } from './plugin-registry.service';
+import { PluginsService } from './plugins.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-describe('PluginRegistryService', () => {
-  let service: PluginRegistryService;
+describe('PluginsService', () => {
+  let service: PluginsService;
   let tmpDir: string;
 
   const validManifest = {
@@ -21,10 +21,10 @@ describe('PluginRegistryService', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hp-plugins-'));
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PluginRegistryService],
+      providers: [PluginsService],
     }).compile();
 
-    service = module.get<PluginRegistryService>(PluginRegistryService);
+    service = module.get<PluginsService>(PluginsService);
 
     // Override getPluginsDir to use tmpDir
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access

@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { PluginRegistryService } from './plugin-registry.service';
+import { PluginsService } from './plugins.service';
 import { PluginsController } from './plugins.controller';
 
 @Module({
-  providers: [PluginRegistryService],
+  providers: [PluginsService],
   controllers: [PluginsController],
-  exports: [PluginRegistryService],
+  exports: [PluginsService],
 })
 export class PluginsModule {}

@@ -4,7 +4,7 @@ import { MessagesAgentController } from './messages-agent.controller';
 import { ReviewsAgentController } from './reviews-agent.controller';
 import { MessagesService } from './messages.service';
 import { WebhooksModule } from '../webhooks/webhooks.module';
-import { EventsModule } from '../gateway/events.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [WebhooksModule, EventsModule],

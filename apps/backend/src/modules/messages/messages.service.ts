@@ -5,8 +5,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { EventsGateway } from '../gateway/events.gateway';
-import { WebhookService } from '../webhooks/webhook.service';
+import { EventsGateway } from '../events/events.gateway';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { RespondReviewDto } from './dto/respond-review.dto';
 
@@ -15,7 +15,7 @@ export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
-    private readonly webhooks: WebhookService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   // ── Agent API ──────────────────────────────────────────────
@@ -179,6 +179,7 @@ export class MessagesService {
           channelId,
           message,
         },
+        { userId, agentId: channelId },
       );
     }
 
@@ -343,23 +344,28 @@ export class MessagesService {
     const meta = (message.metadata ?? {}) as Record<string, unknown>;
     const messageWebhookUrl = meta.webhookUrl as string | undefined;
 
+    const logCtx = { userId, agentId: message.channelId };
+
     if (messageWebhookUrl) {
       // Tier 2: Message-level webhook override
       void this.webhooks.dispatch(
         { url: messageWebhookUrl, method: 'POST' },
         reviewPayload,
+        logCtx,
       );
     } else if (message.agent.webhookUrl) {
       // Tier 1: Chat-level default webhook
       void this.webhooks.dispatch(
         { url: message.agent.webhookUrl, method: 'POST' },
         reviewPayload,
+        logCtx,
       );
     } else if (review.callback) {
       // Legacy: inline review callback
       void this.webhooks.dispatch(
         review.callback as { url: string; method: string },
         reviewPayload,
+        logCtx,
       );
     }
 

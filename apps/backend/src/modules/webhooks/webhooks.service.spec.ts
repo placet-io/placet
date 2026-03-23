@@ -1,16 +1,16 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { WebhookService } from './webhook.service';
+import { WebhooksService } from './webhooks.service';
 
-describe('WebhookService', () => {
-  let service: WebhookService;
+describe('WebhooksService', () => {
+  let service: WebhooksService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [WebhookService],
+      providers: [WebhooksService],
     }).compile();
 
-    service = module.get<WebhookService>(WebhookService);
+    service = module.get<WebhooksService>(WebhooksService);
   });
 
   describe('dispatch', () => {

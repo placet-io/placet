@@ -11,8 +11,8 @@ export interface RegisteredPlugin {
 }
 
 @Injectable()
-export class PluginRegistryService implements OnModuleInit {
-  private readonly logger = new Logger(PluginRegistryService.name);
+export class PluginsService implements OnModuleInit {
+  private readonly logger = new Logger(PluginsService.name);
   private readonly plugins = new Map<string, RegisteredPlugin>();
 
   onModuleInit() {
