@@ -71,10 +71,10 @@ describe('UsersService', () => {
       });
       expect(result.email).toBe('new@test.com');
       expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
             mustChangePassword: true,
-          }),
+          }) as unknown,
         }),
       );
     });

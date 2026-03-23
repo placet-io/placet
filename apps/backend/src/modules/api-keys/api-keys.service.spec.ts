@@ -144,13 +144,13 @@ describe('ApiKeysService', () => {
       expect(result.key).toMatch(/^hp_/);
       expect(result.id).toBe('k1');
       expect(prisma.apiKey.update).toHaveBeenCalledWith(
-        expect.objectContaining({
+        expect.objectContaining<Record<string, unknown>>({
           where: { id: 'k1' },
-          data: expect.objectContaining({
-            keyHash: expect.any(String),
-            keyPrefix: expect.any(String),
+          data: expect.objectContaining<Record<string, unknown>>({
+            keyHash: expect.any(String) as unknown,
+            keyPrefix: expect.any(String) as unknown,
             lastUsedAt: null,
-          }),
+          }) as unknown,
         }),
       );
     });
@@ -185,8 +185,10 @@ describe('ApiKeysService', () => {
 
       await service.rotate('k1', 'u1');
       expect(prisma.apiKey.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ lastUsedAt: null }),
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
+            lastUsedAt: null,
+          }),
         }),
       );
     });

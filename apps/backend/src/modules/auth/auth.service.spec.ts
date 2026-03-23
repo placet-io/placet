@@ -196,12 +196,12 @@ describe('AuthService', () => {
 
       expect(result).toEqual({ message: 'Password changed successfully' });
       expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({
+        expect.objectContaining<Record<string, unknown>>({
           where: { id: 'u1' },
-          data: expect.objectContaining({
-            passwordHash: expect.any(String),
+          data: expect.objectContaining<Record<string, unknown>>({
+            passwordHash: expect.any(String) as unknown,
             mustChangePassword: false,
-          }),
+          }) as unknown,
         }),
       );
     });
@@ -234,10 +234,10 @@ describe('AuthService', () => {
       await service.onModuleInit();
 
       expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
             mustChangePassword: true,
-          }),
+          }) as unknown,
         }),
       );
     });
