@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
+import { hashPassword, verifyPassword } from '../../common/crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface JwtPayload {
@@ -42,13 +42,14 @@ export class AuthService implements OnModuleInit {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) return;
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await hashPassword(password);
     await this.prisma.user.create({
       data: {
         email,
         displayName: 'Admin',
         passwordHash,
         role: 'owner',
+        mustChangePassword: true,
       },
     });
 
@@ -61,7 +62,7 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -79,8 +80,35 @@ export class AuthService implements OnModuleInit {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
     };
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const valid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, mustChangePassword: false },
+    });
+
+    return { message: 'Password changed successfully' };
   }
 
   async validateJwtPayload(payload: JwtPayload) {
@@ -91,5 +119,30 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('User not found');
     }
     return user;
+  }
+
+  async refresh(currentPayload: JwtPayload) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: currentPayload.sub },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    return {
+      accessToken: this.jwt.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    };
   }
 }

@@ -12,9 +12,9 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Observable, tap } from 'rxjs';
 import { LogsService } from '../modules/logs/logs.service';
 
-interface AgentApiRequest extends FastifyRequest {
-  agent?: { id: string };
+interface ApiKeyRequest extends FastifyRequest {
   user?: { id: string };
+  apiKeyId?: string;
 }
 
 @Injectable()
@@ -26,16 +26,20 @@ export class ApiLoggerInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const request = context.switchToHttp().getRequest<AgentApiRequest>();
+    const request = context.switchToHttp().getRequest<ApiKeyRequest>();
     const isAgentApi = request.url?.startsWith('/api/v1/');
 
-    if (!isAgentApi || !request.agent || !this.logsService) {
+    if (!isAgentApi || !request.user || !this.logsService) {
       return next.handle();
     }
 
     const logsService = this.logsService;
-    const agentId = request.agent.id;
-    const userId = request.user?.id ?? '';
+    // Extract agentId from query param 'channel' or body 'channelId'
+    const agentId =
+      (request.query as Record<string, string>)?.channel ??
+      (request.body as Record<string, string>)?.channelId ??
+      null;
+    const userId = request.user.id;
     const startTime = Date.now();
 
     return next.handle().pipe(

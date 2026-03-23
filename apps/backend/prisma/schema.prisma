@@ -12,9 +12,11 @@ model User {
   displayName  String   @map("display_name")
   passwordHash String   @map("password_hash")
   role         String   @default("member") // 'owner' | 'member'
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   createdAt    DateTime @default(now()) @map("created_at")
 
   agents      Agent[]
+  apiKeys     ApiKey[]
   apiLogs     ApiLog[]
   preferences UserPreferences?
 
@@ -26,10 +28,11 @@ model Agent {
   ownerId      String    @map("owner_id")
   name         String
   description  String?
-  apiKeyHash   String    @unique @map("api_key_hash")
-  apiKeyPrefix String    @map("api_key_prefix") // first 8 chars for display: "hp_a3f8..."
   avatarUrl    String?   @map("avatar_url")
-  lastActiveAt DateTime? @map("last_active_at")
+  webhookUrl     String?   @map("webhook_url") // default webhook for this chat
+  webhookHeaders Json?     @map("webhook_headers") // custom headers as { key: value }
+  webhookAuth    Json?     @map("webhook_auth") // basic auth as { username, password }
+  lastActiveAt   DateTime? @map("last_active_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
   owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -37,6 +40,21 @@ model Agent {
   apiLogs  ApiLog[]
 
   @@map("agents")
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  label     String   @default("Default")
+  keyHash   String   @unique @map("key_hash")
+  keyPrefix String   @map("key_prefix") // first 11 chars for display: "hp_a3f8..."
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "idx_api_keys_user")
+  @@map("api_keys")
 }
 
 model Message {

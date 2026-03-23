@@ -64,11 +64,11 @@ export class AgentResponse {
   @ApiPropertyOptional({ example: 'A helpful assistant' })
   description?: string;
 
-  @ApiProperty({ example: 'hp_abc1234' })
-  apiKeyPrefix: string;
-
   @ApiPropertyOptional({ example: 'https://example.com/avatar.png' })
   avatarUrl?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/webhook' })
+  webhookUrl?: string;
 
   @ApiPropertyOptional({ example: '2025-01-01T12:00:00.000Z' })
   lastActiveAt?: string;
@@ -77,22 +77,34 @@ export class AgentResponse {
   createdAt: string;
 }
 
-export class CreateAgentResponse extends AgentResponse {
+// ── API Key ───────────────────────────────────────────────────────────────
+
+export class ApiKeyResponse {
+  @ApiProperty({ example: 'clxyz789' })
+  id: string;
+
+  @ApiProperty({ example: 'clxyz123' })
+  userId: string;
+
+  @ApiProperty({ example: 'Production' })
+  label: string;
+
+  @ApiProperty({ example: 'hp_a3f8abc' })
+  keyPrefix: string;
+
+  @ApiPropertyOptional({ example: '2025-06-01T12:00:00.000Z' })
+  lastUsedAt?: string;
+
+  @ApiProperty({ example: '2025-01-01T00:00:00.000Z' })
+  createdAt: string;
+}
+
+export class CreateApiKeyResponse extends ApiKeyResponse {
   @ApiProperty({
     example: 'hp_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6',
     description: 'Full API key — shown only once at creation',
   })
-  apiKey: string;
-}
-
-export class RotateKeyResponse {
-  @ApiProperty({
-    example: 'hp_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6',
-  })
-  apiKey: string;
-
-  @ApiProperty({ example: 'hp_abc1234' })
-  apiKeyPrefix: string;
+  key: string;
 }
 
 // ── Attachment ─────────────────────────────────────────────────────────────

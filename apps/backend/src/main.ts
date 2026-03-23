@@ -21,8 +21,10 @@ async function bootstrap() {
   await app.register(fastifyCookie as Parameters<typeof app.register>[0]);
 
   app.useLogger(app.get(Logger));
+
+  const corsOrigin = process.env.CORS_ORIGIN;
   app.enableCors({
-    origin: true,
+    origin: corsOrigin === '*' || !corsOrigin ? true : corsOrigin.split(','),
     credentials: true,
   });
 

@@ -53,10 +53,14 @@ describe('MessagesService', () => {
 
   describe('createFromAgent', () => {
     it('should create message and emit event', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const msg = { id: 'm1', channelId: 'a1', text: 'hello', attachments: [] };
       prisma.message.create.mockResolvedValue(msg);
 
-      const result = await service.createFromAgent('a1', { text: 'hello' });
+      const result = await service.createFromAgent('u1', {
+        channelId: 'a1',
+        text: 'hello',
+      });
 
       expect(result).toEqual(msg);
       expect(events.emitToChannel).toHaveBeenCalledWith(
@@ -65,28 +69,45 @@ describe('MessagesService', () => {
         msg,
       );
     });
+
+    it('should throw ForbiddenException if not owner', async () => {
+      prisma.agent.findFirst.mockResolvedValue(null);
+      await expect(
+        service.createFromAgent('u1', { channelId: 'a1', text: 'hello' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('findByAgent', () => {
     it('should return paginated messages', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const messages = [{ id: 'm1' }, { id: 'm2' }];
       prisma.message.findMany.mockResolvedValue(messages);
 
-      const result = await service.findByAgent('a1', { limit: 50 });
+      const result = await service.findByAgent('u1', 'a1', { limit: 50 });
       expect(result.data).toEqual(messages);
+    });
+
+    it('should throw ForbiddenException if not owner', async () => {
+      prisma.agent.findFirst.mockResolvedValue(null);
+      await expect(service.findByAgent('u1', 'a1', {})).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
   describe('findOneByAgent', () => {
     it('should return message if found', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const msg = { id: 'm1', channelId: 'a1' };
       prisma.message.findFirst.mockResolvedValue(msg);
-      expect(await service.findOneByAgent('m1', 'a1')).toEqual(msg);
+      expect(await service.findOneByAgent('u1', 'm1', 'a1')).toEqual(msg);
     });
 
     it('should throw NotFoundException if not found', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       prisma.message.findFirst.mockResolvedValue(null);
-      await expect(service.findOneByAgent('x', 'a1')).rejects.toThrow(
+      await expect(service.findOneByAgent('u1', 'x', 'a1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -94,10 +115,11 @@ describe('MessagesService', () => {
 
   describe('deleteByAgent', () => {
     it('should delete the message', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       prisma.message.findFirst.mockResolvedValue({ id: 'm1' });
       prisma.message.delete.mockResolvedValue({});
 
-      const result = await service.deleteByAgent('m1', 'a1');
+      const result = await service.deleteByAgent('u1', 'm1', 'a1');
       expect(result).toEqual({ deleted: true });
     });
   });
@@ -140,12 +162,13 @@ describe('MessagesService', () => {
 
   describe('getPendingReviewsByAgent', () => {
     it('should return pending reviews for agent', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const reviews = [
         { id: 'm1', review: { status: 'pending', type: 'approval' } },
       ];
       prisma.message.findMany.mockResolvedValue(reviews);
 
-      const result = await service.getPendingReviewsByAgent('a1');
+      const result = await service.getPendingReviewsByAgent('u1', 'a1');
       expect(result).toEqual(reviews);
       expect(prisma.message.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -157,14 +180,16 @@ describe('MessagesService', () => {
     });
 
     it('should return empty array if no pending reviews', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       prisma.message.findMany.mockResolvedValue([]);
-      const result = await service.getPendingReviewsByAgent('a1');
+      const result = await service.getPendingReviewsByAgent('u1', 'a1');
       expect(result).toEqual([]);
     });
   });
 
   describe('getReviewByAgent', () => {
     it('should return message with review', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const msg = {
         id: 'm1',
         channelId: 'a1',
@@ -172,24 +197,26 @@ describe('MessagesService', () => {
       };
       prisma.message.findFirst.mockResolvedValue(msg);
 
-      const result = await service.getReviewByAgent('m1', 'a1');
+      const result = await service.getReviewByAgent('u1', 'm1', 'a1');
       expect(result).toEqual(msg);
     });
 
     it('should throw NotFoundException if message not found', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       prisma.message.findFirst.mockResolvedValue(null);
-      await expect(service.getReviewByAgent('x', 'a1')).rejects.toThrow(
+      await expect(service.getReviewByAgent('u1', 'x', 'a1')).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('should throw NotFoundException if message has no review', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       prisma.message.findFirst.mockResolvedValue({
         id: 'm1',
         channelId: 'a1',
         review: null,
       });
-      await expect(service.getReviewByAgent('m1', 'a1')).rejects.toThrow(
+      await expect(service.getReviewByAgent('u1', 'm1', 'a1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -197,6 +224,7 @@ describe('MessagesService', () => {
 
   describe('waitForReviewResponse', () => {
     it('should return immediately if review already completed', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const msg = {
         id: 'm1',
         channelId: 'a1',
@@ -204,12 +232,18 @@ describe('MessagesService', () => {
       };
       prisma.message.findFirst.mockResolvedValue(msg);
 
-      const result = await service.waitForReviewResponse('m1', 'a1', 5000);
+      const result = await service.waitForReviewResponse(
+        'u1',
+        'm1',
+        'a1',
+        5000,
+      );
       expect(result.status).toBe('completed');
       expect(result.message).toEqual(msg);
     });
 
     it('should return completed when review is resolved during poll', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const pendingMsg = {
         id: 'm1',
         channelId: 'a1',
@@ -231,12 +265,18 @@ describe('MessagesService', () => {
         .mockResolvedValueOnce(pendingMsg)
         .mockResolvedValueOnce(completedMsg);
 
-      const result = await service.waitForReviewResponse('m1', 'a1', 5000);
+      const result = await service.waitForReviewResponse(
+        'u1',
+        'm1',
+        'a1',
+        5000,
+      );
       expect(result.status).toBe('completed');
       expect(result.message).toEqual(completedMsg);
     });
 
     it('should return timeout when review is not resolved', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       const pendingMsg = {
         id: 'm1',
         channelId: 'a1',
@@ -245,14 +285,15 @@ describe('MessagesService', () => {
       prisma.message.findFirst.mockResolvedValue(pendingMsg);
 
       // Use very short timeout to avoid slow test
-      const result = await service.waitForReviewResponse('m1', 'a1', 100);
+      const result = await service.waitForReviewResponse('u1', 'm1', 'a1', 100);
       expect(result.status).toBe('timeout');
     });
 
     it('should throw NotFoundException if message not found', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1', ownerId: 'u1' });
       prisma.message.findFirst.mockResolvedValue(null);
       await expect(
-        service.waitForReviewResponse('x', 'a1', 1000),
+        service.waitForReviewResponse('u1', 'x', 'a1', 1000),
       ).rejects.toThrow(NotFoundException);
     });
   });

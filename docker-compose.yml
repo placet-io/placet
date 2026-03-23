@@ -54,6 +54,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@humanproxy.local}
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
     ports:
       - "${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}"
 
@@ -61,11 +62,13 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      args:
+        INTERNAL_API_URL: http://backend:${BACKEND_PORT:-3001}
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:${BACKEND_PORT:-3001}
+      INTERNAL_API_URL: http://backend:${BACKEND_PORT:-3001}
     ports:
       - "3000:3000"
 

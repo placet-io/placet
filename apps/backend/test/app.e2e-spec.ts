@@ -56,6 +56,14 @@ const mockPrisma = {
     findUnique: jest.fn(),
     upsert: jest.fn(),
   },
+  apiKey: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 interface ResponseBody {
@@ -64,7 +72,10 @@ interface ResponseBody {
   message?: string;
   data?: unknown[];
   theme?: string;
-  apiKey?: string;
+  key?: string;
+  id?: string;
+  label?: string;
+  deleted?: boolean;
 }
 
 describe('HumanProxy API (e2e)', () => {
@@ -146,6 +157,134 @@ describe('HumanProxy API (e2e)', () => {
           .send({ email: 'bad@example.com', password: 'wrong' })
           .expect(401);
       });
+
+      it('should return 400 when email is missing', () => {
+        return request(httpServer)
+          .post('/api/auth/login')
+          .send({ password: 'pw' })
+          .expect(400);
+      });
+
+      it('should return 400 when password is missing', () => {
+        return request(httpServer)
+          .post('/api/auth/login')
+          .send({ email: 'a@b.com' })
+          .expect(400);
+      });
+    });
+
+    describe('POST /api/auth/refresh', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer).post('/api/auth/refresh').expect(401);
+      });
+
+      it('should return 200 and user with valid JWT', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          email: 'admin@humanproxy.local',
+          displayName: 'Admin',
+          role: 'owner',
+        });
+
+        const res = await request(httpServer)
+          .post('/api/auth/refresh')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(200);
+
+        const body = res.body as { user: { id: string; email: string } };
+        expect(body.user).toBeDefined();
+        expect(body.user.id).toBe('test-user-id');
+        expect(body.user.email).toBe('admin@humanproxy.local');
+      });
+
+      it('should set a new access_token cookie', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          email: 'admin@humanproxy.local',
+          displayName: 'Admin',
+          role: 'owner',
+        });
+
+        const res = await request(httpServer)
+          .post('/api/auth/refresh')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(200);
+
+        const cookies = res.headers['set-cookie'];
+        expect(cookies).toBeDefined();
+        const cookieStr = Array.isArray(cookies) ? cookies.join('; ') : cookies;
+        expect(cookieStr).toContain('access_token=');
+        expect(cookieStr).toContain('HttpOnly');
+      });
+
+      it('should return 401 with an expired/invalid JWT', () => {
+        return request(httpServer)
+          .post('/api/auth/refresh')
+          .set('Authorization', 'Bearer invalid.jwt.token')
+          .expect(401);
+      });
+
+      it('should return 401 if user was deleted since token was issued', async () => {
+        // First call by JwtStrategy.validate → finds user
+        // We need findUnique to return user for JwtStrategy, then null for refresh
+        mockPrisma.user.findUnique
+          .mockResolvedValueOnce({
+            id: 'test-user-id',
+            email: 'admin@humanproxy.local',
+            role: 'owner',
+          })
+          .mockResolvedValueOnce(null); // user deleted before refresh
+
+        return request(httpServer)
+          .post('/api/auth/refresh')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(401);
+      });
+    });
+
+    describe('GET /api/auth/me', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer).get('/api/auth/me').expect(401);
+      });
+
+      it('should return current user with valid JWT including mustChangePassword', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          email: 'admin@humanproxy.local',
+          displayName: 'Admin',
+          role: 'owner',
+          mustChangePassword: true,
+        });
+
+        const res = await request(httpServer)
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(200);
+
+        const body = res.body as {
+          user: {
+            id: string;
+            email: string;
+            displayName: string;
+            role: string;
+            mustChangePassword: boolean;
+          };
+        };
+        expect(body.user.id).toBe('test-user-id');
+        expect(body.user.email).toBe('admin@humanproxy.local');
+        expect(body.user.displayName).toBe('Admin');
+        expect(body.user.role).toBe('owner');
+        expect(body.user.mustChangePassword).toBe(true);
+      });
+
+      it('should return 401 if user was deleted', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue(null);
+
+        return request(httpServer)
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(401);
+      });
     });
 
     describe('POST /api/auth/logout', () => {
@@ -156,6 +295,54 @@ describe('HumanProxy API (e2e)', () => {
           .expect((res) => {
             expect((res.body as ResponseBody).message).toBe('Logged out');
           });
+      });
+
+      it('should clear the access_token cookie', async () => {
+        const res = await request(httpServer)
+          .post('/api/auth/logout')
+          .expect(200);
+
+        const cookies = res.headers['set-cookie'];
+        expect(cookies).toBeDefined();
+        const cookieStr = Array.isArray(cookies) ? cookies.join('; ') : cookies;
+        expect(cookieStr).toContain('access_token=');
+      });
+    });
+
+    describe('POST /api/auth/change-password', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer)
+          .post('/api/auth/change-password')
+          .send({ currentPassword: 'old', newPassword: 'newpassword' })
+          .expect(401);
+      });
+
+      it('should return 400 with missing fields', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          email: 'admin@humanproxy.local',
+          role: 'owner',
+        });
+
+        return request(httpServer)
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .send({})
+          .expect(400);
+      });
+
+      it('should return 400 with short new password', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          email: 'admin@humanproxy.local',
+          role: 'owner',
+        });
+
+        return request(httpServer)
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .send({ currentPassword: 'oldpass', newPassword: 'ab' })
+          .expect(400);
       });
     });
   });
@@ -221,7 +408,7 @@ describe('HumanProxy API (e2e)', () => {
           role: 'owner',
         });
         mockPrisma.agent.findMany.mockResolvedValue([
-          { id: 'a1', name: 'Bot', apiKeyPrefix: 'hp_abc12345' },
+          { id: 'a1', name: 'Bot', webhookUrl: null },
         ]);
 
         return request(httpServer)
@@ -235,7 +422,7 @@ describe('HumanProxy API (e2e)', () => {
     });
 
     describe('POST /api/agents', () => {
-      it('should create an agent and return API key', async () => {
+      it('should create an agent (no API key in response)', async () => {
         mockPrisma.user.findUnique.mockResolvedValue({
           id: 'test-user-id',
           email: 'admin@humanproxy.local',
@@ -244,7 +431,7 @@ describe('HumanProxy API (e2e)', () => {
         mockPrisma.agent.create.mockResolvedValue({
           id: 'a1',
           name: 'TestBot',
-          apiKeyPrefix: 'hp_abc12345',
+          webhookUrl: null,
         });
 
         return request(httpServer)
@@ -253,8 +440,148 @@ describe('HumanProxy API (e2e)', () => {
           .send({ name: 'TestBot' })
           .expect(201)
           .expect((res) => {
-            expect((res.body as ResponseBody).apiKey).toMatch(/^hp_/);
+            const body = res.body as { id: string; name: string };
+            expect(body.id).toBe('a1');
+            expect(body.name).toBe('TestBot');
           });
+      });
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // API Keys (JWT protected)
+  // ──────────────────────────────────────────────
+  describe('API Keys', () => {
+    describe('GET /api/api-keys', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer).get('/api/api-keys').expect(401);
+      });
+
+      it('should return API keys list with valid JWT', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          role: 'owner',
+        });
+        mockPrisma.apiKey.findMany.mockResolvedValue([
+          { id: 'k1', label: 'Default', keyPrefix: 'hp_abc1234' },
+        ]);
+
+        return request(httpServer)
+          .get('/api/api-keys')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(200)
+          .expect((res) => {
+            expect(Array.isArray(res.body as unknown[])).toBe(true);
+          });
+      });
+    });
+
+    describe('POST /api/api-keys', () => {
+      it('should create an API key and return the full key once', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          role: 'owner',
+        });
+        mockPrisma.apiKey.create.mockImplementation(
+          ({ data }: { data: Record<string, unknown> }) => {
+            return Promise.resolve({
+              id: 'k1',
+              userId: 'test-user-id',
+              label: data.label,
+              keyPrefix: data.keyPrefix,
+              lastUsedAt: null,
+              createdAt: new Date().toISOString(),
+            });
+          },
+        );
+
+        return request(httpServer)
+          .post('/api/api-keys')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .send({ label: 'CI Key' })
+          .expect(201)
+          .expect((res) => {
+            const body = res.body as ResponseBody;
+            expect(body.key).toMatch(/^hp_/);
+            expect(body.label).toBe('CI Key');
+          });
+      });
+    });
+
+    describe('DELETE /api/api-keys/:id', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer).delete('/api/api-keys/k1').expect(401);
+      });
+
+      it('should delete an API key', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          role: 'owner',
+        });
+        mockPrisma.apiKey.findFirst.mockResolvedValue({
+          id: 'k1',
+          userId: 'test-user-id',
+        });
+        mockPrisma.apiKey.delete.mockResolvedValue({});
+
+        return request(httpServer)
+          .delete('/api/api-keys/k1')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(200)
+          .expect((res) => {
+            expect((res.body as ResponseBody).deleted).toBe(true);
+          });
+      });
+    });
+
+    describe('POST /api/api-keys/:id/rotate', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer).post('/api/api-keys/k1/rotate').expect(401);
+      });
+
+      it('should rotate an API key and return new key', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          role: 'owner',
+        });
+        mockPrisma.apiKey.findFirst.mockResolvedValue({
+          id: 'k1',
+          userId: 'test-user-id',
+        });
+        mockPrisma.apiKey.update.mockImplementation(
+          ({ data }: { data: Record<string, unknown> }) => {
+            return Promise.resolve({
+              id: 'k1',
+              userId: 'test-user-id',
+              label: 'Default',
+              keyPrefix: data.keyPrefix,
+              lastUsedAt: null,
+              createdAt: new Date().toISOString(),
+            });
+          },
+        );
+
+        const res = await request(httpServer)
+          .post('/api/api-keys/k1/rotate')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(200);
+
+        const body = res.body as ResponseBody;
+        expect(body.key).toMatch(/^hp_/);
+        expect(body.id).toBe('k1');
+      });
+
+      it('should return 404 for non-existent key', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: 'test-user-id',
+          role: 'owner',
+        });
+        mockPrisma.apiKey.findFirst.mockResolvedValue(null);
+
+        return request(httpServer)
+          .post('/api/api-keys/k1/rotate')
+          .set('Authorization', `Bearer ${jwtToken}`)
+          .expect(404);
       });
     });
   });

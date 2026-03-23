@@ -20,25 +20,41 @@ export class MessagesService {
 
   // ── Agent API ──────────────────────────────────────────────
 
-  async createFromAgent(agentId: string, dto: CreateMessageDto) {
+  async createFromAgent(userId: string, dto: CreateMessageDto) {
+    // Verify user owns the channel
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: dto.channelId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+
+    // Store message-level webhookUrl in metadata if provided
+    const metadata: Record<string, unknown> = {
+      ...(dto.metadata ?? {}),
+      ...(dto.webhookUrl ? { webhookUrl: dto.webhookUrl } : {}),
+    };
+
     const message = await this.prisma.message.create({
       data: {
-        channelId: agentId,
+        channelId: dto.channelId,
         senderType: 'agent',
-        senderId: agentId,
+        senderId: dto.channelId,
         text: dto.text,
         status: dto.status,
         review: (dto.review as Prisma.InputJsonValue) ?? undefined,
-        metadata: (dto.metadata as Prisma.InputJsonValue) ?? undefined,
+        metadata: Object.keys(metadata).length
+          ? (metadata as Prisma.InputJsonValue)
+          : undefined,
       },
       include: { attachments: true },
     });
 
-    this.events.emitToChannel(agentId, 'message:created', message);
+    // Tier 3: WebSocket is always active
+    this.events.emitToChannel(dto.channelId, 'message:created', message);
     return message;
   }
 
   async findByAgent(
+    userId: string,
     agentId: string,
     query: {
       limit?: number;
@@ -47,6 +63,12 @@ export class MessagesService {
       has_attachments?: boolean;
     },
   ) {
+    // Verify user owns the agent
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: agentId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+
     const limit = query.limit ?? 50;
 
     const where: Prisma.MessageWhereInput = {
@@ -75,7 +97,13 @@ export class MessagesService {
     };
   }
 
-  async findOneByAgent(messageId: string, agentId: string) {
+  async findOneByAgent(userId: string, messageId: string, agentId: string) {
+    // Verify user owns the agent
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: agentId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId: agentId },
       include: { attachments: true },
@@ -84,8 +112,8 @@ export class MessagesService {
     return message;
   }
 
-  async deleteByAgent(messageId: string, agentId: string) {
-    await this.findOneByAgent(messageId, agentId);
+  async deleteByAgent(userId: string, messageId: string, agentId: string) {
+    await this.findOneByAgent(userId, messageId, agentId);
     await this.prisma.message.delete({ where: { id: messageId } });
     return { deleted: true };
   }
@@ -139,7 +167,21 @@ export class MessagesService {
       include: { attachments: true },
     });
 
+    // Tier 3: WebSocket — always active
     this.events.emitToChannel(channelId, 'message:created', message);
+
+    // Tier 1: Chat-level default webhook
+    if (agent.webhookUrl) {
+      void this.webhooks.dispatch(
+        { url: agent.webhookUrl, method: 'POST' },
+        {
+          event: 'message:created',
+          channelId,
+          message,
+        },
+      );
+    }
+
     return message;
   }
 
@@ -166,7 +208,13 @@ export class MessagesService {
 
   // ── Agent Review API ──────────────────────────────────────
 
-  async getPendingReviewsByAgent(agentId: string) {
+  async getPendingReviewsByAgent(userId: string, agentId: string) {
+    // Verify user owns the agent
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: agentId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+
     return this.prisma.message.findMany({
       where: {
         channelId: agentId,
@@ -180,7 +228,13 @@ export class MessagesService {
     });
   }
 
-  async getReviewByAgent(messageId: string, agentId: string) {
+  async getReviewByAgent(userId: string, messageId: string, agentId: string) {
+    // Verify user owns the agent
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: agentId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId: agentId },
       include: { attachments: true },
@@ -192,11 +246,12 @@ export class MessagesService {
   }
 
   async waitForReviewResponse(
+    userId: string,
     messageId: string,
     agentId: string,
     timeoutMs = 30000,
   ): Promise<{ status: 'completed' | 'timeout'; message?: unknown }> {
-    const message = await this.getReviewByAgent(messageId, agentId);
+    const message = await this.getReviewByAgent(userId, messageId, agentId);
     const review = message.review as Record<string, unknown>;
 
     // Already completed — return immediately
@@ -272,18 +327,39 @@ export class MessagesService {
       include: { attachments: true },
     });
 
+    // Tier 3: WebSocket — always active
     this.events.emitToChannel(message.channelId, 'review:responded', updated);
 
-    // Dispatch webhook callback if configured
-    if (review.callback) {
+    // 3-tier webhook dispatch for review response:
+    const reviewPayload = {
+      event: 'review:responded',
+      channelId: message.channelId,
+      message_id: messageId,
+      review_type: review.type as string,
+      response: dto.response,
+      responded_at: updatedReview.completed_at,
+    };
+
+    const meta = (message.metadata ?? {}) as Record<string, unknown>;
+    const messageWebhookUrl = meta.webhookUrl as string | undefined;
+
+    if (messageWebhookUrl) {
+      // Tier 2: Message-level webhook override
+      void this.webhooks.dispatch(
+        { url: messageWebhookUrl, method: 'POST' },
+        reviewPayload,
+      );
+    } else if (message.agent.webhookUrl) {
+      // Tier 1: Chat-level default webhook
+      void this.webhooks.dispatch(
+        { url: message.agent.webhookUrl, method: 'POST' },
+        reviewPayload,
+      );
+    } else if (review.callback) {
+      // Legacy: inline review callback
       void this.webhooks.dispatch(
         review.callback as { url: string; method: string },
-        {
-          message_id: messageId,
-          review_type: review.type as string,
-          response: dto.response,
-          responded_at: updatedReview.completed_at,
-        },
+        reviewPayload,
       );
     }
 

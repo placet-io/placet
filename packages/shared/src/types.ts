@@ -56,21 +56,40 @@ export const UserSchema = z.object({
   email: z.string().email(),
   displayName: z.string(),
   role: UserRoleSchema,
+  mustChangePassword: z.boolean().optional(),
   createdAt: z.string(),
 });
 export type User = z.infer<typeof UserSchema>;
+
+export const WebhookAuthSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+export type WebhookAuth = z.infer<typeof WebhookAuthSchema>;
 
 export const AgentSchema = z.object({
   id: z.string(),
   ownerId: z.string(),
   name: z.string(),
   description: z.string().nullish(),
-  apiKeyPrefix: z.string(),
   avatarUrl: z.string().url().nullish(),
+  webhookUrl: z.string().url().nullish(),
+  webhookHeaders: z.record(z.string(), z.string()).nullish(),
+  webhookAuth: WebhookAuthSchema.nullish(),
   lastActiveAt: z.string().nullish(),
   createdAt: z.string(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
+
+export const ApiKeySchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  label: z.string(),
+  keyPrefix: z.string(),
+  lastUsedAt: z.string().nullish(),
+  createdAt: z.string(),
+});
+export type ApiKey = z.infer<typeof ApiKeySchema>;
 
 export const AttachmentSchema = z.object({
   id: z.string(),
@@ -138,6 +157,12 @@ export const LoginSchema = z.object({
 });
 export type LoginRequest = z.infer<typeof LoginSchema>;
 
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordSchema>;
+
 export const CreateUserSchema = z.object({
   email: z.string().email(),
   displayName: z.string().min(1),
@@ -156,6 +181,7 @@ export const CreateAgentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   avatarUrl: z.string().url().optional(),
+  webhookUrl: z.string().url().optional(),
 });
 export type CreateAgentRequest = z.infer<typeof CreateAgentSchema>;
 
@@ -163,14 +189,24 @@ export const UpdateAgentSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   avatarUrl: z.string().url().optional(),
+  webhookUrl: z.string().url().nullable().optional(),
+  webhookHeaders: z.record(z.string(), z.string()).nullable().optional(),
+  webhookAuth: WebhookAuthSchema.nullable().optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
 
+export const CreateApiKeySchema = z.object({
+  label: z.string().min(1).max(64).optional(),
+});
+export type CreateApiKeyRequest = z.infer<typeof CreateApiKeySchema>;
+
 export const CreateAgentMessageSchema = z.object({
+  channelId: z.string().min(1),
   text: z.string().optional(),
   status: MessageStatusSchema.optional(),
   review: ReviewSchema.omit({ status: true, response: true, completedAt: true }).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  webhookUrl: z.string().url().optional(),
 });
 export type CreateAgentMessageRequest = z.infer<typeof CreateAgentMessageSchema>;
 
@@ -199,11 +235,11 @@ export type UpdatePreferencesRequest = z.infer<typeof UpdatePreferencesSchema>;
 // ── Response Types ──────────────────────────────────────────────────────────
 
 export interface LoginResponse {
-  user: Pick<User, 'id' | 'email' | 'displayName' | 'role'>;
+  user: Pick<User, 'id' | 'email' | 'displayName' | 'role' | 'mustChangePassword'>;
 }
 
-export interface CreateAgentResponse extends Agent {
-  apiKey: string;
+export interface CreateApiKeyResponse extends ApiKey {
+  key: string; // full key, shown only once
 }
 
 export interface PresignUploadResponse {

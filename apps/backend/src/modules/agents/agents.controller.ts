@@ -20,10 +20,8 @@ import {
 } from '@nestjs/swagger';
 import {
   AgentResponse,
-  CreateAgentResponse,
   DeletedResponse,
   ErrorResponse,
-  RotateKeyResponse,
 } from '../../common/swagger-responses';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../common/types';
@@ -39,7 +37,7 @@ export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List my agents (with online status)' })
+  @ApiOperation({ summary: 'List my chats (agents)' })
   @ApiOkResponse({ description: 'List of agents', type: [AgentResponse] })
   @ApiUnauthorizedResponse({
     description: 'Not authenticated',
@@ -50,10 +48,10 @@ export class AgentsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a new agent (returns API key once)' })
+  @ApiOperation({ summary: 'Create a new chat (agent)' })
   @ApiCreatedResponse({
-    description: 'Agent created with API key',
-    type: CreateAgentResponse,
+    description: 'Agent created',
+    type: AgentResponse,
   })
   @ApiUnauthorizedResponse({
     description: 'Not authenticated',
@@ -64,7 +62,7 @@ export class AgentsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update an agent' })
+  @ApiOperation({ summary: 'Update a chat (agent)' })
   @ApiOkResponse({ description: 'Agent updated', type: AgentResponse })
   @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
   @ApiUnauthorizedResponse({
@@ -80,7 +78,7 @@ export class AgentsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete an agent' })
+  @ApiOperation({ summary: 'Delete a chat (agent)' })
   @ApiOkResponse({ description: 'Agent deleted', type: DeletedResponse })
   @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
   @ApiUnauthorizedResponse({
@@ -89,20 +87,5 @@ export class AgentsController {
   })
   remove(@Req() req: RequestWithUser, @Param('id') id: string) {
     return this.agentsService.remove(id, req.user.id);
-  }
-
-  @Post(':id/rotate-key')
-  @ApiOperation({ summary: 'Rotate agent API key (returns new key once)' })
-  @ApiCreatedResponse({
-    description: 'New API key generated',
-    type: RotateKeyResponse,
-  })
-  @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
-  @ApiUnauthorizedResponse({
-    description: 'Not authenticated',
-    type: ErrorResponse,
-  })
-  rotateKey(@Req() req: RequestWithUser, @Param('id') id: string) {
-    return this.agentsService.rotateKey(id, req.user.id);
   }
 }

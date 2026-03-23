@@ -15,6 +15,7 @@ import { LogsModule } from './modules/logs/logs.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { EventsModule } from './modules/gateway/events.module';
 import { PluginsModule } from './modules/plugins/plugins.module';
+import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
 
 @Module({
@@ -40,6 +41,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
     WebhooksModule,
     EventsModule,
     PluginsModule,
+    ApiKeysModule,
   ],
   controllers: [AppController],
   providers: [

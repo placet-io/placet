@@ -57,16 +57,31 @@ describe('AgentsService', () => {
   });
 
   describe('create', () => {
-    it('should create agent with hp_ prefixed API key', async () => {
+    it('should create agent without API key', async () => {
       prisma.agent.create.mockResolvedValue({
         id: 'a1',
         name: 'Bot',
-        apiKeyPrefix: 'hp_abc12345',
+        webhookUrl: null,
       });
 
       const result = await service.create('u1', { name: 'Bot' });
-      expect(result.apiKey).toMatch(/^hp_/);
+      expect(result.id).toBe('a1');
+      expect(result.name).toBe('Bot');
       expect(prisma.agent.create).toHaveBeenCalled();
+    });
+
+    it('should pass webhookUrl when provided', async () => {
+      prisma.agent.create.mockResolvedValue({
+        id: 'a1',
+        name: 'Bot',
+        webhookUrl: 'https://example.com/hook',
+      });
+
+      const result = await service.create('u1', {
+        name: 'Bot',
+        webhookUrl: 'https://example.com/hook',
+      });
+      expect(result.webhookUrl).toBe('https://example.com/hook');
     });
   });
 
@@ -78,6 +93,68 @@ describe('AgentsService', () => {
       const result = await service.update('a1', 'u1', { name: 'Updated' });
       expect(result.name).toBe('Updated');
     });
+
+    it('should update webhookUrl', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1' });
+      prisma.agent.update.mockResolvedValue({
+        id: 'a1',
+        webhookUrl: 'https://new.example.com/hook',
+      });
+
+      const result = await service.update('a1', 'u1', {
+        webhookUrl: 'https://new.example.com/hook',
+      });
+      expect(result.webhookUrl).toBe('https://new.example.com/hook');
+    });
+
+    it('should update webhookHeaders and webhookAuth', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1' });
+      const headers = { 'X-Custom': 'value' };
+      const auth = { username: 'user', password: 'pass' };
+      prisma.agent.update.mockResolvedValue({
+        id: 'a1',
+        webhookHeaders: headers,
+        webhookAuth: auth,
+      });
+
+      const result = await service.update('a1', 'u1', {
+        webhookHeaders: headers,
+        webhookAuth: auth,
+      });
+      expect(result.webhookHeaders).toEqual(headers);
+      expect(result.webhookAuth).toEqual(auth);
+      expect(prisma.agent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            webhookHeaders: headers,
+            webhookAuth: auth,
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('should clear webhookHeaders when set to null', async () => {
+      prisma.agent.findFirst.mockResolvedValue({ id: 'a1' });
+      prisma.agent.update.mockResolvedValue({
+        id: 'a1',
+        webhookHeaders: null,
+        webhookAuth: null,
+      });
+
+      const result = await service.update('a1', 'u1', {
+        webhookHeaders: null,
+        webhookAuth: null,
+      });
+      expect(result.webhookHeaders).toBeNull();
+      expect(result.webhookAuth).toBeNull();
+    });
+
+    it('should throw NotFoundException for non-existent agent', async () => {
+      prisma.agent.findFirst.mockResolvedValue(null);
+      await expect(
+        service.update('x', 'u1', { name: 'Updated' }),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
   describe('remove', () => {
@@ -85,17 +162,6 @@ describe('AgentsService', () => {
       prisma.agent.findFirst.mockResolvedValue({ id: 'a1' });
       prisma.agent.delete.mockResolvedValue({});
       expect(await service.remove('a1', 'u1')).toEqual({ deleted: true });
-    });
-  });
-
-  describe('rotateKey', () => {
-    it('should generate new API key', async () => {
-      prisma.agent.findFirst.mockResolvedValue({ id: 'a1' });
-      prisma.agent.update.mockResolvedValue({});
-
-      const result = await service.rotateKey('a1', 'u1');
-      expect(result.apiKey).toMatch(/^hp_/);
-      expect(result.apiKeyPrefix).toBeDefined();
     });
   });
 });

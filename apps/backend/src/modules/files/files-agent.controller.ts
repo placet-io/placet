@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -12,10 +13,12 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiProduces,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -27,33 +30,54 @@ import {
 } from '../../common/swagger-responses';
 import type { FastifyReply } from 'fastify';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
-import type { RequestWithAgent } from '../../common/types';
+import type { RequestWithUser } from '../../common/types';
 import { FilesService } from './files.service';
 import { PresignUploadDto } from './dto/presign-upload.dto';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('Agent API')
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
 @Controller('api/v1/files')
 export class FilesAgentController {
-  constructor(private readonly filesService: FilesService) {}
+  constructor(
+    private readonly filesService: FilesService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  private async verifyOwnership(userId: string, channelId: string) {
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: channelId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+  }
 
   @Get()
-  @ApiOperation({ summary: 'Agent: List all files in chat' })
+  @ApiOperation({ summary: 'List all files in a channel' })
   @ApiOkResponse({
     description: 'List of attachments',
     type: [AttachmentResponse],
   })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
-  findAll(@Req() req: RequestWithAgent) {
-    return this.filesService.findAllByAgent(req.agent.id);
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
+  })
+  async findAll(
+    @Req() req: RequestWithUser,
+    @Query('channel') channel: string,
+  ) {
+    await this.verifyOwnership(req.user.id, channel);
+    return this.filesService.findAllByAgent(channel);
   }
 
   @Post('upload')
-  @ApiOperation({ summary: 'Agent: Get presigned upload URL' })
+  @ApiOperation({ summary: 'Get presigned upload URL' })
   @ApiCreatedResponse({
     description: 'Presigned upload URL',
     type: PresignUploadResponse,
@@ -68,7 +92,7 @@ export class FilesAgentController {
 
   @Get(':id/presign-download')
   @ApiOperation({
-    summary: 'Agent: Get presigned download URL by attachment ID',
+    summary: 'Get presigned download URL by attachment ID',
   })
   @ApiOkResponse({
     description: 'Presigned download URL',
@@ -78,42 +102,40 @@ export class FilesAgentController {
     description: 'Attachment not found',
     type: ErrorResponse,
   })
+  @ApiForbiddenResponse({ description: 'Not your file', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
   async presignDownload(
-    @Req() req: RequestWithAgent,
+    @Req() req: RequestWithUser,
     @Param('id') attachmentId: string,
   ) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
-    if (attachment.message.channelId !== req.agent.id) {
-      throw new ForbiddenException('Not your file');
-    }
+    await this.verifyOwnership(req.user.id, attachment.message.channelId);
     return this.filesService.presignDownload(attachment.storageKey);
   }
 
   @Get(':id/download')
-  @ApiOperation({ summary: 'Agent: Download file directly by attachment ID' })
+  @ApiOperation({ summary: 'Download file directly by attachment ID' })
   @ApiProduces('application/octet-stream')
   @ApiOkResponse({ description: 'File stream' })
   @ApiNotFoundResponse({
     description: 'Attachment not found',
     type: ErrorResponse,
   })
+  @ApiForbiddenResponse({ description: 'Not your file', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
   async download(
-    @Req() req: RequestWithAgent,
+    @Req() req: RequestWithUser,
     @Res() res: FastifyReply,
     @Param('id') attachmentId: string,
   ) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
-    if (attachment.message.channelId !== req.agent.id) {
-      throw new ForbiddenException('Not your file');
-    }
+    await this.verifyOwnership(req.user.id, attachment.message.channelId);
 
     const s3Response = await this.filesService.getFileStream(
       attachment.storageKey,

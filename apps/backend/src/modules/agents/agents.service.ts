@@ -1,33 +1,38 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { createHash, randomBytes } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
+
+/** Prisma requires DbNull for nullable JSON columns instead of plain null */
+function jsonOrDbNull(
+  value: unknown,
+): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  return value === null || value === undefined
+    ? Prisma.DbNull
+    : (value as Prisma.InputJsonValue);
+}
+
+const AGENT_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  avatarUrl: true,
+  webhookUrl: true,
+  webhookHeaders: true,
+  webhookAuth: true,
+  lastActiveAt: true,
+  createdAt: true,
+} as const;
 
 @Injectable()
 export class AgentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private generateApiKey(): { rawKey: string; hash: string; prefix: string } {
-    const random = randomBytes(24).toString('hex');
-    const rawKey = `hp_${random}`;
-    const hash = createHash('sha256').update(rawKey).digest('hex');
-    const prefix = rawKey.substring(0, 11); // "hp_" + first 8 chars
-    return { rawKey, hash, prefix };
-  }
-
   async findAllByOwner(ownerId: string) {
     return this.prisma.agent.findMany({
       where: { ownerId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        apiKeyPrefix: true,
-        avatarUrl: true,
-        lastActiveAt: true,
-        createdAt: true,
-      },
+      select: AGENT_SELECT,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -35,43 +40,23 @@ export class AgentsService {
   async findById(id: string, ownerId: string) {
     const agent = await this.prisma.agent.findFirst({
       where: { id, ownerId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        apiKeyPrefix: true,
-        avatarUrl: true,
-        lastActiveAt: true,
-        createdAt: true,
-      },
+      select: AGENT_SELECT,
     });
     if (!agent) throw new NotFoundException('Agent not found');
     return agent;
   }
 
   async create(ownerId: string, dto: CreateAgentDto) {
-    const { rawKey, hash, prefix } = this.generateApiKey();
-
-    const agent = await this.prisma.agent.create({
+    return this.prisma.agent.create({
       data: {
         ownerId,
         name: dto.name,
         description: dto.description,
-        apiKeyHash: hash,
-        apiKeyPrefix: prefix,
         avatarUrl: dto.avatarUrl,
+        webhookUrl: dto.webhookUrl,
       },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        apiKeyPrefix: true,
-        avatarUrl: true,
-        createdAt: true,
-      },
+      select: AGENT_SELECT,
     });
-
-    return { ...agent, apiKey: rawKey };
   }
 
   async update(id: string, ownerId: string, dto: UpdateAgentDto) {
@@ -82,16 +67,15 @@ export class AgentsService {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+        ...(dto.webhookUrl !== undefined && { webhookUrl: dto.webhookUrl }),
+        ...(dto.webhookHeaders !== undefined && {
+          webhookHeaders: jsonOrDbNull(dto.webhookHeaders),
+        }),
+        ...(dto.webhookAuth !== undefined && {
+          webhookAuth: jsonOrDbNull(dto.webhookAuth),
+        }),
       },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        apiKeyPrefix: true,
-        avatarUrl: true,
-        lastActiveAt: true,
-        createdAt: true,
-      },
+      select: AGENT_SELECT,
     });
   }
 
@@ -99,17 +83,5 @@ export class AgentsService {
     await this.findById(id, ownerId);
     await this.prisma.agent.delete({ where: { id } });
     return { deleted: true };
-  }
-
-  async rotateKey(id: string, ownerId: string) {
-    await this.findById(id, ownerId);
-    const { rawKey, hash, prefix } = this.generateApiKey();
-
-    await this.prisma.agent.update({
-      where: { id },
-      data: { apiKeyHash: hash, apiKeyPrefix: prefix },
-    });
-
-    return { apiKey: rawKey, apiKeyPrefix: prefix };
   }
 }

@@ -3,19 +3,15 @@ export interface AuthenticatedUser {
   email: string;
   role: string;
   displayName?: string;
-}
-
-export interface AuthenticatedAgent {
-  id: string;
-  name: string;
-  ownerId: string;
+  mustChangePassword?: boolean;
 }
 
 export interface RequestWithUser {
   user: AuthenticatedUser;
 }
 
-export interface RequestWithAgent {
-  agent: AuthenticatedAgent;
-  user: { id: string };
-}
+// API-key-authenticated request — same shape as JWT-authenticated
+// The ApiKeyGuard resolves the key's owning user onto req.user
+export type RequestWithApiKey = RequestWithUser & {
+  apiKeyId: string;
+};

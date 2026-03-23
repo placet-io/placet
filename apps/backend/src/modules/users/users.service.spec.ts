@@ -70,7 +70,13 @@ describe('UsersService', () => {
         password: 'secret',
       });
       expect(result.email).toBe('new@test.com');
-      expect(prisma.user.create).toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            mustChangePassword: true,
+          }),
+        }),
+      );
     });
 
     it('should throw ConflictException on duplicate email', async () => {

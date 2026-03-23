@@ -12,6 +12,7 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -26,7 +27,7 @@ import {
   PaginatedMessagesResponse,
 } from '../../common/swagger-responses';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
-import type { RequestWithAgent } from '../../common/types';
+import type { RequestWithUser } from '../../common/types';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 
@@ -38,28 +39,35 @@ export class MessagesAgentController {
   constructor(private readonly messagesService: MessagesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Agent: Send a message' })
+  @ApiOperation({ summary: 'Send a message to a channel (channelId in body)' })
   @ApiCreatedResponse({
     description: 'Message created',
     type: MessageItemResponse,
   })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
-  create(@Req() req: RequestWithAgent, @Body() dto: CreateMessageDto) {
-    return this.messagesService.createFromAgent(req.agent.id, dto);
+  create(@Req() req: RequestWithUser, @Body() dto: CreateMessageDto) {
+    return this.messagesService.createFromAgent(req.user.id, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Agent: List messages (chat-as-storage)' })
+  @ApiOperation({ summary: 'List messages for a channel (chat-as-storage)' })
   @ApiOkResponse({
     description: 'Paginated messages',
     type: PaginatedMessagesResponse,
   })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
+  })
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
   })
   @ApiQuery({
     name: 'limit',
@@ -82,13 +90,14 @@ export class MessagesAgentController {
     description: 'Filter messages with attachments (true/false)',
   })
   findAll(
-    @Req() req: RequestWithAgent,
+    @Req() req: RequestWithUser,
+    @Query('channel') channel: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
     @Query('search') search?: string,
     @Query('has_attachments') hasAttachments?: string,
   ) {
-    return this.messagesService.findByAgent(req.agent.id, {
+    return this.messagesService.findByAgent(req.user.id, channel, {
       limit: limit ? parseInt(limit, 10) : undefined,
       cursor,
       search,
@@ -98,32 +107,52 @@ export class MessagesAgentController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Agent: Get a single message + review status' })
+  @ApiOperation({ summary: 'Get a single message + review status' })
   @ApiOkResponse({ description: 'Message details', type: MessageItemResponse })
   @ApiNotFoundResponse({
     description: 'Message not found',
     type: ErrorResponse,
   })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
-  findOne(@Req() req: RequestWithAgent, @Param('id') id: string) {
-    return this.messagesService.findOneByAgent(id, req.agent.id);
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
+  })
+  findOne(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Query('channel') channel: string,
+  ) {
+    return this.messagesService.findOneByAgent(req.user.id, id, channel);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Agent: Delete (retract) a message' })
+  @ApiOperation({ summary: 'Delete (retract) a message' })
   @ApiOkResponse({ description: 'Message deleted', type: DeletedResponse })
   @ApiNotFoundResponse({
     description: 'Message not found',
     type: ErrorResponse,
   })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
-  remove(@Req() req: RequestWithAgent, @Param('id') id: string) {
-    return this.messagesService.deleteByAgent(id, req.agent.id);
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
+  })
+  remove(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Query('channel') channel: string,
+  ) {
+    return this.messagesService.deleteByAgent(req.user.id, id, channel);
   }
 }
