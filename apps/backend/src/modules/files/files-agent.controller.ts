@@ -1,5 +1,5 @@
 import {
-  Body,
+  BadRequestException,
   Controller,
   ForbiddenException,
   Get,
@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -25,14 +26,11 @@ import {
 import {
   AttachmentResponse,
   ErrorResponse,
-  PresignDownloadResponse,
-  PresignUploadResponse,
 } from '../../common/swagger-responses';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import type { RequestWithUser } from '../../common/types';
 import { FilesService } from './files.service';
-import { PresignUploadDto } from './dto/presign-upload.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('Agent API')
@@ -77,43 +75,32 @@ export class FilesAgentController {
   }
 
   @Post('upload')
-  @ApiOperation({ summary: 'Get presigned upload URL' })
+  @ApiOperation({ summary: 'Upload a file' })
+  @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({
-    description: 'Presigned upload URL',
-    type: PresignUploadResponse,
+    description: 'Uploaded attachment',
+    type: AttachmentResponse,
   })
   @ApiUnauthorizedResponse({
     description: 'Invalid API key',
     type: ErrorResponse,
   })
-  upload(@Body() dto: PresignUploadDto) {
-    return this.filesService.presignUpload(dto.filename, dto.mimeType);
-  }
+  async upload(@Req() req: RequestWithUser & FastifyRequest) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('No file provided');
 
-  @Get(':id/presign-download')
-  @ApiOperation({
-    summary: 'Get presigned download URL by attachment ID',
-  })
-  @ApiOkResponse({
-    description: 'Presigned download URL',
-    type: PresignDownloadResponse,
-  })
-  @ApiNotFoundResponse({
-    description: 'Attachment not found',
-    type: ErrorResponse,
-  })
-  @ApiForbiddenResponse({ description: 'Not your file', type: ErrorResponse })
-  @ApiUnauthorizedResponse({
-    description: 'Invalid API key',
-    type: ErrorResponse,
-  })
-  async presignDownload(
-    @Req() req: RequestWithUser,
-    @Param('id') attachmentId: string,
-  ) {
-    const attachment = await this.filesService.findAttachmentById(attachmentId);
-    await this.verifyOwnership(req.user.id, attachment.message.channelId);
-    return this.filesService.presignDownload(attachment.storageKey);
+    const channelId = (data.fields['channelId'] as { value?: string })?.value;
+    if (!channelId) throw new BadRequestException('channelId is required');
+
+    await this.verifyOwnership(req.user.id, channelId);
+
+    const buffer = await data.toBuffer();
+    return this.filesService.uploadFile(
+      buffer,
+      data.filename,
+      data.mimetype,
+      channelId,
+    );
   }
 
   @Get(':id/download')
@@ -156,19 +143,7 @@ export class FilesAgentController {
       return;
     }
 
-    const raw = res.raw;
-    const stream = s3Response.Body.transformToWebStream();
-    const reader = stream.getReader();
-    try {
-      for (;;) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        raw.write(chunk.value as Buffer);
-      }
-      raw.end();
-    } catch {
-      reader.cancel().catch(() => {});
-      if (!raw.destroyed) raw.destroy();
-    }
+    const bytes = await s3Response.Body.transformToByteArray();
+    void res.send(Buffer.from(bytes));
   }
 }

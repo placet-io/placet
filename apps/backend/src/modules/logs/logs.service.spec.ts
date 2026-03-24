@@ -38,7 +38,7 @@ describe('LogsService', () => {
       prisma.apiLog.findMany.mockResolvedValue([]);
 
       await service.findAll('u1', {
-        agentId: 'a1',
+        apiKeyId: 'ak1',
         direction: 'inbound',
         limit: 10,
       });
@@ -47,7 +47,7 @@ describe('LogsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             userId: 'u1',
-            agentId: 'a1',
+            apiKeyId: 'ak1',
             direction: 'inbound',
           }) as unknown,
           take: 10,

@@ -5,25 +5,26 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 // Mock the AWS SDK modules
 jest.mock('@aws-sdk/client-s3', () => ({
-  S3Client: jest.fn().mockImplementation(() => ({})),
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: jest.fn().mockResolvedValue({}),
+  })),
   PutObjectCommand: jest.fn(),
   GetObjectCommand: jest.fn(),
-}));
-jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: jest.fn().mockResolvedValue('https://presigned-url.com/file'),
 }));
 
 describe('FilesService', () => {
   let service: FilesService;
   let prisma: {
     agent: { findMany: jest.Mock };
-    attachment: { findMany: jest.Mock };
+    attachment: { findMany: jest.Mock; create: jest.Mock };
+    message: { create: jest.Mock };
   };
 
   beforeEach(async () => {
     prisma = {
       agent: { findMany: jest.fn() },
-      attachment: { findMany: jest.fn() },
+      attachment: { findMany: jest.fn(), create: jest.fn() },
+      message: { create: jest.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -44,18 +45,41 @@ describe('FilesService', () => {
     service = module.get<FilesService>(FilesService);
   });
 
-  describe('presignUpload', () => {
-    it('should return presigned URL and storage key', async () => {
-      const result = await service.presignUpload('file.txt', 'text/plain');
-      expect(result.url).toBe('https://presigned-url.com/file');
-      expect(result.storageKey).toMatch(/^uploads\//);
-    });
-  });
+  describe('uploadFile', () => {
+    it('should upload to S3 and create message + attachment', async () => {
+      const mockMessage = { id: 'msg1' };
+      const mockAttachment = {
+        id: 'att1',
+        filename: 'file.txt',
+        storageKey: 'uploads/123-file.txt',
+      };
+      prisma.message.create.mockResolvedValue(mockMessage);
+      prisma.attachment.create.mockResolvedValue(mockAttachment);
 
-  describe('presignDownload', () => {
-    it('should return presigned download URL', async () => {
-      const result = await service.presignDownload('uploads/123-file.txt');
-      expect(result.url).toBe('https://presigned-url.com/file');
+      const result = await service.uploadFile(
+        Buffer.from('hello'),
+        'file.txt',
+        'text/plain',
+        'channel1',
+      );
+
+      expect(prisma.message.create).toHaveBeenCalledWith(
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
+            channelId: 'channel1',
+          }),
+        }),
+      );
+      expect(prisma.attachment.create).toHaveBeenCalledWith(
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
+            messageId: 'msg1',
+            filename: 'file.txt',
+            mimeType: 'text/plain',
+          }),
+        }),
+      );
+      expect(result).toEqual(mockAttachment);
     });
   });
 
@@ -65,7 +89,8 @@ describe('FilesService', () => {
       prisma.attachment.findMany.mockResolvedValue([{ id: 'att1' }]);
 
       const result = await service.findAllByUser('u1', {});
-      expect(result).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.nextCursor).toBeNull();
     });
   });
 

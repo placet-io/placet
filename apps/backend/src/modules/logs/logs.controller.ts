@@ -35,9 +35,9 @@ export class LogsController {
     type: ErrorResponse,
   })
   @ApiQuery({
-    name: 'agent',
+    name: 'apiKey',
     required: false,
-    description: 'Filter by agent ID',
+    description: 'Filter by API key ID',
   })
   @ApiQuery({
     name: 'direction',
@@ -61,14 +61,14 @@ export class LogsController {
   })
   findAll(
     @Req() req: RequestWithUser,
-    @Query('agent') agentId?: string,
+    @Query('apiKey') apiKeyId?: string,
     @Query('direction') direction?: string,
     @Query('status') status?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
     return this.logsService.findAll(req.user.id, {
-      agentId,
+      apiKeyId,
       direction,
       status,
       limit: limit ? parseInt(limit, 10) : undefined,

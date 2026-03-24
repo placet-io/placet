@@ -7,7 +7,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module';
+
+// Prisma returns BigInt for `size` columns — make them JSON-serialisable.
+// eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
+(BigInt.prototype as BigInt & { toJSON: () => number }).toJSON = function () {
+  return Number(this);
+};
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -19,6 +26,9 @@ async function bootstrap() {
   app.useGlobalPipes(new ZodValidationPipe());
 
   await app.register(fastifyCookie as Parameters<typeof app.register>[0]);
+  await app.register(fastifyMultipart as Parameters<typeof app.register>[0], {
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+  });
 
   app.useLogger(app.get(Logger));
 

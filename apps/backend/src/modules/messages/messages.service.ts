@@ -1,9 +1,16 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
+import {
+  MAX_REVIEW_DURATION_SECONDS,
+  DEFAULT_REVIEW_DURATION_SECONDS,
+} from '@humanproxy/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhooksService } from '../webhooks/webhooks.service';
@@ -12,6 +19,8 @@ import { RespondReviewDto } from './dto/respond-review.dto';
 
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
@@ -27,6 +36,11 @@ export class MessagesService {
     });
     if (!agent) throw new ForbiddenException('Not your agent');
 
+    // Normalise & cap review expiration
+    const review = dto.review
+      ? this.normaliseReviewExpiry(dto.review as Record<string, unknown>)
+      : undefined;
+
     // Store message-level webhookUrl in metadata if provided
     const metadata: Record<string, unknown> = {
       ...(dto.metadata ?? {}),
@@ -40,7 +54,7 @@ export class MessagesService {
         senderId: dto.channelId,
         text: dto.text,
         status: dto.status,
-        review: (dto.review as Prisma.InputJsonValue) ?? undefined,
+        review: review as Prisma.InputJsonValue | undefined,
         metadata: Object.keys(metadata).length
           ? (metadata as Prisma.InputJsonValue)
           : undefined,
@@ -179,7 +193,7 @@ export class MessagesService {
           channelId,
           message,
         },
-        { userId, agentId: channelId },
+        { userId },
       );
     }
 
@@ -251,13 +265,30 @@ export class MessagesService {
     messageId: string,
     agentId: string,
     timeoutMs = 30000,
-  ): Promise<{ status: 'completed' | 'timeout'; message?: unknown }> {
+  ): Promise<{
+    status: 'completed' | 'expired' | 'timeout';
+    message?: unknown;
+  }> {
     const message = await this.getReviewByAgent(userId, messageId, agentId);
     const review = message.review as Record<string, unknown>;
 
     // Already completed — return immediately
     if (review.status === 'completed') {
       return { status: 'completed', message };
+    }
+
+    // Already expired — return immediately
+    if (review.status === 'expired') {
+      return { status: 'expired', message };
+    }
+
+    // Check if review has expired by date but status wasn't updated yet
+    if (
+      review.expiresAt &&
+      new Date(review.expiresAt as string) <= new Date()
+    ) {
+      const updated = await this.expireReview(messageId, review);
+      return { status: 'expired', message: updated };
     }
 
     // Long-poll: check periodically until timeout
@@ -280,6 +311,16 @@ export class MessagesService {
           const r = fresh.review as Record<string, unknown>;
           if (r.status === 'completed') {
             resolve({ status: 'completed', message: fresh });
+            return;
+          }
+          if (r.status === 'expired') {
+            resolve({ status: 'expired', message: fresh });
+            return;
+          }
+          // Check if review has expired by date
+          if (r.expiresAt && new Date(r.expiresAt as string) <= new Date()) {
+            const updated = await this.expireReview(messageId, r);
+            resolve({ status: 'expired', message: updated });
             return;
           }
         }
@@ -344,7 +385,7 @@ export class MessagesService {
     const meta = (message.metadata ?? {}) as Record<string, unknown>;
     const messageWebhookUrl = meta.webhookUrl as string | undefined;
 
-    const logCtx = { userId, agentId: message.channelId };
+    const logCtx = { userId };
 
     if (messageWebhookUrl) {
       // Tier 2: Message-level webhook override
@@ -370,5 +411,110 @@ export class MessagesService {
     }
 
     return updated;
+  }
+
+  // ── Review Expiry ─────────────────────────────────────────
+
+  /**
+   * Resolves expiresAt from expiresInSeconds (if given), applies the default
+   * duration when neither is set, and caps the result at MAX_REVIEW_DURATION.
+   * Returns a clean review object without the convenience field.
+   */
+  private normaliseReviewExpiry(
+    review: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const maxMs = MAX_REVIEW_DURATION_SECONDS * 1_000;
+    const now = Date.now();
+
+    let expiresAt: number | undefined;
+
+    if (review.expiresInSeconds != null) {
+      const seconds = Number(review.expiresInSeconds);
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        throw new BadRequestException(
+          'expiresInSeconds must be a positive integer',
+        );
+      }
+      expiresAt = now + seconds * 1_000;
+    } else if (review.expiresAt) {
+      const parsed = new Date(review.expiresAt as string).getTime();
+      if (Number.isNaN(parsed)) {
+        throw new BadRequestException(
+          'expiresAt must be a valid ISO date string',
+        );
+      }
+      expiresAt = parsed;
+    } else {
+      // Default expiration
+      expiresAt = now + DEFAULT_REVIEW_DURATION_SECONDS * 1_000;
+    }
+
+    // Cap at max duration
+    const maxExpiresAt = now + maxMs;
+    if (expiresAt > maxExpiresAt) {
+      expiresAt = maxExpiresAt;
+    }
+
+    // Don't allow expiration in the past
+    if (expiresAt <= now) {
+      throw new BadRequestException('Review expiration must be in the future');
+    }
+
+    const rest = { ...review };
+    delete rest.expiresInSeconds;
+    return {
+      ...rest,
+      status: 'pending',
+      expiresAt: new Date(expiresAt).toISOString(),
+    };
+  }
+
+  private async expireReview(
+    messageId: string,
+    review: Record<string, unknown>,
+  ) {
+    const updatedReview = {
+      ...review,
+      status: 'expired',
+    };
+
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { review: updatedReview as Prisma.InputJsonValue },
+      include: { attachments: true },
+    });
+  }
+
+  /** Runs every 60 seconds — marks reviews as expired whose expiresAt has passed. */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleReviewExpiry() {
+    const pending = await this.prisma.message.findMany({
+      where: {
+        review: { not: Prisma.JsonNull },
+        AND: { review: { path: ['status'], equals: 'pending' } },
+      },
+      select: { id: true, channelId: true, review: true },
+    });
+
+    const now = new Date();
+    let expired = 0;
+
+    for (const msg of pending) {
+      const review = msg.review as Record<string, unknown>;
+      if (!review.expiresAt) continue;
+
+      const expiresAt = new Date(review.expiresAt as string);
+      if (expiresAt > now) continue;
+
+      await this.expireReview(msg.id, review);
+      this.events.emitToChannel(msg.channelId, 'review:expired', {
+        messageId: msg.id,
+      });
+      expired++;
+    }
+
+    if (expired > 0) {
+      this.logger.log(`Expired ${expired} review(s)`);
+    }
   }
 }

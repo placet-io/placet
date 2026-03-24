@@ -4,12 +4,19 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import * as path from 'node:path';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
+
+// Prisma returns BigInt for certain columns — make them JSON-serialisable.
+(BigInt.prototype as bigint & { toJSON: () => number }).toJSON = function () {
+  return Number(this);
+};
 
 /**
  * E2E tests for the HumanProxy backend API.
@@ -26,12 +33,6 @@ import { PrismaService } from './../src/prisma/prisma.service';
 // Test credentials (must match .env INITIAL_USER_EMAIL / INITIAL_USER_PASSWORD)
 const TEST_EMAIL = process.env.INITIAL_USER_EMAIL ?? 'admin@humanproxy.local';
 const TEST_PASSWORD = process.env.INITIAL_USER_PASSWORD ?? 'changeme';
-
-/**
- * Set to false to keep all test data after the run (useful for inspecting
- * logs, messages, agents etc. in the database or frontend).
- */
-const CLEANUP_AFTER_TEST = false;
 
 interface ResponseBody {
   status?: string;
@@ -67,6 +68,23 @@ describe('HumanProxy API (e2e)', () => {
   let apiKeyId: string;
   let apiKeyRaw: string;
   let agentId: string;
+  const uploadedFileIds: string[] = [];
+
+  // Test files for upload/download tests
+  const TEST_FILES = [
+    { name: 'C2_ Containers.jpg', mime: 'image/jpeg' },
+    { name: 'cutout.png', mime: 'image/png' },
+    { name: 'DiMOS-Sensor-Angebot_FINAL.pdf', mime: 'application/pdf' },
+    { name: 'media_example.mov', mime: 'video/quicktime' },
+    {
+      name: 'Safeway_prasentation.pptx',
+      mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    },
+    {
+      name: 'Vorlage_AbschlussdokumentASEP.docx',
+      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    },
+  ];
 
   // Helper: extract access_token cookie from response
   function extractCookie(res: request.Response): string | undefined {
@@ -92,6 +110,10 @@ describe('HumanProxy API (e2e)', () => {
     await (app as NestFastifyApplication).register(
       fastifyCookie as Parameters<NestFastifyApplication['register']>[0],
     );
+    await (app as NestFastifyApplication).register(
+      fastifyMultipart as Parameters<NestFastifyApplication['register']>[0],
+      { limits: { fileSize: 100 * 1024 * 1024 } },
+    );
     await app.init();
     await (app as NestFastifyApplication)
       .getHttpAdapter()
@@ -100,20 +122,37 @@ describe('HumanProxy API (e2e)', () => {
 
     httpServer = app.getHttpServer() as App;
     prisma = moduleFixture.get<PrismaService>(PrismaService);
+
+    // Clean up leftover test data from previous runs (respecting FK constraints)
+    const testAgents = await prisma.agent.findMany({
+      where: { name: 'E2E Test Bot' },
+      select: { id: true },
+    });
+    const testAgentIds = testAgents.map((a) => a.id);
+
+    if (testAgentIds.length > 0) {
+      await prisma.message.deleteMany({
+        where: { channelId: { in: testAgentIds } },
+      });
+      await prisma.agent.deleteMany({ where: { id: { in: testAgentIds } } });
+    }
+
+    const testApiKeys = await prisma.apiKey.findMany({
+      where: { label: 'E2E Test Key' },
+      select: { id: true },
+    });
+    const testApiKeyIds = testApiKeys.map((k) => k.id);
+
+    if (testApiKeyIds.length > 0) {
+      await prisma.apiLog.deleteMany({
+        where: { apiKeyId: { in: testApiKeyIds } },
+      });
+    }
+
+    await prisma.apiKey.deleteMany({ where: { label: 'E2E Test Key' } });
   }, 30_000);
 
   afterAll(async () => {
-    if (CLEANUP_AFTER_TEST) {
-      // Clean up test data in correct order (respecting FK constraints)
-      if (agentId) {
-        await prisma.message.deleteMany({ where: { channelId: agentId } });
-        await prisma.apiLog.deleteMany({ where: { agentId } });
-        await prisma.agent.deleteMany({ where: { id: agentId } });
-      }
-      if (apiKeyId) {
-        await prisma.apiKey.deleteMany({ where: { id: apiKeyId } });
-      }
-    }
     await app.close();
   });
 
@@ -563,6 +602,116 @@ describe('HumanProxy API (e2e)', () => {
         return request(httpServer).get('/api/files').expect(401);
       });
     });
+
+    describe('POST /api/files/upload', () => {
+      it('should return 401 without auth', () => {
+        return request(httpServer).post('/api/files/upload').expect(401);
+      });
+    });
+
+    describe('Upload test files via backend', () => {
+      it.each(TEST_FILES)('should upload $name', async ({ name }) => {
+        const filePath = path.join(__dirname, 'input-files', name);
+
+        const res = await request(httpServer)
+          .post('/api/files/upload')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .field('channelId', agentId)
+          .attach('file', filePath)
+          .expect(201);
+
+        const body = res.body as {
+          id: string;
+          filename: string;
+          storageKey: string;
+        };
+        expect(body.id).toBeDefined();
+        expect(body.filename).toBe(name);
+        expect(body.storageKey).toMatch(/^uploads\//);
+
+        uploadedFileIds.push(body.id);
+      });
+    });
+
+    describe('GET /api/files (after upload)', () => {
+      it('should list uploaded files', async () => {
+        const res = await request(httpServer)
+          .get('/api/files')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        const body = res.body as {
+          data: { id: string }[];
+          nextCursor: string | null;
+        };
+        expect(body.data.length).toBeGreaterThanOrEqual(TEST_FILES.length);
+
+        // All uploaded files should be present
+        const ids = body.data.map((f) => f.id);
+        for (const fileId of uploadedFileIds) {
+          expect(ids).toContain(fileId);
+        }
+      });
+
+      it('should filter by search term', async () => {
+        const res = await request(httpServer)
+          .get('/api/files?search=Containers')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        const body = res.body as { data: { filename: string }[] };
+        expect(body.data.length).toBeGreaterThanOrEqual(1);
+        expect(body.data[0].filename).toContain('Containers');
+      });
+
+      it('should filter by MIME type prefix', async () => {
+        const res = await request(httpServer)
+          .get('/api/files?type=image')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        const body = res.body as { data: { mimeType: string }[] };
+        expect(body.data.length).toBeGreaterThanOrEqual(2); // jpg + png
+        for (const file of body.data) {
+          expect(file.mimeType).toMatch(/^image\//);
+        }
+      });
+    });
+
+    describe('GET /api/files/:id/download', () => {
+      it('should stream file content with correct headers', async () => {
+        // Download the first uploaded file (jpg)
+        const res = await request(httpServer)
+          .get(`/api/files/${uploadedFileIds[0]}/download`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+          .buffer(true);
+
+        expect(res.headers['content-type']).toContain('image/jpeg');
+        expect(res.headers['content-disposition']).toContain('Containers');
+        expect((res.body as Buffer).length).toBeGreaterThan(0);
+      });
+
+      it('should download PDF with correct content type', async () => {
+        // Find the PDF attachment (3rd file uploaded)
+        const pdfId = uploadedFileIds[2];
+        const res = await request(httpServer)
+          .get(`/api/files/${pdfId}/download`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+          .buffer(true);
+
+        expect(res.headers['content-type']).toContain('application/pdf');
+        expect((res.body as Buffer).length).toBeGreaterThan(0);
+      });
+
+      it('should return 404 for non-existent file', () => {
+        return request(httpServer)
+          .get('/api/files/nonexistent/download')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404);
+      });
+    });
   });
 
   // ──────────────────────────────────────────────
@@ -624,13 +773,15 @@ describe('HumanProxy API (e2e)', () => {
         expect(body.data.length).toBeGreaterThanOrEqual(1);
       });
 
-      it('should list files via agent API (empty)', async () => {
+      it('should list files via agent API', async () => {
         const res = await request(httpServer)
           .get(`/api/v1/files?channel=${agentId}`)
           .set('Authorization', `Bearer ${apiKeyRaw}`)
           .expect(200);
 
-        expect(Array.isArray(res.body)).toBe(true);
+        const body = res.body as unknown[];
+        expect(Array.isArray(body)).toBe(true);
+        expect(body.length).toBeGreaterThanOrEqual(TEST_FILES.length);
       });
 
       it('should list pending reviews via agent API', async () => {
@@ -699,9 +850,31 @@ describe('HumanProxy API (e2e)', () => {
   });
 
   // ──────────────────────────────────────────────
-  // Cleanup: Delete API key and agent via API
+  // Cleanup: Delete files, API key, and agent via API
   // ──────────────────────────────────────────────
   describe('Cleanup', () => {
+    it('should delete all uploaded test files', async () => {
+      for (const fileId of uploadedFileIds) {
+        await request(httpServer)
+          .delete(`/api/files/${fileId}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+          .expect((res) => {
+            expect((res.body as ResponseBody).message).toBe('Deleted');
+          });
+      }
+    });
+
+    it('should confirm files list is empty after deletion', async () => {
+      const res = await request(httpServer)
+        .get(`/api/files?agent=${agentId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const body = res.body as { data: unknown[] };
+      expect(body.data).toHaveLength(0);
+    });
+
     it('should delete the test API key', () => {
       return request(httpServer)
         .delete(`/api/api-keys/${apiKeyId}`)

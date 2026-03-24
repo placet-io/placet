@@ -33,7 +33,7 @@ const BLOCKED_HOSTS = [
 
 export interface WebhookLogContext {
   userId: string;
-  agentId?: string;
+  apiKeyId?: string;
 }
 
 @Injectable()
@@ -152,7 +152,7 @@ export class WebhooksService {
         void this.logsService
           .create({
             userId: logContext.userId,
-            agentId: logContext.agentId ?? null,
+            apiKeyId: logContext.apiKeyId ?? null,
             method: (callback.method || 'POST').toUpperCase(),
             path: callback.url,
             requestBody: this.maskSensitive(payload) as Prisma.InputJsonValue,
@@ -179,7 +179,7 @@ export class WebhooksService {
         void this.logsService
           .create({
             userId: logContext.userId,
-            agentId: logContext.agentId ?? null,
+            apiKeyId: logContext.apiKeyId ?? null,
             method: (callback.method || 'POST').toUpperCase(),
             path: callback.url,
             requestBody: this.maskSensitive(payload) as Prisma.InputJsonValue,

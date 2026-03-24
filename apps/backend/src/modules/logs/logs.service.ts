@@ -9,7 +9,7 @@ export class LogsService {
   async findAll(
     userId: string,
     query: {
-      agentId?: string;
+      apiKeyId?: string;
       direction?: string;
       status?: string;
       limit?: number;
@@ -19,7 +19,7 @@ export class LogsService {
     const limit = query.limit ?? 50;
     const where: Prisma.ApiLogWhereInput = { userId };
 
-    if (query.agentId) where.agentId = query.agentId;
+    if (query.apiKeyId) where.apiKeyId = query.apiKeyId;
     if (query.direction) where.direction = query.direction;
     if (query.status) where.statusCode = parseInt(query.status, 10);
 

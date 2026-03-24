@@ -200,21 +200,6 @@ export class ReviewWaitResponse {
   message?: MessageItemResponse;
 }
 
-// ── Files ──────────────────────────────────────────────────────────────────
-
-export class PresignUploadResponse {
-  @ApiProperty({ example: 'https://minio:9000/uploads/...' })
-  uploadUrl: string;
-
-  @ApiProperty({ example: 'uploads/clxyz123/report.pdf' })
-  fileKey: string;
-}
-
-export class PresignDownloadResponse {
-  @ApiProperty({ example: 'https://minio:9000/uploads/...' })
-  downloadUrl: string;
-}
-
 // ── Preferences ────────────────────────────────────────────────────────────
 
 export class PreferencesResponse {
@@ -235,7 +220,7 @@ export class ApiLogResponse {
   id: string;
 
   @ApiPropertyOptional({ example: 'clxyz456' })
-  agentId?: string;
+  apiKeyId?: string;
 
   @ApiProperty({ example: 'clxyz123' })
   userId: string;

@@ -33,12 +33,7 @@ export class ApiLoggerInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const logsService = this.logsService;
-    // Extract agentId from query param 'channel' or body 'channelId'
-    const agentId =
-      (request.query as Record<string, string>)?.channel ??
-      (request.body as Record<string, string>)?.channelId ??
-      null;
+    const apiKeyId = request.apiKeyId ?? null;
     const userId = request.user.id;
     const startTime = Date.now();
 
@@ -48,41 +43,36 @@ export class ApiLoggerInterceptor implements NestInterceptor {
           const duration = Date.now() - startTime;
           const response = context.switchToHttp().getResponse<FastifyReply>();
 
-          void logsService
-            .create({
-              agentId,
-              userId,
-              method: request.method,
-              path: request.url,
-              requestBody: (request.body as Prisma.InputJsonValue) ?? undefined,
-              responseBody:
-                (responseBody as Prisma.InputJsonValue) ?? undefined,
-              statusCode: response.statusCode ?? 200,
-              durationMs: duration,
-              direction: 'inbound',
-            })
-            .catch((err: unknown) => {
-              this.logger.error('Failed to write API log', err);
-            });
+          this.logsService!.create({
+            apiKeyId,
+            userId,
+            method: request.method,
+            path: request.url,
+            requestBody: (request.body as Prisma.InputJsonValue) ?? undefined,
+            responseBody: (responseBody as Prisma.InputJsonValue) ?? undefined,
+            statusCode: response.statusCode ?? 200,
+            durationMs: duration,
+            direction: 'inbound',
+          }).catch((err: unknown) => {
+            this.logger.error('Failed to write API log', err);
+          });
         },
         error: (error: { message?: string; status?: number }) => {
           const duration = Date.now() - startTime;
 
-          void logsService
-            .create({
-              agentId,
-              userId,
-              method: request.method,
-              path: request.url,
-              requestBody: (request.body as Prisma.InputJsonValue) ?? undefined,
-              responseBody: { error: error.message ?? 'Unknown error' },
-              statusCode: error.status ?? 500,
-              durationMs: duration,
-              direction: 'inbound',
-            })
-            .catch((err: unknown) => {
-              this.logger.error('Failed to write API log', err);
-            });
+          this.logsService!.create({
+            apiKeyId,
+            userId,
+            method: request.method,
+            path: request.url,
+            requestBody: (request.body as Prisma.InputJsonValue) ?? undefined,
+            responseBody: { error: error.message ?? 'Unknown error' },
+            statusCode: error.status ?? 500,
+            durationMs: duration,
+            direction: 'inbound',
+          }).catch((err: unknown) => {
+            this.logger.error('Failed to write API log', err);
+          });
         },
       }),
     );

@@ -40,6 +40,11 @@ export const ReviewCallbackSchema = z.object({
 });
 export type ReviewCallback = z.infer<typeof ReviewCallbackSchema>;
 
+/** Max review duration agents may request (36 hours). */
+export const MAX_REVIEW_DURATION_SECONDS = 36 * 60 * 60;
+/** Default review duration when none is specified (24 hours). */
+export const DEFAULT_REVIEW_DURATION_SECONDS = 24 * 60 * 60;
+
 export const ReviewSchema = z.object({
   type: z.string(),
   payload: z.record(z.string(), z.unknown()).optional(),
@@ -47,6 +52,8 @@ export const ReviewSchema = z.object({
   response: z.record(z.string(), z.unknown()).nullish(),
   callback: ReviewCallbackSchema.nullish(),
   expiresAt: z.string().nullish(),
+  /** Convenience alternative to expiresAt: duration in seconds from now. */
+  expiresInSeconds: z.number().int().positive().optional(),
   completedAt: z.string().nullish(),
 });
 export type Review = z.infer<typeof ReviewSchema>;
@@ -120,7 +127,7 @@ export type Message = z.infer<typeof MessageSchema>;
 
 export const ApiLogSchema = z.object({
   id: z.string(),
-  agentId: z.string().nullish(),
+  apiKeyId: z.string().nullish(),
   userId: z.string(),
   method: HttpMethodSchema,
   path: z.string(),
@@ -240,11 +247,6 @@ export interface LoginResponse {
 
 export interface CreateApiKeyResponse extends ApiKey {
   key: string; // full key, shown only once
-}
-
-export interface PresignUploadResponse {
-  uploadUrl: string;
-  fileKey: string;
 }
 
 export interface PaginatedResponse<T> {

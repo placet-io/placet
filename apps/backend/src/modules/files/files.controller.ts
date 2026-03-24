@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -12,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -24,15 +27,12 @@ import {
 import {
   AttachmentResponse,
   ErrorResponse,
-  PresignDownloadResponse,
-  PresignUploadResponse,
 } from '../../common/swagger-responses';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from './files.service';
-import { PresignUploadDto } from './dto/presign-upload.dto';
 
 @ApiTags('Files')
 @ApiBearerAuth()
@@ -47,7 +47,7 @@ export class FilesController {
   @Get()
   @ApiOperation({ summary: 'List all files across chats' })
   @ApiOkResponse({
-    description: 'List of attachments',
+    description: 'Paginated list of attachments',
     type: [AttachmentResponse],
   })
   @ApiUnauthorizedResponse({
@@ -57,56 +57,72 @@ export class FilesController {
   @ApiQuery({
     name: 'type',
     required: false,
-    description: 'Filter by MIME type',
+    description: 'Filter by MIME type prefix',
   })
   @ApiQuery({
     name: 'agent',
     required: false,
     description: 'Filter by agent ID',
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by filename',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Page size (max 100)',
+  })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'Cursor for pagination',
+  })
   findAll(
     @Req() req: RequestWithUser,
     @Query('type') type?: string,
     @Query('agent') agentId?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ) {
-    return this.filesService.findAllByUser(req.user.id, { type, agentId });
+    return this.filesService.findAllByUser(req.user.id, {
+      type,
+      agentId,
+      search,
+      limit: limit ? Number(limit) : undefined,
+      cursor,
+    });
   }
 
-  @Post('presign-upload')
-  @ApiOperation({ summary: 'Get presigned upload URL' })
+  @Post('upload')
+  @ApiOperation({ summary: 'Upload a file' })
+  @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({
-    description: 'Presigned upload URL',
-    type: PresignUploadResponse,
+    description: 'Uploaded attachment',
+    type: AttachmentResponse,
   })
   @ApiUnauthorizedResponse({
     description: 'Not authenticated',
     type: ErrorResponse,
   })
-  presignUpload(@Body() dto: PresignUploadDto) {
-    return this.filesService.presignUpload(dto.filename, dto.mimeType);
-  }
+  async upload(@Req() req: RequestWithUser & FastifyRequest) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('No file provided');
 
-  @Get(':id/presign-download')
-  @ApiOperation({ summary: 'Get presigned download URL by attachment ID' })
-  @ApiOkResponse({
-    description: 'Presigned download URL',
-    type: PresignDownloadResponse,
-  })
-  @ApiNotFoundResponse({
-    description: 'Attachment not found',
-    type: ErrorResponse,
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Not authenticated',
-    type: ErrorResponse,
-  })
-  async presignDownload(
-    @Req() req: RequestWithUser,
-    @Param('id') attachmentId: string,
-  ) {
-    const attachment = await this.filesService.findAttachmentById(attachmentId);
-    await this.verifyOwnership(req.user.id, attachment.message.channelId);
-    return this.filesService.presignDownload(attachment.storageKey);
+    const channelId = (data.fields['channelId'] as { value?: string })?.value;
+    if (!channelId) throw new BadRequestException('channelId is required');
+
+    await this.verifyOwnership(req.user.id, channelId);
+
+    const buffer = await data.toBuffer();
+    return this.filesService.uploadFile(
+      buffer,
+      data.filename,
+      data.mimetype,
+      channelId,
+    );
   }
 
   @Get(':id/download')
@@ -148,20 +164,55 @@ export class FilesController {
       return;
     }
 
-    const raw = res.raw;
-    const stream = s3Response.Body.transformToWebStream();
-    const reader = stream.getReader();
-    try {
-      for (;;) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        raw.write(chunk.value as Buffer);
-      }
-      raw.end();
-    } catch {
-      reader.cancel().catch(() => {});
-      if (!raw.destroyed) raw.destroy();
+    const bytes = await s3Response.Body.transformToByteArray();
+    void res.send(Buffer.from(bytes));
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a file' })
+  @ApiOkResponse({ description: 'File deleted' })
+  @ApiNotFoundResponse({
+    description: 'Attachment not found',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  async deleteFile(
+    @Req() req: RequestWithUser,
+    @Param('id') attachmentId: string,
+  ) {
+    const attachment = await this.filesService.findAttachmentById(attachmentId);
+    await this.verifyOwnership(req.user.id, attachment.message.channelId);
+    await this.filesService.deleteAttachment(attachmentId);
+    return { message: 'Deleted' };
+  }
+
+  @Post('bulk-delete')
+  @ApiOperation({ summary: 'Delete multiple files' })
+  @ApiOkResponse({ description: 'Files deleted' })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  async bulkDelete(
+    @Req() req: RequestWithUser,
+    @Body() body: { ids: string[] },
+  ) {
+    // Verify ownership for all files
+    const attachments = await this.prisma.attachment.findMany({
+      where: { id: { in: body.ids } },
+      include: { message: { select: { channelId: true } } },
+    });
+    const channelIds = [
+      ...new Set(attachments.map((a) => a.message.channelId)),
+    ];
+    for (const channelId of channelIds) {
+      await this.verifyOwnership(req.user.id, channelId);
     }
+    await this.filesService.deleteAttachments(body.ids);
+    return { message: `Deleted ${attachments.length} file(s)` };
   }
 
   private async verifyOwnership(userId: string, channelId: string) {

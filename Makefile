@@ -37,6 +37,8 @@ setup: _check-env ## First-time project setup
 	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-humanproxy} > /dev/null 2>&1; do \
 		sleep 1; \
 	done
+	@echo "══ Waiting for MinIO bucket setup ══"
+	@docker compose run --rm minio-setup > /dev/null 2>&1 || true
 	@echo "══ Running database migrations ══"
 	$(MAKE) db-push
 	@echo ""
@@ -65,6 +67,8 @@ update: _check-env ## Pull latest code, rebuild, and migrate
 	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-humanproxy} > /dev/null 2>&1; do \
 		sleep 1; \
 	done
+	@echo "══ Waiting for MinIO bucket setup ══"
+	@docker compose run --rm minio-setup > /dev/null 2>&1 || true
 	@echo "══ Running database migrations ══"
 	$(MAKE) db-push
 	@echo "✅ Update complete!"

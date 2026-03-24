@@ -37,7 +37,6 @@ model Agent {
 
   owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   messages Message[]
-  apiLogs  ApiLog[]
 
   @@map("agents")
 }
@@ -51,7 +50,8 @@ model ApiKey {
   lastUsedAt DateTime? @map("last_used_at")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiLogs ApiLog[]
 
   @@index([userId], name: "idx_api_keys_user")
   @@map("api_keys")
@@ -103,7 +103,7 @@ model InstalledPlugin {
 
 model ApiLog {
   id           String   @id @default(cuid())
-  agentId      String?  @map("agent_id")
+  apiKeyId     String?  @map("api_key_id")
   userId       String   @map("user_id")
   method       String // 'POST' | 'GET' | 'DELETE'
   path         String
@@ -114,8 +114,8 @@ model ApiLog {
   direction    String // 'inbound' | 'outbound'
   createdAt    DateTime @default(now()) @map("created_at")
 
-  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)], name: "idx_api_logs_user")
   @@map("api_logs")

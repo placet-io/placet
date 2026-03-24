@@ -5,8 +5,9 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -38,29 +39,56 @@ export class FilesService {
     });
   }
 
-  async presignUpload(filename: string, mimeType: string) {
-    const key = `uploads/${Date.now()}-${filename}`;
-    const command = new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      ContentType: mimeType,
-    });
-    const url = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
-    return { url, storageKey: key };
-  }
+  async uploadFile(
+    buffer: Buffer,
+    filename: string,
+    mimeType: string,
+    channelId: string,
+  ) {
+    const storageKey = `uploads/${Date.now()}-${filename}`;
 
-  async presignDownload(storageKey: string) {
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: storageKey,
+    // Upload to S3
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: storageKey,
+        Body: buffer,
+        ContentType: mimeType,
+      }),
+    );
+
+    // Create message + attachment in DB
+    const message = await this.prisma.message.create({
+      data: {
+        channelId,
+        senderType: 'agent',
+        senderId: channelId,
+        text: `Attached: ${filename}`,
+      },
     });
-    const url = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
-    return { url };
+
+    return this.prisma.attachment.create({
+      data: {
+        messageId: message.id,
+        pluginType:
+          mimeType.split('/')[0] === 'image' ? '@uax/image' : '@uax/file',
+        filename,
+        mimeType,
+        size: buffer.length,
+        storageKey,
+      },
+    });
   }
 
   async findAllByUser(
     userId: string,
-    query: { type?: string; agentId?: string },
+    query: {
+      type?: string;
+      agentId?: string;
+      search?: string;
+      limit?: number;
+      cursor?: string;
+    },
   ) {
     const agents = await this.prisma.agent.findMany({
       where: { ownerId: userId },
@@ -70,17 +98,21 @@ export class FilesService {
 
     // If agentId filter is provided, verify the user owns it
     if (query.agentId && !ownedIds.has(query.agentId)) {
-      return [];
+      return { data: [], nextCursor: null };
     }
 
     const agentIds = query.agentId ? [query.agentId] : [...ownedIds];
+    const limit = Math.min(query.limit ?? 30, 100);
 
     const where: Prisma.AttachmentWhereInput = {
       message: { channelId: { in: agentIds } },
       ...(query.type && { mimeType: { startsWith: query.type } }),
+      ...(query.search && {
+        filename: { contains: query.search, mode: 'insensitive' as const },
+      }),
     };
 
-    return this.prisma.attachment.findMany({
+    const items = await this.prisma.attachment.findMany({
       where,
       include: {
         message: {
@@ -88,7 +120,18 @@ export class FilesService {
         },
       },
       orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(query.cursor && {
+        cursor: { id: query.cursor },
+        skip: 1,
+      }),
     });
+
+    const hasMore = items.length > limit;
+    const data = hasMore ? items.slice(0, limit) : items;
+    const nextCursor = hasMore ? data[data.length - 1].id : null;
+
+    return { data, nextCursor };
   }
 
   async findAllByAgent(agentId: string) {
@@ -116,8 +159,43 @@ export class FilesService {
     return response;
   }
 
-  async presignDownloadById(attachmentId: string) {
+  async deleteAttachment(attachmentId: string) {
     const attachment = await this.findAttachmentById(attachmentId);
-    return this.presignDownload(attachment.storageKey);
+
+    // Delete from S3
+    await this.s3.send(
+      new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: attachment.storageKey,
+      }),
+    );
+
+    // Delete DB record
+    await this.prisma.attachment.delete({ where: { id: attachmentId } });
+  }
+
+  async deleteAttachments(attachmentIds: string[]) {
+    // Fetch all attachments to get storage keys
+    const attachments = await this.prisma.attachment.findMany({
+      where: { id: { in: attachmentIds } },
+      select: { id: true, storageKey: true },
+    });
+
+    if (attachments.length === 0) return;
+
+    // Delete from S3 in batch
+    await this.s3.send(
+      new DeleteObjectsCommand({
+        Bucket: this.bucket,
+        Delete: {
+          Objects: attachments.map((a) => ({ Key: a.storageKey })),
+        },
+      }),
+    );
+
+    // Delete DB records
+    await this.prisma.attachment.deleteMany({
+      where: { id: { in: attachments.map((a) => a.id) } },
+    });
   }
 }
