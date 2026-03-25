@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,10 +8,12 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -18,6 +21,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   AgentResponse,
   DeletedResponse,
@@ -45,6 +49,17 @@ export class AgentsController {
   })
   findAll(@Req() req: RequestWithUser) {
     return this.agentsService.findAllByOwner(req.user.id);
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Get global agent statistics' })
+  @ApiOkResponse({ description: 'Global statistics across all agents' })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  getGlobalStats(@Req() req: RequestWithUser) {
+    return this.agentsService.getGlobalStats(req.user.id);
   }
 
   @Post()
@@ -87,5 +102,67 @@ export class AgentsController {
   })
   remove(@Req() req: RequestWithUser, @Param('id') id: string) {
     return this.agentsService.remove(id, req.user.id);
+  }
+
+  @Get(':id/stats')
+  @ApiOperation({ summary: 'Get agent statistics (messages, errors, uptime)' })
+  @ApiOkResponse({ description: 'Agent statistics' })
+  @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  getStats(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.agentsService.getStats(id, req.user.id);
+  }
+
+  @Post(':id/avatar')
+  @ApiOperation({ summary: 'Upload agent avatar' })
+  @ApiConsumes('multipart/form-data')
+  @ApiOkResponse({ description: 'Agent updated', type: AgentResponse })
+  @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
+  async uploadAvatar(
+    @Req() req: RequestWithUser & FastifyRequest,
+    @Param('id') id: string,
+  ) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('No file provided');
+    if (!data.mimetype.startsWith('image/'))
+      throw new BadRequestException('File must be an image');
+
+    const buffer = await data.toBuffer();
+    return this.agentsService.uploadAvatar(
+      id,
+      req.user.id,
+      buffer,
+      data.mimetype,
+    );
+  }
+
+  @Get(':id/avatar')
+  @ApiOperation({ summary: 'Get agent avatar image' })
+  @ApiOkResponse({ description: 'Avatar image' })
+  @ApiNotFoundResponse({
+    description: 'Agent not found or no avatar',
+    type: ErrorResponse,
+  })
+  async getAvatar(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const s3Resp = await this.agentsService.getAvatarStream(id, req.user.id);
+    const contentType = s3Resp.ContentType ?? 'application/octet-stream';
+    void reply.header('Content-Type', contentType);
+    void reply.header('Cache-Control', 'public, max-age=3600');
+    return reply.send(s3Resp.Body);
+  }
+
+  @Delete(':id/avatar')
+  @ApiOperation({ summary: 'Remove agent avatar' })
+  @ApiOkResponse({ description: 'Agent updated', type: AgentResponse })
+  @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
+  removeAvatar(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.agentsService.removeAvatar(id, req.user.id);
   }
 }

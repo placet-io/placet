@@ -226,7 +226,7 @@ describe('AuthService', () => {
   });
 
   describe('onModuleInit (seedInitialUser)', () => {
-    it('should create initial user with mustChangePassword if none exists', async () => {
+    it('should create initial user without mustChangePassword', async () => {
       config.get.mockReturnValue('admin@test.com');
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.user.create.mockResolvedValue({});
@@ -236,7 +236,7 @@ describe('AuthService', () => {
       expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining<Record<string, unknown>>({
           data: expect.objectContaining<Record<string, unknown>>({
-            mustChangePassword: true,
+            mustChangePassword: false,
           }) as unknown,
         }),
       );

@@ -32,13 +32,30 @@ model Agent {
   webhookUrl     String?   @map("webhook_url") // default webhook for this chat
   webhookHeaders Json?     @map("webhook_headers") // custom headers as { key: value }
   webhookAuth    Json?     @map("webhook_auth") // basic auth as { username, password }
+  status         String    @default("offline") // 'active' | 'busy' | 'error' | 'offline'
+  statusMessage  String?   @map("status_message")
+  statusSince    DateTime? @map("status_since")
   lastActiveAt   DateTime? @map("last_active_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  messages Message[]
+  owner          User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  messages       Message[]
+  statusHistory  AgentStatusHistory[]
 
   @@map("agents")
+}
+
+model AgentStatusHistory {
+  id        String   @id @default(cuid())
+  agentId   String   @map("agent_id")
+  status    String   // 'active' | 'busy' | 'error' | 'offline'
+  message   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, createdAt(sort: Desc)], name: "idx_agent_status_history")
+  @@map("agent_status_history")
 }
 
 model ApiKey {

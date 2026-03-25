@@ -1,69 +1,41 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import type { Prisma } from '@prisma/client';
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-  DeleteObjectsCommand,
-} from '@aws-sdk/client-s3';
+import archiver from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
+import { S3Service } from '../../providers/s3.service';
 
 @Injectable()
 export class FilesService {
-  private readonly s3: S3Client;
-  private readonly bucket: string;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-  ) {
-    this.bucket = this.config.get<string>('MINIO_BUCKET', 'humanproxy');
-
-    const host = this.config.get<string>('MINIO_ENDPOINT', 'localhost');
-    const port = this.config.get<string>('MINIO_PORT', '9000');
-    const endpoint = host.startsWith('http') ? host : `http://${host}:${port}`;
-
-    this.s3 = new S3Client({
-      endpoint,
-      region: 'us-east-1',
-      credentials: {
-        accessKeyId: this.config.get<string>('MINIO_ACCESS_KEY', 'minioadmin'),
-        secretAccessKey: this.config.get<string>(
-          'MINIO_SECRET_KEY',
-          'minioadmin',
-        ),
-      },
-      forcePathStyle: true,
-    });
-  }
+    private readonly jwt: JwtService,
+    private readonly s3: S3Service,
+  ) {}
 
   async uploadFile(
     buffer: Buffer,
     filename: string,
     mimeType: string,
     channelId: string,
+    senderType: 'agent' | 'user' = 'agent',
+    senderId?: string,
+    text?: string,
   ) {
     const storageKey = `uploads/${Date.now()}-${filename}`;
 
     // Upload to S3
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: storageKey,
-        Body: buffer,
-        ContentType: mimeType,
-      }),
-    );
+    await this.s3.upload(storageKey, buffer, mimeType);
 
     // Create message + attachment in DB
     const message = await this.prisma.message.create({
       data: {
         channelId,
-        senderType: 'agent',
-        senderId: channelId,
-        text: `Attached: ${filename}`,
+        senderType,
+        senderId: senderId ?? channelId,
+        ...(text ? { text } : {}),
       },
     });
 
@@ -151,24 +123,37 @@ export class FilesService {
   }
 
   async getFileStream(storageKey: string) {
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: storageKey,
-    });
-    const response = await this.s3.send(command);
-    return response;
+    return this.s3.getStream(storageKey);
+  }
+
+  /** Default share-token expiry: 1 hour */
+  private static readonly SHARE_EXPIRES_IN = 3600;
+
+  createShareToken(attachmentId: string): { url: string; expiresIn: number } {
+    const jwt = this.jwt.sign(
+      { sub: attachmentId, purpose: 'file-share' },
+      { expiresIn: FilesService.SHARE_EXPIRES_IN },
+    );
+    const token = Buffer.from(jwt).toString('base64url');
+    const appUrl = this.config.get<string>('APP_URL', 'http://localhost:3001');
+    const url = `${appUrl}/api/share/${token}`;
+    return { url, expiresIn: FilesService.SHARE_EXPIRES_IN };
+  }
+
+  async getAttachmentByShareToken(token: string) {
+    const jwt = Buffer.from(token, 'base64url').toString();
+    const payload = this.jwt.verify<{ sub: string; purpose: string }>(jwt);
+    if (payload.purpose !== 'file-share') {
+      throw new NotFoundException('Invalid share token');
+    }
+    return this.findAttachmentById(payload.sub);
   }
 
   async deleteAttachment(attachmentId: string) {
     const attachment = await this.findAttachmentById(attachmentId);
 
     // Delete from S3
-    await this.s3.send(
-      new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: attachment.storageKey,
-      }),
-    );
+    await this.s3.delete(attachment.storageKey);
 
     // Delete DB record
     await this.prisma.attachment.delete({ where: { id: attachmentId } });
@@ -184,18 +169,42 @@ export class FilesService {
     if (attachments.length === 0) return;
 
     // Delete from S3 in batch
-    await this.s3.send(
-      new DeleteObjectsCommand({
-        Bucket: this.bucket,
-        Delete: {
-          Objects: attachments.map((a) => ({ Key: a.storageKey })),
-        },
-      }),
-    );
+    await this.s3.deleteMany(attachments.map((a) => a.storageKey));
 
     // Delete DB records
     await this.prisma.attachment.deleteMany({
       where: { id: { in: attachments.map((a) => a.id) } },
     });
+  }
+
+  async createZip(
+    attachmentIds: string[],
+  ): Promise<{ buffer: Buffer; count: number }> {
+    const attachments = await this.prisma.attachment.findMany({
+      where: { id: { in: attachmentIds } },
+      select: { filename: true, storageKey: true },
+    });
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    const chunks: Buffer[] = [];
+
+    const done = new Promise<void>((resolve, reject) => {
+      archive.on('data', (chunk: Buffer) => chunks.push(chunk));
+      archive.on('end', resolve);
+      archive.on('error', reject);
+    });
+
+    for (const att of attachments) {
+      const s3Resp = await this.getFileStream(att.storageKey);
+      if (s3Resp.Body) {
+        const bytes = await s3Resp.Body.transformToByteArray();
+        archive.append(Buffer.from(bytes), { name: att.filename });
+      }
+    }
+
+    await archive.finalize();
+    await done;
+
+    return { buffer: Buffer.concat(chunks), count: attachments.length };
   }
 }

@@ -1,16 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { FilesService } from './files.service';
 import { PrismaService } from '../../prisma/prisma.service';
-
-// Mock the AWS SDK modules
-jest.mock('@aws-sdk/client-s3', () => ({
-  S3Client: jest.fn().mockImplementation(() => ({
-    send: jest.fn().mockResolvedValue({}),
-  })),
-  PutObjectCommand: jest.fn(),
-  GetObjectCommand: jest.fn(),
-}));
+import { S3Service } from '../../providers/s3.service';
 
 describe('FilesService', () => {
   let service: FilesService;
@@ -18,6 +11,12 @@ describe('FilesService', () => {
     agent: { findMany: jest.Mock };
     attachment: { findMany: jest.Mock; create: jest.Mock };
     message: { create: jest.Mock };
+  };
+  let s3: {
+    upload: jest.Mock;
+    getStream: jest.Mock;
+    delete: jest.Mock;
+    deleteMany: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -27,10 +26,22 @@ describe('FilesService', () => {
       message: { create: jest.fn() },
     };
 
+    s3 = {
+      upload: jest.fn().mockResolvedValue(undefined),
+      getStream: jest.fn().mockResolvedValue({}),
+      delete: jest.fn().mockResolvedValue(undefined),
+      deleteMany: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FilesService,
         { provide: PrismaService, useValue: prisma },
+        { provide: S3Service, useValue: s3 },
+        {
+          provide: JwtService,
+          useValue: { sign: jest.fn(), verify: jest.fn() },
+        },
         {
           provide: ConfigService,
           useValue: {

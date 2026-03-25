@@ -5,6 +5,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -113,6 +114,7 @@ export class FilesController {
 
     const channelId = (data.fields['channelId'] as { value?: string })?.value;
     if (!channelId) throw new BadRequestException('channelId is required');
+    const text = (data.fields['text'] as { value?: string })?.value;
 
     await this.verifyOwnership(req.user.id, channelId);
 
@@ -122,6 +124,9 @@ export class FilesController {
       data.filename,
       data.mimetype,
       channelId,
+      'user',
+      req.user.id,
+      text || undefined,
     );
   }
 
@@ -166,6 +171,23 @@ export class FilesController {
 
     const bytes = await s3Response.Body.transformToByteArray();
     void res.send(Buffer.from(bytes));
+  }
+
+  @Get(':id/share')
+  @ApiOperation({ summary: 'Get presigned download URL for sharing' })
+  @ApiOkResponse({ description: 'Presigned URL with expiry' })
+  @ApiNotFoundResponse({
+    description: 'Attachment not found',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  async share(@Req() req: RequestWithUser, @Param('id') attachmentId: string) {
+    const attachment = await this.filesService.findAttachmentById(attachmentId);
+    await this.verifyOwnership(req.user.id, attachment.message.channelId);
+    return this.filesService.createShareToken(attachmentId);
   }
 
   @Delete(':id')
@@ -213,6 +235,39 @@ export class FilesController {
     }
     await this.filesService.deleteAttachments(body.ids);
     return { message: `Deleted ${attachments.length} file(s)` };
+  }
+
+  @Post('bulk-download')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Download multiple files as ZIP' })
+  @ApiProduces('application/zip')
+  @ApiOkResponse({ description: 'ZIP file stream' })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  async bulkDownload(
+    @Req() req: RequestWithUser,
+    @Res({ passthrough: false }) res: FastifyReply,
+    @Body() body: { ids: string[] },
+  ) {
+    const attachments = await this.prisma.attachment.findMany({
+      where: { id: { in: body.ids } },
+      include: { message: { select: { channelId: true } } },
+    });
+    const channelIds = [
+      ...new Set(attachments.map((a) => a.message.channelId)),
+    ];
+    for (const channelId of channelIds) {
+      await this.verifyOwnership(req.user.id, channelId);
+    }
+
+    const { buffer } = await this.filesService.createZip(body.ids);
+
+    void res.header('Content-Type', 'application/zip');
+    void res.header('Content-Disposition', 'attachment; filename="files.zip"');
+    void res.header('Content-Length', String(buffer.length));
+    void res.send(buffer);
   }
 
   private async verifyOwnership(userId: string, channelId: string) {

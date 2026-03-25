@@ -1,0 +1,111 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useCallback, useRef, useState } from 'react';
+import { ChatHeader } from '@/components/chat/chat-header';
+import type { ChatHeaderHandle } from '@/components/chat/chat-header';
+import { ChatSettings } from '@/components/chat/chat-settings';
+import { MessageList } from '@/components/chat/message-list';
+import { MessageInput } from '@/components/chat/message-input';
+import type { QuotedMessage } from '@/components/chat/message-input';
+import { useAgentsContext } from '@/lib/contexts/agents-context';
+import { useMessages } from '@/lib/hooks/use-messages';
+
+export default function ChatThreadPage() {
+  const params = useParams<{ agentId: string }>();
+  const agentId = params.agentId;
+  const headerRef = useRef<ChatHeaderHandle>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null);
+
+  const { agents } = useAgentsContext();
+  const agent = agents.find((a) => a.id === agentId);
+  const agentName = agent?.name ?? 'Agent';
+  const agentAvatarUrl = agent?.avatarUrl
+    ? `/api/agents/${agentId}/avatar?v=${encodeURIComponent(agent.avatarUrl)}`
+    : null;
+
+  const {
+    messages,
+    loading: messagesLoading,
+    loadingOlder,
+    hasMore,
+    sendMessage,
+    uploadFile,
+    loadOlder,
+    respondToReview,
+  } = useMessages(agentId);
+
+  const handleSend = useCallback(
+    (text: string) => {
+      void sendMessage(text);
+    },
+    [sendMessage],
+  );
+
+  const handleLoadOlder = useCallback(() => {
+    void loadOlder();
+  }, [loadOlder]);
+
+  const handleSetupWebhook = useCallback(() => {
+    setShowSettings(true);
+  }, []);
+
+  const handleToggleSettings = useCallback(() => {
+    setShowSettings((v) => !v);
+  }, []);
+
+  const handleReply = useCallback((messageId: string, senderName: string, text: string) => {
+    setQuotedMessage({ messageId, senderName, text });
+  }, []);
+
+  const handleClearQuote = useCallback(() => {
+    setQuotedMessage(null);
+  }, []);
+
+  return (
+    <div className="flex flex-1 flex-col bg-card sm:rounded-3xl overflow-hidden shadow-sm relative h-full sm:border sm:border-border/50">
+      <ChatHeader
+        ref={headerRef}
+        agentId={agentId}
+        name={agentName}
+        avatarUrl={agentAvatarUrl}
+        description={agent?.description}
+        showSettings={showSettings}
+        onToggleSettings={handleToggleSettings}
+      />
+      {showSettings ? (
+        <ChatSettings
+          agentId={agentId}
+          name={agentName}
+          avatarUrl={agentAvatarUrl}
+          webhookUrl={agent?.webhookUrl}
+          webhookHeaders={agent?.webhookHeaders}
+          webhookAuth={agent?.webhookAuth}
+        />
+      ) : (
+        <>
+          <MessageList
+            messages={messages}
+            agentName={agentName}
+            agentAvatarUrl={agentAvatarUrl}
+            channelId={agentId}
+            loading={messagesLoading}
+            loadingOlder={loadingOlder}
+            hasMore={hasMore}
+            onLoadOlder={handleLoadOlder}
+            onSetupWebhook={handleSetupWebhook}
+            onReviewRespond={respondToReview}
+            onReply={handleReply}
+          />
+          <MessageInput
+            onSend={handleSend}
+            onUploadFile={uploadFile}
+            quotedMessage={quotedMessage}
+            onClearQuote={handleClearQuote}
+          />
+        </>
+      )}
+    </div>
+  );
+}

@@ -31,6 +31,9 @@ export type ApiLogDirection = z.infer<typeof ApiLogDirectionSchema>;
 export const HttpMethodSchema = z.enum(['GET', 'POST', 'PATCH', 'DELETE']);
 export type HttpMethod = z.infer<typeof HttpMethodSchema>;
 
+export const AgentStatusSchema = z.enum(['active', 'busy', 'error', 'offline']);
+export type AgentStatus = z.infer<typeof AgentStatusSchema>;
+
 // ── Core Entity Schemas ─────────────────────────────────────────────────────
 
 export const ReviewCallbackSchema = z.object({
@@ -83,6 +86,9 @@ export const AgentSchema = z.object({
   webhookUrl: z.string().url().nullish(),
   webhookHeaders: z.record(z.string(), z.string()).nullish(),
   webhookAuth: WebhookAuthSchema.nullish(),
+  status: AgentStatusSchema,
+  statusMessage: z.string().nullish(),
+  statusSince: z.string().nullish(),
   lastActiveAt: z.string().nullish(),
   createdAt: z.string(),
 });
@@ -195,7 +201,7 @@ export type CreateAgentRequest = z.infer<typeof CreateAgentSchema>;
 export const UpdateAgentSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: z.string().url().nullable().optional(),
   webhookUrl: z.string().url().nullable().optional(),
   webhookHeaders: z.record(z.string(), z.string()).nullable().optional(),
   webhookAuth: WebhookAuthSchema.nullable().optional(),
@@ -252,4 +258,39 @@ export interface CreateApiKeyResponse extends ApiKey {
 export interface PaginatedResponse<T> {
   data: T[];
   nextCursor?: string | null;
+}
+
+// ── Agent Status ────────────────────────────────────────────────────────────
+
+export const AgentStatusHistorySchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  status: AgentStatusSchema,
+  message: z.string().nullish(),
+  createdAt: z.string(),
+});
+export type AgentStatusHistoryEntry = z.infer<typeof AgentStatusHistorySchema>;
+
+export const PingStatusSchema = z.object({
+  agentId: z.string().min(1),
+  status: AgentStatusSchema,
+  message: z.string().max(500).optional(),
+});
+export type PingStatusRequest = z.infer<typeof PingStatusSchema>;
+
+export interface AgentStatsResponse {
+  totalMessages: number;
+  totalInbound: number;
+  totalOutbound: number;
+  successRequests: number;
+  errorRequests: number;
+  statusHistory: AgentStatusHistoryEntry[];
+}
+
+export interface GlobalStatsResponse {
+  totalAgents: number;
+  activeAgents: number;
+  totalMessages: number;
+  successRequests: number;
+  errorRequests: number;
 }

@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { S3Module } from './providers/s3.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AgentsModule } from './modules/agents/agents.module';
@@ -17,6 +18,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { EventsModule } from './modules/events/events.module';
 import { PluginsModule } from './modules/plugins/plugins.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
+import { ShareModule } from './modules/share/share.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
 
 @Module({
@@ -33,6 +35,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
       },
     }),
     PrismaModule,
+    S3Module,
     AuthModule,
     UsersModule,
     AgentsModule,
@@ -44,6 +47,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
     EventsModule,
     PluginsModule,
     ApiKeysModule,
+    ShareModule,
   ],
   controllers: [AppController],
   providers: [

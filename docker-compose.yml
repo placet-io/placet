@@ -73,6 +73,7 @@ services:
       INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@humanproxy.local}
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      APP_URL: ${APP_URL:-http://localhost:3001}
     ports:
       - '${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}'
 

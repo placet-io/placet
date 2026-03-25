@@ -5,12 +5,18 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/frontend/package.json ./apps/frontend/
-RUN npm ci --workspace=@humanproxy/frontend
+COPY packages/shared/package.json ./packages/shared/
+RUN npm ci --workspace=@humanproxy/frontend --workspace=@humanproxy/shared
 
-# Build
+# Build shared package first, then frontend
 FROM deps AS build
+COPY tsconfig.base.json ./
+COPY packages/shared/ ./packages/shared/
+RUN npm run build --workspace=@humanproxy/shared
 COPY apps/frontend/ ./apps/frontend/
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG INTERNAL_API_URL=http://backend:3001
+ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 RUN npm run build --workspace=@humanproxy/frontend
 
 # Production

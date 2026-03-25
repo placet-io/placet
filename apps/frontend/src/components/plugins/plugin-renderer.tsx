@@ -269,23 +269,18 @@ export function PluginRenderer({
         }
 
         case 'hp:getFileUrl': {
-          // Get a presigned download URL for the attachment
+          // Return a direct download URL for the attachment
           const { id: urlId, payload: urlPayload } = msg as {
             id: string;
             payload: { attachmentId: string };
           };
           try {
-            const res = await fetch(`/api/files/${urlPayload.attachmentId}/presign-download`, {
-              credentials: 'include',
-            });
-            if (!res.ok) throw new Error(`Presign failed (${res.status})`);
-
-            const json = await res.json();
+            const url = `/api/files/${urlPayload.attachmentId}/download`;
             iframe.contentWindow?.postMessage(
               {
                 type: 'hp:getFileUrl:response',
                 id: urlId,
-                payload: { ok: true, url: json.url },
+                payload: { ok: true, url },
               },
               '*',
             );

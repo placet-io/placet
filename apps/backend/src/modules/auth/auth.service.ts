@@ -49,7 +49,7 @@ export class AuthService implements OnModuleInit {
         displayName: 'Admin',
         passwordHash,
         role: 'owner',
-        mustChangePassword: true,
+        mustChangePassword: false,
       },
     });
 
