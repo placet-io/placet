@@ -40,6 +40,7 @@ model Agent {
 
   owner          User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   messages       Message[]
+  attachments    Attachment[]
   statusHistory  AgentStatusHistory[]
 
   @@map("agents")
@@ -94,7 +95,8 @@ model Message {
 
 model Attachment {
   id         String   @id @default(cuid())
-  messageId  String   @map("message_id")
+  messageId  String?  @map("message_id") // nullable: orphan files stored without a message
+  channelId  String   @map("channel_id") // direct link to agent for ownership queries
   pluginType String   @map("plugin_type") // e.g. '@uax/image', '@uax/pdf'
   filename   String
   mimeType   String   @map("mime_type")
@@ -103,8 +105,10 @@ model Attachment {
   pluginData Json?    @map("plugin_data") // plugin-specific metadata
   createdAt  DateTime @default(now()) @map("created_at")
 
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  agent   Agent    @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
+  @@index([channelId], name: "idx_attachments_channel")
   @@map("attachments")
 }
 

@@ -100,14 +100,26 @@ export function useMessages(channelId: string | null) {
   );
 
   const respondToReview = useCallback(
-    async (messageId: string, response: Record<string, unknown>) => {
+    async (messageId: string, response: Record<string, unknown>, annotationFileId?: string) => {
       const updated = await api<Message>(`/api/messages/${messageId}/respond`, {
         method: 'POST',
-        body: JSON.stringify({ response }),
+        body: JSON.stringify({ response, ...(annotationFileId ? { annotationFileId } : {}) }),
       });
       setMessages((prev) => prev.map((m) => (m.id === messageId ? updated : m)));
     },
     [],
+  );
+
+  const sendAsMessage = useCallback(
+    async (attachmentId: string) => {
+      if (!channelId) return;
+      const msg = await api<Message>('/api/messages', {
+        method: 'POST',
+        body: JSON.stringify({ channelId, attachmentIds: [attachmentId] }),
+      });
+      setMessages((prev) => [...prev, msg]);
+    },
+    [channelId],
   );
 
   return {
@@ -121,5 +133,6 @@ export function useMessages(channelId: string | null) {
     uploadFile,
     loadOlder,
     respondToReview,
+    sendAsMessage,
   };
 }

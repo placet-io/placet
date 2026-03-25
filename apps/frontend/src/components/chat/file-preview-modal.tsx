@@ -1,7 +1,8 @@
 'use client';
 
-import { memo, useCallback, useRef, useState } from 'react';
-import { Download, X, ChevronLeft, ChevronRight, Pen } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Download, X, ChevronLeft, ChevronRight, Pen, RotateCcw, Send } from 'lucide-react';
+import { useAnnotations } from '@/lib/hooks/use-annotations';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Dialog, DialogClose, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { MarkdownContent } from './markdown-content';
 import { FilePreview } from '@/components/files/file-preview';
 import { CanvasOverlay } from './canvas-overlay';
 import { formatFileSize, getFileTypeLabel } from '@/lib/file-utils';
+import { cn } from '@/lib/utils';
 import type { Attachment, Review } from '@humanproxy/shared';
 import type { CanvasOverlayHandle } from './canvas-overlay';
 
@@ -26,7 +28,12 @@ interface FilePreviewModalProps {
   /** Review bound to this message */
   review?: Review | null;
   messageId: string;
-  onReviewRespond?: (messageId: string, response: Record<string, unknown>) => Promise<void>;
+  onReviewRespond?: (
+    messageId: string,
+    response: Record<string, unknown>,
+    annotationFileId?: string,
+  ) => Promise<void>;
+  onSendAsMessage?: (attachmentId: string) => Promise<void>;
 }
 
 export const FilePreviewModal = memo(function FilePreviewModal({
@@ -39,20 +46,40 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   review,
   messageId,
   onReviewRespond,
+  onSendAsMessage,
 }: FilePreviewModalProps) {
+  const { annotations, saveAnnotation, revertAnnotation } = useAnnotations();
   const [currentIndex, setCurrentIndex] = useState(() =>
     attachment ? attachments.findIndex((a) => a.id === attachment.id) : 0,
   );
   const [annotating, setAnnotating] = useState(false);
-  const [annotationSubmitting, setAnnotationSubmitting] = useState(false);
+  const [annoSaving, setAnnoSaving] = useState(false);
+  const [sendingAsMsg, setSendingAsMsg] = useState(false);
+  const [viewingAnnotated, setViewingAnnotated] = useState(false);
   const canvasRef = useRef<CanvasOverlayHandle>(null);
 
+  // Sync currentIndex whenever the attachment prop changes.
+  useEffect(() => {
+    if (attachment) {
+      const idx = attachments.findIndex((a) => a.id === attachment.id);
+      setCurrentIndex(idx >= 0 ? idx : 0);
+    }
+    setAnnotating(false);
+  }, [attachment, attachments]);
+
+  // Auto-show the annotated version when navigating to a file that has one.
+  useEffect(() => {
+    setViewingAnnotated(!!annotations[current?.id ?? '']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, annotations]);
+
   const current = attachments[currentIndex] ?? attachment;
+  const annotation = current ? annotations[current.id] : undefined;
 
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < attachments.length - 1;
   const isImage = current?.mimeType.startsWith('image/') ?? false;
-  const canAnnotate = isImage && review?.status === 'pending';
+  const canAnnotate = isImage;
   const label = current ? getFileTypeLabel(current.mimeType, current.filename) : '';
   const size = current ? formatFileSize(current.size) : '';
 
@@ -74,40 +101,53 @@ export const FilePreviewModal = memo(function FilePreviewModal({
     a.remove();
   }, [current]);
 
-  const handleAnnotationSubmit = useCallback(async () => {
-    if (!current || !canvasRef.current || !onReviewRespond) return;
+  /**
+   * Uploads the annotated canvas as a new file and persists the mapping in
+   * localStorage so the annotated version appears in the chat thumbnail and
+   * can be toggled in the preview. Decoupled from review responses.
+   */
+  const handleAnnotationSave = useCallback(async () => {
+    if (!current || !canvasRef.current) return;
     try {
-      setAnnotationSubmitting(true);
+      setAnnoSaving(true);
       const blob = await canvasRef.current.exportBlob();
       if (!blob) return;
 
-      // Upload annotated image as new file
       const formData = new FormData();
       const annotatedFilename = `annotated-${current.filename}`;
       if (channelId) formData.append('channelId', channelId);
       formData.append('file', blob, annotatedFilename);
 
-      const uploadRes = await fetch('/api/files/upload', {
+      const res = await fetch('/api/files/store', {
         method: 'POST',
         credentials: 'include',
         body: formData,
       });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = (await res.json()) as { id: string };
 
-      if (!uploadRes.ok) throw new Error('Failed to upload annotation');
-      const uploadData = (await uploadRes.json()) as { id: string; storageKey: string };
-
-      await onReviewRespond(messageId, {
-        annotationFileId: uploadData.id,
-        annotationFilename: annotatedFilename,
-        sourceFileId: current.id,
-      });
+      saveAnnotation(current.id, data.id, annotatedFilename);
       setAnnotating(false);
     } catch (err) {
-      console.error('Annotation submit error:', err);
+      console.error('Annotation save error:', err);
     } finally {
-      setAnnotationSubmitting(false);
+      setAnnoSaving(false);
     }
-  }, [channelId, current, messageId, onReviewRespond]);
+  }, [channelId, current, saveAnnotation]);
+
+  const handleSendAsMessage = useCallback(async () => {
+    if (!current || !onSendAsMessage) return;
+    const anno = annotations[current.id];
+    if (!anno) return;
+    try {
+      setSendingAsMsg(true);
+      await onSendAsMessage(anno.fileId);
+    } catch (err) {
+      console.error('Send as message error:', err);
+    } finally {
+      setSendingAsMsg(false);
+    }
+  }, [current, annotations, onSendAsMessage]);
 
   if (!current) return null;
 
@@ -119,14 +159,20 @@ export const FilePreviewModal = memo(function FilePreviewModal({
           {/* ── Left: File Viewer ── */}
           <div className="flex-1 flex flex-col min-w-0">
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <DialogClose
+                  render={<Button variant="ghost" size="icon-sm" className="shrink-0" />}
+                >
                   <X size={16} />
                 </DialogClose>
-                <span className="text-sm font-medium truncate max-w-75">{current.filename}</span>
+                {/* Hide filename on small screens to avoid overflow */}
+                <span className="hidden sm:block text-sm font-medium truncate max-w-48 lg:max-w-72">
+                  {current.filename}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Annotation controls */}
                 {canAnnotate && !annotating && (
                   <Button
                     variant="outline"
@@ -151,12 +197,36 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                     <Button
                       size="sm"
                       className="text-xs rounded-lg"
-                      disabled={annotationSubmitting}
-                      onClick={handleAnnotationSubmit}
+                      disabled={annoSaving}
+                      onClick={handleAnnotationSave}
                     >
-                      {annotationSubmitting ? 'Saving…' : 'Submit Annotation'}
+                      {annoSaving ? 'Saving…' : 'Save Annotation'}
                     </Button>
                   </div>
+                )}
+                {/* Revert button — only when annotation exists and not in draw mode */}
+                {annotation && !annotating && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Remove annotation"
+                    onClick={() => revertAnnotation(current!.id)}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                )}
+                {/* Send annotation as user message */}
+                {annotation && !annotating && onSendAsMessage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs rounded-lg"
+                    disabled={sendingAsMsg}
+                    onClick={handleSendAsMessage}
+                  >
+                    <Send size={12} />
+                    {sendingAsMsg ? 'Sending…' : 'Send as message'}
+                  </Button>
                 )}
                 <Button variant="ghost" size="icon-sm" onClick={handleDownload}>
                   <Download size={16} />
@@ -170,26 +240,63 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                 <CanvasOverlay ref={canvasRef} imageSrc={`/api/files/${current.id}/download`} />
               ) : (
                 <FilePreview
-                  fileId={current.id}
+                  fileId={annotation && viewingAnnotated ? annotation.fileId : current.id}
                   mimeType={current.mimeType}
-                  filename={current.filename}
+                  filename={annotation && viewingAnnotated ? annotation.filename : current.filename}
                   className="h-full"
                 />
               )}
             </div>
 
-            {/* Navigation for multiple files */}
-            {attachments.length > 1 && (
-              <div className="flex items-center justify-center gap-4 py-2 border-t border-border/50">
-                <Button variant="ghost" size="icon-sm" disabled={!hasPrev} onClick={handlePrev}>
-                  <ChevronLeft size={16} />
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {currentIndex + 1} / {attachments.length}
-                </span>
-                <Button variant="ghost" size="icon-sm" disabled={!hasNext} onClick={handleNext}>
-                  <ChevronRight size={16} />
-                </Button>
+            {/* Bottom bar: file navigation and/or original ↔ annotated toggle */}
+            {(attachments.length > 1 || (annotation && !annotating)) && (
+              <div className="flex items-center justify-center gap-3 py-2 border-t border-border/50 flex-wrap">
+                {attachments.length > 1 && (
+                  <>
+                    <Button variant="ghost" size="icon-sm" disabled={!hasPrev} onClick={handlePrev}>
+                      <ChevronLeft size={16} />
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {currentIndex + 1} / {attachments.length}
+                    </span>
+                    <Button variant="ghost" size="icon-sm" disabled={!hasNext} onClick={handleNext}>
+                      <ChevronRight size={16} />
+                    </Button>
+                  </>
+                )}
+                {annotation && !annotating && (
+                  <>
+                    {attachments.length > 1 && (
+                      <span className="text-muted-foreground/30 select-none">|</span>
+                    )}
+                    <div className="flex bg-muted rounded-full p-0.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setViewingAnnotated(false)}
+                        className={cn(
+                          'px-3 py-1 rounded-full transition-colors',
+                          !viewingAnnotated
+                            ? 'bg-background shadow-sm font-medium text-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewingAnnotated(true)}
+                        className={cn(
+                          'px-3 py-1 rounded-full transition-colors',
+                          viewingAnnotated
+                            ? 'bg-background shadow-sm font-medium text-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        Annotated
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -222,7 +329,17 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
                   Review
                 </p>
-                <ReviewCard review={review} messageId={messageId} onRespond={onReviewRespond} />
+                <ReviewCard
+                  review={review}
+                  messageId={messageId}
+                  onRespond={async (mid, resp) => {
+                    // Attach annotation file ID if an annotation exists for any attachment
+                    const annoFileId = attachments
+                      .map((a) => annotations[a.id]?.fileId)
+                      .find(Boolean);
+                    await onReviewRespond(mid, resp, annoFileId);
+                  }}
+                />
               </div>
             )}
 

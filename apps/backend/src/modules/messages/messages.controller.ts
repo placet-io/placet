@@ -105,6 +105,7 @@ export class MessagesController {
       req.user.id,
       dto.channelId,
       dto.text,
+      dto.attachmentIds,
     );
   }
 

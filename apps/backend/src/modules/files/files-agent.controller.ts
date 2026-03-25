@@ -103,6 +103,35 @@ export class FilesAgentController {
     );
   }
 
+  @Post('store')
+  @ApiOperation({ summary: 'Store a file without creating a message' })
+  @ApiConsumes('multipart/form-data')
+  @ApiCreatedResponse({
+    description: 'Stored attachment (orphan)',
+    type: AttachmentResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async store(@Req() req: RequestWithUser & FastifyRequest) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('No file provided');
+
+    const channelId = (data.fields['channelId'] as { value?: string })?.value;
+    if (!channelId) throw new BadRequestException('channelId is required');
+
+    await this.verifyOwnership(req.user.id, channelId);
+
+    const buffer = await data.toBuffer();
+    return this.filesService.storeFile(
+      buffer,
+      data.filename,
+      data.mimetype,
+      channelId,
+    );
+  }
+
   @Get(':id/download')
   @ApiOperation({ summary: 'Download file directly by attachment ID' })
   @ApiProduces('application/octet-stream')
@@ -122,7 +151,7 @@ export class FilesAgentController {
     @Param('id') attachmentId: string,
   ) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
-    await this.verifyOwnership(req.user.id, attachment.message.channelId);
+    await this.verifyOwnership(req.user.id, attachment.channelId);
 
     const s3Response = await this.filesService.getFileStream(
       attachment.storageKey,

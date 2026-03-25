@@ -42,6 +42,7 @@ export class FilesService {
     return this.prisma.attachment.create({
       data: {
         messageId: message.id,
+        channelId,
         pluginType:
           mimeType.split('/')[0] === 'image' ? '@uax/image' : '@uax/file',
         filename,
@@ -49,6 +50,43 @@ export class FilesService {
         size: buffer.length,
         storageKey,
       },
+    });
+  }
+
+  /**
+   * Store a file to S3 + create an orphan attachment (no message).
+   * Used for annotations and API clients that upload files separately.
+   */
+  async storeFile(
+    buffer: Buffer,
+    filename: string,
+    mimeType: string,
+    channelId: string,
+  ) {
+    const storageKey = `uploads/${Date.now()}-${filename}`;
+    await this.s3.upload(storageKey, buffer, mimeType);
+
+    return this.prisma.attachment.create({
+      data: {
+        channelId,
+        pluginType:
+          mimeType.split('/')[0] === 'image' ? '@uax/image' : '@uax/file',
+        filename,
+        mimeType,
+        size: buffer.length,
+        storageKey,
+      },
+    });
+  }
+
+  /**
+   * Attach existing orphan attachments to a message.
+   */
+  async attachToMessage(messageId: string, attachmentIds: string[]) {
+    if (attachmentIds.length === 0) return;
+    await this.prisma.attachment.updateMany({
+      where: { id: { in: attachmentIds }, messageId: null },
+      data: { messageId },
     });
   }
 
@@ -77,7 +115,7 @@ export class FilesService {
     const limit = Math.min(query.limit ?? 30, 100);
 
     const where: Prisma.AttachmentWhereInput = {
-      message: { channelId: { in: agentIds } },
+      channelId: { in: agentIds },
       ...(query.type && { mimeType: { startsWith: query.type } }),
       ...(query.search && {
         filename: { contains: query.search, mode: 'insensitive' as const },
@@ -108,7 +146,7 @@ export class FilesService {
 
   async findAllByAgent(agentId: string) {
     return this.prisma.attachment.findMany({
-      where: { message: { channelId: agentId } },
+      where: { channelId: agentId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -116,7 +154,6 @@ export class FilesService {
   async findAttachmentById(attachmentId: string) {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
-      include: { message: { select: { channelId: true } } },
     });
     if (!attachment) throw new NotFoundException('Attachment not found');
     return attachment;

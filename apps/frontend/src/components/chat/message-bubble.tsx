@@ -24,8 +24,9 @@ interface MessageBubbleProps {
   status?: 'info' | 'success' | 'warning' | 'error' | null;
   review?: Review | null;
   attachments?: Attachment[];
-  onReviewRespond?: (messageId: string, response: Record<string, unknown>) => Promise<void>;
+  onReviewRespond?: (messageId: string, response: Record<string, unknown>, annotationFileId?: string) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
+  onSendAsMessage?: (attachmentId: string) => Promise<void>;
 }
 
 const STATUS_VARIANT = {
@@ -50,6 +51,7 @@ export const MessageBubble = memo(function MessageBubble({
   attachments = [],
   onReviewRespond,
   onReply,
+  onSendAsMessage,
 }: MessageBubbleProps) {
   const isUser = senderType === 'user';
   const time = formatTime(createdAt);
@@ -276,6 +278,7 @@ export const MessageBubble = memo(function MessageBubble({
           review={review}
           messageId={messageId}
           onReviewRespond={onReviewRespond}
+          onSendAsMessage={onSendAsMessage}
         />
       )}
     </>

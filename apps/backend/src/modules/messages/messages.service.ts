@@ -62,6 +62,21 @@ export class MessagesService {
       include: { attachments: true },
     });
 
+    // Attach orphan files if IDs were provided
+    if (dto.attachmentIds?.length) {
+      await this.prisma.attachment.updateMany({
+        where: { id: { in: dto.attachmentIds }, messageId: null, channelId: dto.channelId },
+        data: { messageId: message.id },
+      });
+      // Re-fetch to include the newly linked attachments
+      const withAttachments = await this.prisma.message.findUnique({
+        where: { id: message.id },
+        include: { attachments: true },
+      });
+      this.events.emitToChannel(dto.channelId, 'message:created', withAttachments);
+      return withAttachments!;
+    }
+
     // Tier 3: WebSocket is always active
     this.events.emitToChannel(dto.channelId, 'message:created', message);
     return message;
@@ -164,7 +179,7 @@ export class MessagesService {
     };
   }
 
-  async createFromUser(userId: string, channelId: string, text: string) {
+  async createFromUser(userId: string, channelId: string, text?: string, attachmentIds?: string[]) {
     // Verify user owns the agent
     const agent = await this.prisma.agent.findFirst({
       where: { id: channelId, ownerId: userId },
@@ -176,10 +191,32 @@ export class MessagesService {
         channelId,
         senderType: 'user',
         senderId: userId,
-        text,
+        ...(text ? { text } : {}),
       },
       include: { attachments: true },
     });
+
+    // Attach orphan files if IDs were provided
+    if (attachmentIds?.length) {
+      await this.prisma.attachment.updateMany({
+        where: { id: { in: attachmentIds }, messageId: null, channelId },
+        data: { messageId: message.id },
+      });
+      const withAttachments = await this.prisma.message.findUnique({
+        where: { id: message.id },
+        include: { attachments: true },
+      });
+      const final = withAttachments!;
+      this.events.emitToChannel(channelId, 'message:created', final);
+      if (agent.webhookUrl) {
+        void this.webhooks.dispatch(
+          { url: agent.webhookUrl, method: 'POST' },
+          { event: 'message:created', channelId, message: final },
+          { userId },
+        );
+      }
+      return final;
+    }
 
     // Tier 3: WebSocket — always active
     this.events.emitToChannel(channelId, 'message:created', message);
@@ -360,6 +397,7 @@ export class MessagesService {
       ...review,
       status: 'completed',
       response: dto.response,
+      ...(dto.annotationFileId ? { annotationFileId: dto.annotationFileId } : {}),
       completed_at: new Date().toISOString(),
     };
 
@@ -379,6 +417,7 @@ export class MessagesService {
       message_id: messageId,
       review_type: review.type as string,
       response: dto.response,
+      ...(dto.annotationFileId ? { annotationFileId: dto.annotationFileId } : {}),
       responded_at: updatedReview.completed_at,
     };
 

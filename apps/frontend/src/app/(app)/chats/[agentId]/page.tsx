@@ -34,6 +34,7 @@ export default function ChatThreadPage() {
     uploadFile,
     loadOlder,
     respondToReview,
+    sendAsMessage,
   } = useMessages(agentId);
 
   const handleSend = useCallback(
@@ -97,6 +98,7 @@ export default function ChatThreadPage() {
             onSetupWebhook={handleSetupWebhook}
             onReviewRespond={respondToReview}
             onReply={handleReply}
+            onSendAsMessage={sendAsMessage}
           />
           <MessageInput
             onSend={handleSend}

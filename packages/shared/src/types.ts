@@ -106,7 +106,8 @@ export type ApiKey = z.infer<typeof ApiKeySchema>;
 
 export const AttachmentSchema = z.object({
   id: z.string(),
-  messageId: z.string(),
+  messageId: z.string().nullish(),
+  channelId: z.string(),
   pluginType: z.string(),
   filename: z.string(),
   mimeType: z.string(),
@@ -220,17 +221,20 @@ export const CreateAgentMessageSchema = z.object({
   review: ReviewSchema.omit({ status: true, response: true, completedAt: true }).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   webhookUrl: z.string().url().optional(),
+  attachmentIds: z.array(z.string()).optional(),
 });
 export type CreateAgentMessageRequest = z.infer<typeof CreateAgentMessageSchema>;
 
 export const CreateUserMessageSchema = z.object({
   channelId: z.string().min(1),
-  text: z.string().min(1),
+  text: z.string().optional(),
+  attachmentIds: z.array(z.string()).optional(),
 });
 export type CreateUserMessageRequest = z.infer<typeof CreateUserMessageSchema>;
 
 export const RespondReviewSchema = z.object({
   response: z.record(z.string(), z.unknown()),
+  annotationFileId: z.string().optional(),
 });
 export type RespondReviewRequest = z.infer<typeof RespondReviewSchema>;
 

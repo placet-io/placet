@@ -16,8 +16,9 @@ interface MessageListProps {
   hasMore?: boolean;
   onLoadOlder?: () => void;
   onSetupWebhook?: () => void;
-  onReviewRespond?: (messageId: string, response: Record<string, unknown>) => Promise<void>;
+  onReviewRespond?: (messageId: string, response: Record<string, unknown>, annotationFileId?: string) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
+  onSendAsMessage?: (attachmentId: string) => Promise<void>;
 }
 
 export const MessageList = memo(function MessageList({
@@ -32,6 +33,7 @@ export const MessageList = memo(function MessageList({
   onSetupWebhook,
   onReviewRespond,
   onReply,
+  onSendAsMessage,
 }: MessageListProps) {
   const [copied, setCopied] = useState(false);
 
@@ -169,6 +171,7 @@ export const MessageList = memo(function MessageList({
             attachments={msg.attachments}
             onReviewRespond={onReviewRespond}
             onReply={onReply}
+            onSendAsMessage={onSendAsMessage}
           />
         ))}
         <div ref={bottomRef} />

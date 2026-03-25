@@ -130,6 +130,35 @@ export class FilesController {
     );
   }
 
+  @Post('store')
+  @ApiOperation({ summary: 'Store a file without creating a chat message' })
+  @ApiConsumes('multipart/form-data')
+  @ApiCreatedResponse({
+    description: 'Stored attachment (orphan)',
+    type: AttachmentResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  async store(@Req() req: RequestWithUser & FastifyRequest) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('No file provided');
+
+    const channelId = (data.fields['channelId'] as { value?: string })?.value;
+    if (!channelId) throw new BadRequestException('channelId is required');
+
+    await this.verifyOwnership(req.user.id, channelId);
+
+    const buffer = await data.toBuffer();
+    return this.filesService.storeFile(
+      buffer,
+      data.filename,
+      data.mimetype,
+      channelId,
+    );
+  }
+
   @Get(':id/download')
   @ApiOperation({ summary: 'Download file directly by attachment ID' })
   @ApiProduces('application/octet-stream')
@@ -148,7 +177,7 @@ export class FilesController {
     @Param('id') attachmentId: string,
   ) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
-    await this.verifyOwnership(req.user.id, attachment.message.channelId);
+    await this.verifyOwnership(req.user.id, attachment.channelId);
 
     const s3Response = await this.filesService.getFileStream(
       attachment.storageKey,
@@ -186,7 +215,7 @@ export class FilesController {
   })
   async share(@Req() req: RequestWithUser, @Param('id') attachmentId: string) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
-    await this.verifyOwnership(req.user.id, attachment.message.channelId);
+    await this.verifyOwnership(req.user.id, attachment.channelId);
     return this.filesService.createShareToken(attachmentId);
   }
 
@@ -206,7 +235,7 @@ export class FilesController {
     @Param('id') attachmentId: string,
   ) {
     const attachment = await this.filesService.findAttachmentById(attachmentId);
-    await this.verifyOwnership(req.user.id, attachment.message.channelId);
+    await this.verifyOwnership(req.user.id, attachment.channelId);
     await this.filesService.deleteAttachment(attachmentId);
     return { message: 'Deleted' };
   }
@@ -225,11 +254,9 @@ export class FilesController {
     // Verify ownership for all files
     const attachments = await this.prisma.attachment.findMany({
       where: { id: { in: body.ids } },
-      include: { message: { select: { channelId: true } } },
+      select: { channelId: true },
     });
-    const channelIds = [
-      ...new Set(attachments.map((a) => a.message.channelId)),
-    ];
+    const channelIds = [...new Set(attachments.map((a) => a.channelId))];
     for (const channelId of channelIds) {
       await this.verifyOwnership(req.user.id, channelId);
     }
@@ -253,11 +280,9 @@ export class FilesController {
   ) {
     const attachments = await this.prisma.attachment.findMany({
       where: { id: { in: body.ids } },
-      include: { message: { select: { channelId: true } } },
+      select: { channelId: true },
     });
-    const channelIds = [
-      ...new Set(attachments.map((a) => a.message.channelId)),
-    ];
+    const channelIds = [...new Set(attachments.map((a) => a.channelId))];
     for (const channelId of channelIds) {
       await this.verifyOwnership(req.user.id, channelId);
     }

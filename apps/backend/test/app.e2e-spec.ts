@@ -1378,7 +1378,7 @@ describe('HumanProxy API (e2e)', () => {
     it('should create a message with multiple attachments', async () => {
       // Look up the already-uploaded attachments to reuse their storageKeys
       const existing = await prisma.attachment.findMany({
-        where: { message: { channelId: agentId } },
+        where: { channelId: agentId },
         orderBy: { createdAt: 'asc' },
         take: 4,
       });
@@ -1393,6 +1393,7 @@ describe('HumanProxy API (e2e)', () => {
           text: 'Here are the project deliverables — presentation, document, data export, and a screenshot:',
           attachments: {
             create: existing.map((att) => ({
+              agent: { connect: { id: agentId } },
               pluginType: att.pluginType,
               filename: att.filename,
               mimeType: att.mimeType,
@@ -1411,7 +1412,7 @@ describe('HumanProxy API (e2e)', () => {
     it('should create a message with a single image and text', async () => {
       const imageAtt = await prisma.attachment.findFirst({
         where: {
-          message: { channelId: agentId },
+          channelId: agentId,
           mimeType: { startsWith: 'image/' },
         },
       });
@@ -1425,6 +1426,7 @@ describe('HumanProxy API (e2e)', () => {
           text: 'Here is the updated architecture diagram:',
           attachments: {
             create: {
+              agent: { connect: { id: agentId } },
               pluginType: imageAtt!.pluginType,
               filename: imageAtt!.filename,
               mimeType: imageAtt!.mimeType,
@@ -1443,7 +1445,7 @@ describe('HumanProxy API (e2e)', () => {
     it('should create a message with a single video', async () => {
       const videoAtt = await prisma.attachment.findFirst({
         where: {
-          message: { channelId: agentId },
+          channelId: agentId,
           mimeType: { startsWith: 'video/' },
         },
       });
@@ -1457,6 +1459,7 @@ describe('HumanProxy API (e2e)', () => {
           text: 'Screen recording of the bug reproduction:',
           attachments: {
             create: {
+              agent: { connect: { id: agentId } },
               pluginType: videoAtt!.pluginType,
               filename: videoAtt!.filename,
               mimeType: videoAtt!.mimeType,
@@ -1475,7 +1478,7 @@ describe('HumanProxy API (e2e)', () => {
     it('should create a message with a PDF and 3 response buttons', async () => {
       const pdfAtt = await prisma.attachment.findFirst({
         where: {
-          message: { channelId: agentId },
+          channelId: agentId,
           mimeType: 'application/pdf',
         },
       });
@@ -1506,6 +1509,7 @@ describe('HumanProxy API (e2e)', () => {
           },
           attachments: {
             create: {
+              agent: { connect: { id: agentId } },
               pluginType: '@uax/file',
               filename: pdfAtt!.filename,
               mimeType: pdfAtt!.mimeType,
@@ -1570,7 +1574,7 @@ describe('HumanProxy API (e2e)', () => {
     it('should create a message with an HTML file attachment', async () => {
       const htmlAtt = await prisma.attachment.findFirst({
         where: {
-          message: { channelId: agentId },
+          channelId: agentId,
           mimeType: 'text/html',
         },
       });
@@ -1584,6 +1588,7 @@ describe('HumanProxy API (e2e)', () => {
           text: 'Here is the generated monthly report. Open it to view the formatted HTML preview:',
           attachments: {
             create: {
+              agent: { connect: { id: agentId } },
               pluginType: '@uax/file',
               filename: htmlAtt!.filename,
               mimeType: htmlAtt!.mimeType,
@@ -1597,6 +1602,65 @@ describe('HumanProxy API (e2e)', () => {
 
       expect(msg.attachments.length).toBe(1);
       expect(msg.attachments[0].mimeType).toBe('text/html');
+    });
+
+    // ── Image + multiple approval buttons + text review input ─
+    it('should create a message with an image, multiple review buttons and a text input', async () => {
+      const imageAtt = await prisma.attachment.findFirst({
+        where: {
+          channelId: agentId,
+          mimeType: { startsWith: 'image/' },
+        },
+      });
+      expect(imageAtt).toBeDefined();
+
+      const msg = await prisma.message.create({
+        data: {
+          channelId: agentId,
+          senderType: 'agent',
+          senderId: agentId,
+          text: 'Here is the latest design mockup. Please review the image and choose an action — you can also leave a written comment:',
+          status: 'info',
+          review: {
+            type: 'approval',
+            status: 'pending',
+            response: null,
+            callback: null,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            completedAt: null,
+            payload: {
+              options: [
+                { id: 'approve', label: 'Looks good, approve' },
+                { id: 'revise', label: 'Needs revision' },
+                { id: 'reject', label: 'Reject design', style: 'danger' },
+              ],
+              allowComment: true,
+            },
+          },
+          attachments: {
+            create: {
+              agent: { connect: { id: agentId } },
+              pluginType: '@uax/file',
+              filename: imageAtt!.filename,
+              mimeType: imageAtt!.mimeType,
+              size: imageAtt!.size,
+              storageKey: imageAtt!.storageKey,
+            },
+          },
+        },
+        include: { attachments: true },
+      });
+
+      expect(msg.attachments.length).toBe(1);
+      expect(msg.attachments[0].mimeType).toMatch(/^image\//);
+      expect(msg.review).toBeDefined();
+      const payload = msg.review as {
+        type: string;
+        payload: { options: { id: string }[]; allowComment: boolean };
+      };
+      expect(payload.type).toBe('approval');
+      expect(payload.payload.options).toHaveLength(3);
+      expect(payload.payload.allowComment).toBe(true);
     });
 
     // ── User follow-up ────────────────────────────────────────

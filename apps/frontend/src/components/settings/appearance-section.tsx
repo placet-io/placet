@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useChatSettings } from '@/lib/hooks/use-chat-settings';
 
 const THEMES = [
   { key: 'light', label: 'Light', icon: Sun },
@@ -14,6 +15,7 @@ const THEMES = [
 
 export const AppearanceSection = memo(function AppearanceSection() {
   const { theme, setTheme } = useTheme();
+  const { settings, update } = useChatSettings();
 
   return (
     <div className="space-y-6">
@@ -36,6 +38,34 @@ export const AppearanceSection = memo(function AppearanceSection() {
               {label}
             </Button>
           ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-2 border-t border-border/50">
+        <Label className="text-muted-foreground">Chat</Label>
+        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Inline HTML rendering</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Render HTML files directly inside the chat when they are the only attachment in a
+              message. Custom CSS is preserved.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.inlineHtml}
+            onClick={() => update({ inlineHtml: !settings.inlineHtml })}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              settings.inlineHtml ? 'bg-primary' : 'bg-input'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                settings.inlineHtml ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
       </div>
     </div>
