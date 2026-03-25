@@ -1,15 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Bot,
-  CheckCircle2,
-  Loader2,
-  MessageSquare,
-  RefreshCw,
-  Wifi,
-  XCircle,
-} from 'lucide-react';
+import { Bot, CheckCircle2, Loader2, MessageSquare, RefreshCw, Wifi, XCircle } from 'lucide-react';
 import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
 import { useAgents } from '@/lib/hooks/use-agents';
 import { AgentStatusRow } from '@/components/status/agent-status-card';
