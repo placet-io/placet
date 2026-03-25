@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { AgentsService } from './agents.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { S3Service } from '../../providers/s3.service';
 
 describe('AgentsService', () => {
   let service: AgentsService;
@@ -27,7 +28,19 @@ describe('AgentsService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AgentsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        AgentsService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: S3Service,
+          useValue: {
+            upload: jest.fn().mockResolvedValue(undefined),
+            getStream: jest.fn().mockResolvedValue({}),
+            delete: jest.fn().mockResolvedValue(undefined),
+            deleteMany: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<AgentsService>(AgentsService);

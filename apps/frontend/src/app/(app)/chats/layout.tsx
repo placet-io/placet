@@ -14,6 +14,7 @@ function ChatsLayoutInner({ children }: { children: React.ReactNode }) {
   const agentItems: AgentListItem[] = agents.map((a) => ({
     id: a.id,
     name: a.name,
+    avatarUrl: a.avatarUrl,
     description: a.description,
     lastMessage: a.lastMessage,
     lastMessageTime: a.lastActiveAt ? formatRelativeTime(a.lastActiveAt) : undefined,
