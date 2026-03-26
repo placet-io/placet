@@ -305,11 +305,11 @@ function FreeformReview({ review, onRespond, submitting }: ReviewTypeProps) {
 // ── Status badge ──────────────────────────────────────────────
 
 const STATUS_CONFIG = {
-  pending: { label: 'Pending', icon: Clock, className: 'bg-amber-500/10 text-amber-500' },
+  pending: { label: 'Pending', icon: Clock, className: 'bg-warning-muted text-warning-foreground' },
   completed: {
     label: 'Completed',
     icon: CheckCircle2,
-    className: 'bg-emerald-500/10 text-emerald-500',
+    className: 'bg-success-muted text-success-foreground',
   },
   expired: { label: 'Expired', icon: Clock, className: 'bg-muted text-muted-foreground' },
 } as const;

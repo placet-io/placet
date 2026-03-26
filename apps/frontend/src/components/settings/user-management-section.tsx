@@ -90,7 +90,7 @@ export const UserManagementSection = memo(function UserManagementSection() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 rounded-lg px-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-error-foreground bg-error-muted rounded-lg px-4 py-2">
           <AlertCircle size={16} />
           {error}
         </div>
@@ -209,7 +209,7 @@ export const UserManagementSection = memo(function UserManagementSection() {
                         variant="ghost"
                         size="icon"
                         className={cn(
-                          'shrink-0 text-muted-foreground hover:text-red-500',
+                          'shrink-0 text-muted-foreground hover:text-error-foreground',
                           deletingId === user.id && 'pointer-events-none opacity-50',
                         )}
                         onClick={() => void handleDelete(user.id)}

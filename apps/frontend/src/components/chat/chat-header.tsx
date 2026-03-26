@@ -62,7 +62,7 @@ export const ChatHeader = forwardRef<ChatHeaderHandle, ChatHeaderProps>(function
             className="text-xs gap-1.5 text-muted-foreground font-mono"
             onClick={handleCopyId}
           >
-            {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+            {copied ? <Check size={14} className="text-success-foreground" /> : <Copy size={14} />}
             <span className="hidden sm:inline truncate max-w-[120px]">{agentId}</span>
             <span className="sm:hidden">ID</span>
           </Button>

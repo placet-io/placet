@@ -19,21 +19,21 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; dot: string; bg: strin
   {
     active: {
       label: 'Active',
-      dot: 'bg-emerald-500',
-      bg: 'bg-emerald-500/10',
-      text: 'text-emerald-600 dark:text-emerald-400',
+      dot: 'bg-success',
+      bg: 'bg-success-muted',
+      text: 'text-success-foreground',
     },
     busy: {
       label: 'Busy',
-      dot: 'bg-amber-500',
-      bg: 'bg-amber-500/10',
-      text: 'text-amber-600 dark:text-amber-400',
+      dot: 'bg-warning',
+      bg: 'bg-warning-muted',
+      text: 'text-warning-foreground',
     },
     error: {
       label: 'Error',
-      dot: 'bg-red-500',
-      bg: 'bg-red-500/10',
-      text: 'text-red-600 dark:text-red-400',
+      dot: 'bg-error',
+      bg: 'bg-error-muted',
+      text: 'text-error-foreground',
     },
     offline: {
       label: 'Offline',
@@ -243,26 +243,26 @@ function AgentStatsPanel({ stats }: { stats: AgentStatsResponse }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <StatItem
-        icon={<ArrowDownLeft size={14} className="text-blue-500" />}
-        iconBg="bg-blue-500/10"
+        icon={<ArrowDownLeft size={14} className="text-info-foreground" />}
+        iconBg="bg-info-muted"
         label="Inbound"
         value={stats.totalInbound}
       />
       <StatItem
-        icon={<ArrowUpRight size={14} className="text-violet-500" />}
-        iconBg="bg-violet-500/10"
+        icon={<ArrowUpRight size={14} className="text-accent2-foreground" />}
+        iconBg="bg-accent2-muted"
         label="Outbound"
         value={stats.totalOutbound}
       />
       <StatItem
-        icon={<CheckCircle2 size={14} className="text-emerald-500" />}
-        iconBg="bg-emerald-500/10"
+        icon={<CheckCircle2 size={14} className="text-success-foreground" />}
+        iconBg="bg-success-muted"
         label="Success"
         value={stats.successRequests}
       />
       <StatItem
-        icon={<XCircle size={14} className="text-red-500" />}
-        iconBg="bg-red-500/10"
+        icon={<XCircle size={14} className="text-error-foreground" />}
+        iconBg="bg-error-muted"
         label="Errors"
         value={stats.errorRequests}
       />

@@ -196,7 +196,7 @@ export const WebhookSection = memo(function WebhookSection() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-500"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-error-foreground"
                   onClick={() => removeHeader(i)}
                 >
                   <Trash2 size={14} />
@@ -241,16 +241,14 @@ export const WebhookSection = memo(function WebhookSection() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 rounded-xl px-4 py-2">
+            <div className="flex items-center gap-2 text-sm text-error-foreground bg-error-muted rounded-xl px-4 py-2">
               <AlertCircle size={16} />
               {error}
             </div>
           )}
 
           {success && (
-            <p className="text-sm text-emerald-600 dark:text-emerald-400">
-              Webhook configuration saved.
-            </p>
+            <p className="text-sm text-success-foreground">Webhook configuration saved.</p>
           )}
 
           <Button

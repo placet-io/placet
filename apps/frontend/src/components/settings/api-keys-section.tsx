@@ -106,7 +106,7 @@ export const ApiKeysSection = memo(function ApiKeysSection() {
       </p>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 rounded-lg px-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-error-foreground bg-error-muted rounded-lg px-4 py-2">
           <AlertCircle size={16} />
           {error}
         </div>
@@ -114,8 +114,8 @@ export const ApiKeysSection = memo(function ApiKeysSection() {
 
       {/* New key reveal banner */}
       {newKey && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 space-y-2">
-          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+        <div className="bg-success-muted border border-success/15 rounded-xl p-4 space-y-2">
+          <p className="text-sm font-medium text-success-foreground">
             Key created! Copy it now — it won&apos;t be shown again.
           </p>
           <div className="flex items-center gap-2">
@@ -128,7 +128,11 @@ export const ApiKeysSection = memo(function ApiKeysSection() {
               className="shrink-0"
               onClick={() => handleCopy(newKey)}
             >
-              {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+              {copied ? (
+                <Check size={16} className="text-success-foreground" />
+              ) : (
+                <Copy size={16} />
+              )}
             </Button>
           </div>
         </div>
@@ -198,7 +202,7 @@ export const ApiKeysSection = memo(function ApiKeysSection() {
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  'shrink-0 text-muted-foreground hover:text-red-500',
+                  'shrink-0 text-muted-foreground hover:text-error-foreground',
                   deletingId === k.id && 'pointer-events-none opacity-50',
                 )}
                 onClick={() => void handleDelete(k.id)}

@@ -8,11 +8,11 @@ interface MethodBadgeProps {
 }
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: 'bg-blue-500/10 text-blue-500 dark:text-blue-400',
-  POST: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400',
-  PUT: 'bg-amber-500/10 text-amber-500 dark:text-amber-400',
-  PATCH: 'bg-amber-500/10 text-amber-500 dark:text-amber-400',
-  DELETE: 'bg-red-500/10 text-red-500 dark:text-red-400',
+  GET: 'bg-info-muted text-info-foreground',
+  POST: 'bg-success-muted text-success-foreground',
+  PUT: 'bg-warning-muted text-warning-foreground',
+  PATCH: 'bg-warning-muted text-warning-foreground',
+  DELETE: 'bg-error-muted text-error-foreground',
 };
 
 export const MethodBadge = memo(function MethodBadge({ method }: MethodBadgeProps) {

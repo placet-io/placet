@@ -323,7 +323,7 @@ export function PluginRenderer({
   if (error) {
     return (
       <div
-        className={`rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 p-3 text-sm text-red-600 dark:text-red-400 ${className || ''}`}
+        className={`rounded-lg border border-error/20 bg-error-muted p-3 text-sm text-error-foreground ${className || ''}`}
       >
         Plugin error: {error}
       </div>

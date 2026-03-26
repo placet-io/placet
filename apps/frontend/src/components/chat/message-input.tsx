@@ -34,6 +34,19 @@ export const MessageInput = memo(function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-resize textarea up to 3 lines
+  const LINE_HEIGHT = 21; // text-sm 14px * 1.5
+  const PADDING_Y = 20; // py-2.5 = 10 + 10
+  const MAX_HEIGHT = LINE_HEIGHT * 3 + PADDING_Y;
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, MAX_HEIGHT) + 'px';
+    el.style.overflowY = el.scrollHeight > MAX_HEIGHT ? 'auto' : 'hidden';
+  }, [text, MAX_HEIGHT]);
+
   // Focus textarea when a quote is set
   useEffect(() => {
     if (quotedMessage) {
@@ -186,7 +199,7 @@ export const MessageInput = memo(function MessageInput({
             variant="ghost"
             size="icon"
             disabled={disabled || uploading || !!quotedMessage}
-            className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+            className="shrink-0 self-end rounded-full text-muted-foreground hover:text-foreground mb-0.5"
             onClick={handleFileSelect}
           >
             <Paperclip size={20} />
@@ -200,14 +213,14 @@ export const MessageInput = memo(function MessageInput({
             placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
             disabled={disabled}
             rows={1}
-            className="flex-1 max-h-32 min-h-[40px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground text-foreground resize-none py-2.5"
+            className="flex-1 min-h-[40px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground text-foreground resize-none py-2.5 scrollbar-hide"
           />
 
           <Button
             type="submit"
             size="icon"
             disabled={disabled || !canSend}
-            className="shrink-0 rounded-full"
+            className="shrink-0 self-end rounded-full mb-0.5"
           >
             {uploading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />

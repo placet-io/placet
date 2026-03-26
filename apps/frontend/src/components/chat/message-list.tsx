@@ -176,7 +176,11 @@ export const MessageList = memo(function MessageList({
                   <span className="text-xs text-muted-foreground">Chat ID:</span>
                   <code className="text-xs font-mono text-foreground">{channelId}</code>
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopyId}>
-                    {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                    {copied ? (
+                      <Check size={12} className="text-success-foreground" />
+                    ) : (
+                      <Copy size={12} />
+                    )}
                   </Button>
                 </div>
                 {onSetupWebhook && (

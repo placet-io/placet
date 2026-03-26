@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { cn } from '@/lib/utils';
 
 interface MarkdownContentProps {
@@ -16,16 +17,16 @@ export const MarkdownContent = memo(function MarkdownContent({
 }: MarkdownContentProps) {
   // If content has no markdown indicators, render as plain text for perf
   if (!hasMarkdown(content)) {
-    return <span className={className}>{content}</span>;
+    return <span className={cn('whitespace-pre-wrap break-words', className)}>{content}</span>;
   }
 
   return (
     <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           // Keep links safe: open in new tab, add noopener
-          a: ({ children, href, ...props }) => (
+          a: ({ children, href, node: _node, ...props }) => (
             <a
               href={href}
               target="_blank"
@@ -36,43 +37,39 @@ export const MarkdownContent = memo(function MarkdownContent({
               {children}
             </a>
           ),
-          // Inline code
-          code: ({ children, className: codeClassName, ...props }) => {
-            const isBlock = codeClassName?.startsWith('language-');
-            if (isBlock) {
+          // Code: inline only gets background, block code inside <pre> gets none
+          code: ({ children, className: codeClassName, node: _n, ...props }) => {
+            // Block code (inside <pre>) — check if content ends with newline (react-markdown adds trailing \n for blocks)
+            const str = String(children);
+            if (str.endsWith('\n') || codeClassName) {
               return (
-                <code
-                  className={cn(
-                    'block bg-muted/60 rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto',
-                    codeClassName,
-                  )}
-                  {...props}
-                >
+                <code className={cn('text-xs font-mono', codeClassName)} {...props}>
                   {children}
                 </code>
               );
             }
+            // Inline code
             return (
-              <code className="bg-muted/60 rounded px-1 py-0.5 text-xs font-mono" {...props}>
+              <code className="bg-current/10 rounded px-1 py-0.5 text-xs font-mono" {...props}>
                 {children}
               </code>
             );
           },
           // Pre block wrapper
-          pre: ({ children, ...props }) => (
-            <pre className="bg-muted/60 rounded-lg p-3 overflow-x-auto text-xs my-2" {...props}>
+          pre: ({ children, node: _node, ...props }) => (
+            <pre className="bg-current/10 rounded-lg p-3 overflow-x-auto text-xs my-2" {...props}>
               {children}
             </pre>
           ),
           // Tables
-          table: ({ children, ...props }) => (
+          table: ({ children, node: _node, ...props }) => (
             <div className="overflow-x-auto my-2 -mx-1">
               <table className="min-w-[360px] text-xs border-collapse" {...props}>
                 {children}
               </table>
             </div>
           ),
-          th: ({ children, ...props }) => (
+          th: ({ children, node: _node, ...props }) => (
             <th
               className="border border-border px-2 py-1 bg-muted/40 text-left font-medium"
               {...props}
@@ -80,24 +77,24 @@ export const MarkdownContent = memo(function MarkdownContent({
               {children}
             </th>
           ),
-          td: ({ children, ...props }) => (
+          td: ({ children, node: _node, ...props }) => (
             <td className="border border-border px-2 py-1" {...props}>
               {children}
             </td>
           ),
           // Lists
-          ul: ({ children, ...props }) => (
+          ul: ({ children, node: _node, ...props }) => (
             <ul className="list-disc list-inside space-y-0.5 my-1" {...props}>
               {children}
             </ul>
           ),
-          ol: ({ children, ...props }) => (
+          ol: ({ children, node: _node, ...props }) => (
             <ol className="list-decimal list-inside space-y-0.5 my-1" {...props}>
               {children}
             </ol>
           ),
           // Blockquote
-          blockquote: ({ children, ...props }) => (
+          blockquote: ({ children, node: _node, ...props }) => (
             <blockquote
               className="border-l-2 border-primary/40 pl-3 my-2 text-muted-foreground italic"
               {...props}
@@ -106,7 +103,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             </blockquote>
           ),
           // Paragraphs — avoid extra margin for single-line messages
-          p: ({ children, ...props }) => (
+          p: ({ children, node: _node, ...props }) => (
             <p className="my-1 first:mt-0 last:mb-0" {...props}>
               {children}
             </p>
@@ -123,5 +120,5 @@ export const MarkdownContent = memo(function MarkdownContent({
 
 /** Quick heuristic to detect markdown syntax in text */
 function hasMarkdown(text: string): boolean {
-  return /[*_`~\[#>|]|-{3,}|\d+\.\s/.test(text);
+  return /[*_`~\[#>|\n]|-{3,}|\d+\.\s/.test(text);
 }

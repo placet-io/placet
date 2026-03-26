@@ -186,7 +186,11 @@ export const MessageBubble = memo(function MessageBubble({
             {!isUser && (
               <div className="flex items-center gap-2 mb-1 ml-1">
                 <span className="text-xs font-medium text-foreground">{senderName}</span>
-                <span className="text-[10px] text-muted-foreground">{time}</span>
+                {status && (
+                  <Badge variant={STATUS_VARIANT[status]} className="text-[10px] h-4 px-1.5">
+                    {status}
+                  </Badge>
+                )}
               </div>
             )}
 
@@ -259,8 +263,8 @@ export const MessageBubble = memo(function MessageBubble({
             </div>
 
             <div className={cn('flex items-center gap-2 mt-1', isUser ? 'mr-1' : 'ml-1')}>
-              {isUser && <span className="text-[10px] text-muted-foreground">{time}</span>}
-              {status && (
+              <span className="text-[10px] text-muted-foreground">{time}</span>
+              {isUser && status && (
                 <Badge variant={STATUS_VARIANT[status]} className="text-[10px] h-4 px-1.5">
                   {status}
                 </Badge>

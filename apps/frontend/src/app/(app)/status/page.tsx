@@ -65,25 +65,25 @@ export default function StatusPage() {
               icon={<Wifi size={18} />}
               label="Active"
               value={globalStats.activeAgents}
-              color="text-emerald-600 dark:text-emerald-400"
+              color="text-success-foreground"
             />
             <GlobalStatBox
               icon={<MessageSquare size={18} />}
               label="Messages"
               value={globalStats.totalMessages}
-              color="text-blue-600 dark:text-blue-400"
+              color="text-info-foreground"
             />
             <GlobalStatBox
               icon={<CheckCircle2 size={18} />}
               label="Success"
               value={globalStats.successRequests}
-              color="text-emerald-600 dark:text-emerald-400"
+              color="text-success-foreground"
             />
             <GlobalStatBox
               icon={<XCircle size={18} />}
               label="Errors"
               value={globalStats.errorRequests}
-              color="text-red-600 dark:text-red-400"
+              color="text-error-foreground"
             />
           </div>
         )}
