@@ -34,6 +34,20 @@ const AGENT_SELECT = {
   createdAt: true,
 } as const;
 
+/** Mask sensitive credential fields in webhookAuth before sending to clients */
+function maskWebhookAuth<T extends { webhookAuth?: unknown }>(agent: T): T {
+  if (
+    !agent.webhookAuth ||
+    typeof agent.webhookAuth !== 'object' ||
+    agent.webhookAuth === null
+  )
+    return agent;
+  const auth = { ...(agent.webhookAuth as Record<string, unknown>) };
+  if (auth.password) auth.password = '***';
+  if (auth.token) auth.token = '***';
+  return Object.assign({}, agent, { webhookAuth: auth }) as T;
+}
+
 @Injectable()
 export class AgentsService {
   constructor(
@@ -89,8 +103,8 @@ export class AgentsService {
       noReadAgents.map((a) => [a.id, a._count.messages]),
     );
 
-    return agents.map(
-      ({ messages, channelReads: _cr, _count: _c, ...agent }) => ({
+    return agents.map(({ messages, channelReads: _cr, _count: _c, ...agent }) =>
+      maskWebhookAuth({
         ...agent,
         lastMessage: messages[0]?.text ?? undefined,
         lastMessageTime: messages[0]?.createdAt?.toISOString() ?? undefined,
@@ -120,11 +134,11 @@ export class AgentsService {
       select: AGENT_SELECT,
     });
     if (!agent) throw new NotFoundException('Agent not found');
-    return agent;
+    return maskWebhookAuth(agent);
   }
 
   async create(ownerId: string, dto: CreateAgentDto) {
-    return this.prisma.agent.create({
+    const agent = await this.prisma.agent.create({
       data: {
         ownerId,
         name: dto.name,
@@ -134,11 +148,12 @@ export class AgentsService {
       },
       select: AGENT_SELECT,
     });
+    return maskWebhookAuth(agent);
   }
 
   async update(id: string, ownerId: string, dto: UpdateAgentDto) {
     await this.findById(id, ownerId);
-    return this.prisma.agent.update({
+    const updated = await this.prisma.agent.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -154,6 +169,7 @@ export class AgentsService {
       },
       select: AGENT_SELECT,
     });
+    return maskWebhookAuth(updated);
   }
 
   async remove(id: string, ownerId: string) {
@@ -193,7 +209,7 @@ export class AgentsService {
       }),
     ]);
 
-    return agent;
+    return maskWebhookAuth(agent);
   }
 
   async getStats(
@@ -319,11 +335,12 @@ export class AgentsService {
     const storageKey = `avatars/${id}/${Date.now()}`;
     await this.s3.upload(storageKey, buffer, mimeType);
 
-    return this.prisma.agent.update({
+    const updated = await this.prisma.agent.update({
       where: { id },
       data: { avatarUrl: storageKey },
       select: AGENT_SELECT,
     });
+    return maskWebhookAuth(updated);
   }
 
   async getAvatarStream(id: string, ownerId: string) {
@@ -340,10 +357,11 @@ export class AgentsService {
 
     await this.s3.delete(agent.avatarUrl);
 
-    return this.prisma.agent.update({
+    const updated = await this.prisma.agent.update({
       where: { id },
       data: { avatarUrl: null },
       select: AGENT_SELECT,
     });
+    return maskWebhookAuth(updated);
   }
 }

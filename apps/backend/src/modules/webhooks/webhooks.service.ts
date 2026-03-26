@@ -6,6 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { lookup } from 'dns/promises';
 import { LogsService } from '../logs/logs.service';
 
 export interface WebhookCallback {
@@ -43,7 +44,24 @@ export class WebhooksService {
   constructor(
     @Optional() @Inject(LogsService) private readonly logsService?: LogsService,
   ) {}
-  private validateUrl(raw: string): URL {
+
+  private isPrivateIp(ip: string): boolean {
+    return (
+      ip === '127.0.0.1' ||
+      ip === '0.0.0.0' ||
+      ip === '::1' ||
+      ip === '::' ||
+      ip.startsWith('10.') ||
+      ip.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ||
+      ip.startsWith('169.254.') ||
+      ip.startsWith('fe80:') ||
+      ip.startsWith('fc00:') ||
+      ip.startsWith('fd')
+    );
+  }
+
+  private async validateUrl(raw: string): Promise<URL> {
     let parsed: URL;
     try {
       parsed = new URL(raw);
@@ -63,15 +81,25 @@ export class WebhooksService {
       );
     }
 
-    // Block common private IP ranges
-    const ip = parsed.hostname;
-    if (
-      ip.startsWith('10.') ||
-      ip.startsWith('192.168.') ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
-    ) {
+    // Block IP-literal private ranges
+    if (this.isPrivateIp(parsed.hostname)) {
       throw new BadRequestException(
         'Webhook URL must not point to a private network address',
+      );
+    }
+
+    // Resolve DNS to prevent DNS-rebinding / SSRF via custom DNS
+    try {
+      const { address } = await lookup(parsed.hostname);
+      if (this.isPrivateIp(address)) {
+        throw new BadRequestException(
+          'Webhook URL resolves to a private or internal IP address',
+        );
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        `Cannot resolve webhook hostname: ${parsed.hostname}`,
       );
     }
 
@@ -126,7 +154,7 @@ export class WebhooksService {
     payload: Record<string, unknown>,
     logContext?: WebhookLogContext,
   ) {
-    this.validateUrl(callback.url);
+    await this.validateUrl(callback.url);
 
     const startTime = Date.now();
 

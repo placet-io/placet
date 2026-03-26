@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import archiver from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
@@ -24,7 +25,7 @@ export class FilesService {
     senderId?: string,
     text?: string,
   ) {
-    const storageKey = `uploads/${Date.now()}-${filename}`;
+    const storageKey = `uploads/${randomUUID()}-${filename}`;
 
     // Upload to S3
     await this.s3.upload(storageKey, buffer, mimeType);
@@ -63,7 +64,7 @@ export class FilesService {
     mimeType: string,
     channelId: string,
   ) {
-    const storageKey = `uploads/${Date.now()}-${filename}`;
+    const storageKey = `uploads/${randomUUID()}-${filename}`;
     await this.s3.upload(storageKey, buffer, mimeType);
 
     return this.prisma.attachment.create({

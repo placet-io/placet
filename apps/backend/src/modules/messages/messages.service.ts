@@ -29,14 +29,63 @@ export class MessagesService {
     private readonly push: PushService,
   ) {}
 
+  // ── Private helpers ────────────────────────────────────────
+
+  private async assertOwnership(agentId: string, userId: string) {
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: agentId, ownerId: userId },
+    });
+    if (!agent) throw new ForbiddenException('Not your agent');
+    return agent;
+  }
+
+  private async paginateMessages(
+    where: Prisma.MessageWhereInput,
+    opts: { limit?: number; cursor?: string },
+  ) {
+    const limit = Math.min(opts.limit ?? 50, 100);
+    const messages = await this.prisma.message.findMany({
+      where,
+      include: { attachments: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      ...(opts.cursor && {
+        cursor: { id: opts.cursor },
+        skip: 1,
+      }),
+    });
+
+    return {
+      data: messages,
+      nextCursor:
+        messages.length === limit ? messages[messages.length - 1]?.id : null,
+    };
+  }
+
+  private async linkAttachments(
+    messageId: string,
+    attachmentIds: string[],
+    channelId: string,
+  ) {
+    await this.prisma.attachment.updateMany({
+      where: {
+        id: { in: attachmentIds },
+        messageId: null,
+        channelId,
+      },
+      data: { messageId },
+    });
+    const msg = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: { attachments: true },
+    });
+    return msg!;
+  }
+
   // ── Agent API ──────────────────────────────────────────────
 
   async createFromAgent(userId: string, dto: CreateMessageDto) {
-    // Verify user owns the channel
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: dto.channelId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
+    const agent = await this.assertOwnership(dto.channelId, userId);
 
     // Normalise & cap review expiration
     const review = dto.review
@@ -65,51 +114,20 @@ export class MessagesService {
     });
 
     // Attach orphan files if IDs were provided
-    if (dto.attachmentIds?.length) {
-      await this.prisma.attachment.updateMany({
-        where: {
-          id: { in: dto.attachmentIds },
-          messageId: null,
-          channelId: dto.channelId,
-        },
-        data: { messageId: message.id },
-      });
-      // Re-fetch to include the newly linked attachments
-      const withAttachments = await this.prisma.message.findUnique({
-        where: { id: message.id },
-        include: { attachments: true },
-      });
-      this.events.emitToChannel(dto.channelId, 'message:created', {
-        ...withAttachments,
-        agentName: agent.name,
-      });
-      this.events.emitToUser(agent.ownerId, 'message:created', {
-        ...withAttachments,
-        agentName: agent.name,
-      });
-      void this.push.sendToUser(agent.ownerId, {
-        title: agent.name,
-        body: withAttachments?.text ?? 'Sent an attachment',
-        channelId: dto.channelId,
-      });
-      return withAttachments!;
-    }
+    const final = dto.attachmentIds?.length
+      ? await this.linkAttachments(message.id, dto.attachmentIds, dto.channelId)
+      : message;
 
-    // Tier 3: WebSocket is always active
-    this.events.emitToChannel(dto.channelId, 'message:created', {
-      ...message,
-      agentName: agent.name,
-    });
-    this.events.emitToUser(agent.ownerId, 'message:created', {
-      ...message,
-      agentName: agent.name,
-    });
+    // Emit events
+    const eventData = { ...final, agentName: agent.name };
+    this.events.emitToChannel(dto.channelId, 'message:created', eventData);
+    this.events.emitToUser(agent.ownerId, 'message:created', eventData);
     void this.push.sendToUser(agent.ownerId, {
       title: agent.name,
-      body: message.text ?? 'Sent an attachment',
+      body: final.text ?? 'Sent an attachment',
       channelId: dto.channelId,
     });
-    return message;
+    return final;
   }
 
   async findByAgent(
@@ -122,13 +140,7 @@ export class MessagesService {
       has_attachments?: boolean;
     },
   ) {
-    // Verify user owns the agent
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: agentId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
-
-    const limit = query.limit ?? 50;
+    await this.assertOwnership(agentId, userId);
 
     const where: Prisma.MessageWhereInput = {
       channelId: agentId,
@@ -138,30 +150,11 @@ export class MessagesService {
       ...(query.has_attachments && { attachments: { some: {} } }),
     };
 
-    const messages = await this.prisma.message.findMany({
-      where,
-      include: { attachments: true },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      ...(query.cursor && {
-        cursor: { id: query.cursor },
-        skip: 1,
-      }),
-    });
-
-    return {
-      data: messages,
-      nextCursor:
-        messages.length === limit ? messages[messages.length - 1]?.id : null,
-    };
+    return this.paginateMessages(where, query);
   }
 
   async findOneByAgent(userId: string, messageId: string, agentId: string) {
-    // Verify user owns the agent
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: agentId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
+    await this.assertOwnership(agentId, userId);
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId: agentId },
@@ -184,29 +177,8 @@ export class MessagesService {
     userId: string,
     query: { limit?: number; cursor?: string },
   ) {
-    // Verify user owns the agent (channel)
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: channelId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
-
-    const limit = query.limit ?? 50;
-    const messages = await this.prisma.message.findMany({
-      where: { channelId },
-      include: { attachments: true },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      ...(query.cursor && {
-        cursor: { id: query.cursor },
-        skip: 1,
-      }),
-    });
-
-    return {
-      data: messages,
-      nextCursor:
-        messages.length === limit ? messages[messages.length - 1]?.id : null,
-    };
+    await this.assertOwnership(channelId, userId);
+    return this.paginateMessages({ channelId }, query);
   }
 
   async createFromUser(
@@ -215,11 +187,7 @@ export class MessagesService {
     text?: string,
     attachmentIds?: string[],
   ) {
-    // Verify user owns the agent
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: channelId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
+    const agent = await this.assertOwnership(channelId, userId);
 
     const message = await this.prisma.message.create({
       data: {
@@ -232,46 +200,24 @@ export class MessagesService {
     });
 
     // Attach orphan files if IDs were provided
-    if (attachmentIds?.length) {
-      await this.prisma.attachment.updateMany({
-        where: { id: { in: attachmentIds }, messageId: null, channelId },
-        data: { messageId: message.id },
-      });
-      const withAttachments = await this.prisma.message.findUnique({
-        where: { id: message.id },
-        include: { attachments: true },
-      });
-      const final = withAttachments!;
-      this.events.emitToChannel(channelId, 'message:created', final);
-      this.events.emitToUser(userId, 'message:created', final);
-      if (agent.webhookUrl) {
-        void this.webhooks.dispatch(
-          { url: agent.webhookUrl, method: 'POST' },
-          { event: 'message:created', channelId, message: final },
-          { userId },
-        );
-      }
-      return final;
-    }
+    const final = attachmentIds?.length
+      ? await this.linkAttachments(message.id, attachmentIds, channelId)
+      : message;
 
-    // Tier 3: WebSocket — always active
-    this.events.emitToChannel(channelId, 'message:created', message);
-    this.events.emitToUser(userId, 'message:created', message);
+    // Emit events
+    this.events.emitToChannel(channelId, 'message:created', final);
+    this.events.emitToUser(userId, 'message:created', final);
 
-    // Tier 1: Chat-level default webhook
+    // Chat-level default webhook
     if (agent.webhookUrl) {
       void this.webhooks.dispatch(
         { url: agent.webhookUrl, method: 'POST' },
-        {
-          event: 'message:created',
-          channelId,
-          message,
-        },
+        { event: 'message:created', channelId, message: final },
         { userId },
       );
     }
 
-    return message;
+    return final;
   }
 
   async getPendingReviews(userId: string) {
@@ -298,11 +244,7 @@ export class MessagesService {
   // ── Agent Review API ──────────────────────────────────────
 
   async getPendingReviewsByAgent(userId: string, agentId: string) {
-    // Verify user owns the agent
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: agentId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
+    await this.assertOwnership(agentId, userId);
 
     return this.prisma.message.findMany({
       where: {
@@ -318,11 +260,7 @@ export class MessagesService {
   }
 
   async getReviewByAgent(userId: string, messageId: string, agentId: string) {
-    // Verify user owns the agent
-    const agent = await this.prisma.agent.findFirst({
-      where: { id: agentId, ownerId: userId },
-    });
-    if (!agent) throw new ForbiddenException('Not your agent');
+    await this.assertOwnership(agentId, userId);
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId: agentId },

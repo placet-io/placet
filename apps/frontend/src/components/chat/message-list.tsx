@@ -16,7 +16,11 @@ interface MessageListProps {
   hasMore?: boolean;
   onLoadOlder?: () => void;
   onSetupWebhook?: () => void;
-  onReviewRespond?: (messageId: string, response: Record<string, unknown>, annotationFileId?: string) => Promise<void>;
+  onReviewRespond?: (
+    messageId: string,
+    response: Record<string, unknown>,
+    annotationFileId?: string,
+  ) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
 }
@@ -92,11 +96,46 @@ export const MessageList = memo(function MessageList({
     }
   }, [hasMore, loadingOlder, onLoadOlder]);
 
-  // Initial scroll to bottom
+  // Initial scroll to bottom — keeps scrolling while content is still rendering
+  // (iframes, images, markdown expand after the first paint).
   useEffect(() => {
-    if (!loading) {
-      bottomRef.current?.scrollIntoView();
-    }
+    if (loading) return;
+
+    const container = scrollContainerRef.current;
+    const bottom = bottomRef.current;
+    if (!container || !bottom) return;
+
+    // Immediate scroll
+    bottom.scrollIntoView();
+
+    // Watch for DOM mutations (lazy-rendered content changing heights)
+    // and keep scrolling to bottom for the first ~1.5 s after load.
+    let active = true;
+    const timeout = setTimeout(() => {
+      active = false;
+      observer.disconnect();
+    }, 1500);
+
+    const scrollToBottom = () => {
+      if (active) bottom.scrollIntoView();
+    };
+
+    const observer = new MutationObserver(() => {
+      requestAnimationFrame(scrollToBottom);
+    });
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'height', 'src'],
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+      observer.disconnect();
+    };
   }, [loading]);
 
   if (loading) {

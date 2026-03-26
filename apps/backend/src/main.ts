@@ -16,7 +16,27 @@ import { AppModule } from './app.module';
   return Number(this);
 };
 
+function validateEnv() {
+  const required: string[] = ['DATABASE_URL', 'JWT_SECRET'];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}`,
+    );
+  }
+
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.JWT_SECRET === 'change-me-in-production'
+  ) {
+    throw new Error(
+      'JWT_SECRET must be changed from the default value in production',
+    );
+  }
+}
+
 async function bootstrap() {
+  validateEnv();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ maxParamLength: 500 }),

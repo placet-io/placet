@@ -10,8 +10,20 @@ import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../prisma/prisma.service';
 
+function resolveWsCors(): { origin: string | string[] | boolean } {
+  const env = process.env.NODE_ENV;
+  if (env !== 'production') {
+    return { origin: true };
+  }
+  const corsOrigin = process.env.CORS_ORIGIN;
+  if (!corsOrigin || corsOrigin === '*') {
+    return { origin: true };
+  }
+  return { origin: corsOrigin.split(',') };
+}
+
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: resolveWsCors(),
   namespace: '/ws',
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {

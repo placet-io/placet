@@ -39,6 +39,7 @@
     "@nestjs/platform-socket.io": "^11.1.17",
     "@nestjs/schedule": "^6.1.1",
     "@nestjs/swagger": "^11.2.6",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.17",
     "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/adapter-pg": "^7.5.0",

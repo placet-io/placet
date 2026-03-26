@@ -146,7 +146,7 @@ describe('AgentsService', () => {
         webhookAuth: auth,
       });
       expect(result.webhookHeaders).toEqual(headers);
-      expect(result.webhookAuth).toEqual(auth);
+      expect(result.webhookAuth).toEqual({ username: 'user', password: '***' });
       expect(prisma.agent.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
