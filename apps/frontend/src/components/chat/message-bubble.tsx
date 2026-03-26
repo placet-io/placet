@@ -1,10 +1,11 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Reply } from 'lucide-react';
+import { Maximize2, Reply } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
+import { PluginRenderer } from '@/components/plugins/plugin-renderer';
 import { ReviewCard } from './review-card';
 import { MarkdownContent } from './markdown-content';
 import { MessageAttachments } from './message-attachments';
@@ -12,6 +13,7 @@ import { FilePreviewModal } from './file-preview-modal';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format-date';
 import type { Attachment, Review } from '@humanproxy/shared';
+import type { PluginAttachmentInfo, PluginReviewContext } from '@humanproxy/shared';
 
 interface MessageBubbleProps {
   messageId: string;
@@ -23,6 +25,7 @@ interface MessageBubbleProps {
   createdAt: string;
   status?: 'info' | 'success' | 'warning' | 'error' | null;
   review?: Review | null;
+  metadata?: Record<string, unknown> | null;
   attachments?: Attachment[];
   onReviewRespond?: (
     messageId: string,
@@ -52,6 +55,7 @@ export const MessageBubble = memo(function MessageBubble({
   createdAt,
   status,
   review,
+  metadata,
   attachments = [],
   onReviewRespond,
   onReply,
@@ -60,7 +64,9 @@ export const MessageBubble = memo(function MessageBubble({
   const isUser = senderType === 'user';
   const time = formatTime(createdAt);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [pluginPreviewOpen, setPluginPreviewOpen] = useState(false);
   const hasAttachments = attachments.length > 0;
+  const pluginName = typeof metadata?.plugin === 'string' ? metadata.plugin : null;
 
   // Parse quote block from message text: "> **Name:** text\n\nactual message"
   const quoteMatch = text?.match(/^> \*\*(.+?):\*\* (.+?)(?:…)?\n\n([\s\S]*)$/);
@@ -86,6 +92,35 @@ export const MessageBubble = memo(function MessageBubble({
   const handleReply = useCallback(() => {
     onReply?.(messageId, senderName, text);
   }, [messageId, senderName, text, onReply]);
+
+  const handlePluginReviewRespond = useCallback(
+    async (response: Record<string, unknown>) => {
+      await onReviewRespond?.(messageId, response);
+    },
+    [messageId, onReviewRespond],
+  );
+
+  // Build plugin data — everything in metadata except "plugin" key
+  const pluginData = pluginName
+    ? Object.fromEntries(Object.entries(metadata!).filter(([k]) => k !== 'plugin'))
+    : {};
+
+  // Map Attachment[] to PluginAttachmentInfo[]
+  const pluginAttachments: PluginAttachmentInfo[] = attachments.map((a) => ({
+    id: a.id,
+    filename: a.filename,
+    mimeType: a.mimeType,
+    size: a.size,
+  }));
+
+  // Build review context for plugin
+  const pluginReview: PluginReviewContext | null = review
+    ? {
+        type: review.type,
+        status: review.status,
+        payload: review.payload as Record<string, unknown> | undefined,
+      }
+    : null;
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
@@ -246,7 +281,35 @@ export const MessageBubble = memo(function MessageBubble({
                   <MessageAttachments attachments={attachments} onPreview={handlePreview} />
                 )}
 
-                {review && onReviewRespond && (
+                {pluginName && (
+                  <div className="relative group/plugin">
+                    <PluginRenderer
+                      pluginName={pluginName}
+                      data={pluginData}
+                      attachments={pluginAttachments}
+                      message={{
+                        id: messageId,
+                        channelId: channelId ?? '',
+                        senderType,
+                        createdAt,
+                      }}
+                      review={pluginReview}
+                      onReviewRespond={onReviewRespond ? handlePluginReviewRespond : undefined}
+                      className="mt-2 -mx-1"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="absolute top-1 right-1 opacity-0 group-hover/plugin:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm hover:bg-background"
+                      onClick={() => setPluginPreviewOpen(true)}
+                      title="Open in preview"
+                    >
+                      <Maximize2 size={12} />
+                    </Button>
+                  </div>
+                )}
+
+                {review && onReviewRespond && !pluginName && (
                   <ReviewCard review={review} messageId={messageId} onRespond={onReviewRespond} />
                 )}
               </div>
@@ -287,6 +350,33 @@ export const MessageBubble = memo(function MessageBubble({
           messageId={messageId}
           onReviewRespond={onReviewRespond}
           onSendAsMessage={onSendAsMessage}
+        />
+      )}
+
+      {/* Plugin Preview Modal */}
+      {pluginName && (
+        <FilePreviewModal
+          open={pluginPreviewOpen}
+          onOpenChange={setPluginPreviewOpen}
+          attachment={null}
+          attachments={[]}
+          messageText={text}
+          review={review}
+          messageId={messageId}
+          onReviewRespond={onReviewRespond}
+          plugin={{
+            name: pluginName,
+            data: pluginData,
+            attachments: pluginAttachments,
+            message: {
+              id: messageId,
+              channelId: channelId ?? '',
+              senderType,
+              createdAt,
+            },
+            review: pluginReview,
+            onReviewRespond: onReviewRespond ? handlePluginReviewRespond : undefined,
+          }}
         />
       )}
     </>

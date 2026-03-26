@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        padding: 16px;
+        color: #1a1a19;
+        background: transparent;
+      }
+      body.dark {
+        color: #e5e5e4;
+      }
+
+      .diagram-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 60px;
+      }
+      .diagram-container svg {
+        max-width: 100%;
+        height: auto;
+      }
+      /* Invert SVG colors in dark mode for better visibility */
+      body.dark .diagram-container svg {
+        filter: invert(0.88) hue-rotate(180deg);
+      }
+
+      .loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #999;
+      }
+      .loading .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ddd;
+        border-top-color: #7c9cb5;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .error {
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        background: #faf0ef;
+        color: #a05a55;
+      }
+      .dark .error {
+        background: #3a2a28;
+        color: #c4807a;
+      }
+
+      .fallback {
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .fallback-header {
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: #f5f5f5;
+        color: #888;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .dark .fallback-header {
+        background: #2a2a29;
+        color: #888;
+        border-bottom-color: #404040;
+      }
+      pre {
+        padding: 12px;
+        font-size: 13px;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #fafafa;
+        color: #333;
+        margin: 0;
+      }
+      .dark pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Rendering diagram…
+      </div>
+      <div id="diagram" class="diagram-container" style="display: none"></div>
+      <div id="error" style="display: none"></div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (HumanProxy.theme === 'dark') {
+          document.body.classList.add('dark');
+        }
+
+        var data = HumanProxy.data || {};
+        var diagramType = data.type || 'mermaid';
+        var source = data.source || '';
+
+        var loadingEl = document.getElementById('loading');
+        var diagramEl = document.getElementById('diagram');
+        var errorEl = document.getElementById('error');
+
+        if (!source) {
+          loadingEl.style.display = 'none';
+          errorEl.style.display = 'block';
+          errorEl.className = 'error';
+          errorEl.textContent = 'No diagram source provided.';
+          HumanProxy.resize();
+          return;
+        }
+
+        var krokiUrl = (HumanProxy.env && HumanProxy.env.KROKI_URL) || 'https://kroki.io';
+        var endpoint = krokiUrl.replace(/\/+$/, '') + '/' + diagramType + '/svg';
+
+        HumanProxy.fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: source,
+        })
+          .then(function (res) {
+            loadingEl.style.display = 'none';
+
+            if (res.ok && res.body) {
+              // Check if response is SVG
+              var body = res.body.trim();
+              if (body.indexOf('<svg') !== -1 || body.indexOf('<?xml') !== -1) {
+                diagramEl.innerHTML = body;
+                diagramEl.style.display = 'flex';
+              } else {
+                // Unexpected response — show as fallback
+                showFallback(diagramType, source, 'Unexpected response from Kroki server.');
+              }
+            } else {
+              showFallback(diagramType, source, 'Kroki API error (Status: ' + res.status + ')');
+            }
+            HumanProxy.resize();
+          })
+          .catch(function (err) {
+            loadingEl.style.display = 'none';
+            showFallback(diagramType, source, 'Failed to render: ' + err.message);
+            HumanProxy.resize();
+          });
+
+        function showFallback(type, src, msg) {
+          errorEl.style.display = 'block';
+          errorEl.innerHTML =
+            '<div class="error" style="margin-bottom:8px">' +
+            escapeHtml(msg) +
+            '</div>' +
+            '<div class="fallback">' +
+            '<div class="fallback-header">' +
+            escapeHtml(type) +
+            '</div>' +
+            '<pre>' +
+            escapeHtml(src) +
+            '</pre>' +
+            '</div>';
+        }
+
+        function escapeHtml(str) {
+          var d = document.createElement('div');
+          d.textContent = str;
+          return d.innerHTML;
+        }
+
+        HumanProxy.resize();
+      });
+    </script>
+  </body>
+</html>

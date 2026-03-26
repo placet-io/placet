@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PluginAttachmentInfo, PluginRendererContext } from '@humanproxy/shared';
+import { AlertTriangle } from 'lucide-react';
+import type {
+  PluginAttachmentInfo,
+  PluginRendererContext,
+  PluginReviewContext,
+} from '@humanproxy/shared';
 import { buildSrcdoc } from './bridge';
 
 interface PluginRendererProps {
@@ -15,7 +20,10 @@ interface PluginRendererProps {
     createdAt: string;
   };
   theme?: 'light' | 'dark';
+  review?: PluginReviewContext | null;
+  isPreview?: boolean;
   onAction?: (action: string, data?: Record<string, unknown>) => void;
+  onReviewRespond?: (response: Record<string, unknown>) => Promise<void>;
   className?: string;
 }
 
@@ -28,7 +36,10 @@ export function PluginRenderer({
   attachments = [],
   message,
   theme = 'light',
+  review,
+  isPreview,
   onAction,
+  onReviewRespond,
   className,
 }: PluginRendererProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -36,8 +47,7 @@ export function PluginRenderer({
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [allowedDomains, setAllowedDomains] = useState<string[] | null>(null);
-  const [httpAllowed, setHttpAllowed] = useState(false);
+  const [env, setEnv] = useState<Record<string, string>>({});
 
   // Fetch the plugin's render.html from the backend
   useEffect(() => {
@@ -48,7 +58,9 @@ export function PluginRenderer({
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`/api/plugins/${pluginName}/render`);
+        const res = await fetch(`/api/plugins/${pluginName}/render`, {
+          credentials: 'include',
+        });
         if (!res.ok) {
           throw new Error(
             res.status === 404
@@ -59,24 +71,9 @@ export function PluginRenderer({
 
         const json = await res.json();
 
-        // Fetch plugin manifest to get permissions
-        let domains: string[] | null = null;
-        let canHttp = false;
-        try {
-          const manifestRes = await fetch(`/api/plugins/${pluginName}`, { credentials: 'include' });
-          if (manifestRes.ok) {
-            const manifest = await manifestRes.json();
-            canHttp = manifest.permissions?.httpRequests === true;
-            domains = manifest.permissions?.maxHttpDomains ?? null;
-          }
-        } catch {
-          // If manifest fetch fails, default to no HTTP
-        }
-
         if (!cancelled) {
           setRenderHtml(json.html);
-          setAllowedDomains(domains);
-          setHttpAllowed(canHttp);
+          setEnv(json.env ?? {});
           setLoading(false);
         }
       } catch (err) {
@@ -124,7 +121,7 @@ export function PluginRenderer({
         }
 
         case 'hp:fetch': {
-          // Proxy fetch on behalf of the sandboxed iframe
+          // Proxy fetch through the backend to avoid CORS issues
           const { id, payload } = msg as {
             id: string;
             payload: {
@@ -135,72 +132,39 @@ export function PluginRenderer({
             };
           };
 
-          // Enforce maxHttpDomains
-          if (!httpAllowed) {
-            iframe.contentWindow?.postMessage(
-              {
-                type: 'hp:fetch:response',
-                id,
-                payload: { ok: false, error: 'HTTP requests not permitted for this plugin' },
-              },
-              '*',
-            );
-            break;
-          }
+          try {
+            const proxyRes = await fetch(`/api/plugins/${pluginName}/fetch`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                url: payload.url,
+                method: payload.method || 'GET',
+                headers: payload.headers || {},
+                body: payload.body,
+              }),
+            });
 
-          if (allowedDomains && !allowedDomains.includes('*')) {
-            try {
-              const reqUrl = new URL(payload.url);
-              if (!allowedDomains.includes(reqUrl.hostname)) {
-                iframe.contentWindow?.postMessage(
-                  {
-                    type: 'hp:fetch:response',
-                    id,
-                    payload: {
-                      ok: false,
-                      error: `Domain "${reqUrl.hostname}" not in plugin allowlist`,
-                    },
-                  },
-                  '*',
-                );
-                break;
-              }
-            } catch {
+            const result = await proxyRes.json();
+
+            if (!proxyRes.ok) {
               iframe.contentWindow?.postMessage(
-                { type: 'hp:fetch:response', id, payload: { ok: false, error: 'Invalid URL' } },
+                {
+                  type: 'hp:fetch:response',
+                  id,
+                  payload: {
+                    ok: false,
+                    error: result.message || `Proxy error (${proxyRes.status})`,
+                  },
+                },
                 '*',
               );
-              break;
+            } else {
+              iframe.contentWindow?.postMessage(
+                { type: 'hp:fetch:response', id, payload: result },
+                '*',
+              );
             }
-          }
-
-          try {
-            const res = await fetch(payload.url, {
-              method: payload.method || 'GET',
-              headers: payload.headers || {},
-              body: payload.body,
-            });
-
-            const body = await res.text();
-            const responseHeaders: Record<string, string> = {};
-            res.headers.forEach((value, key) => {
-              responseHeaders[key] = value;
-            });
-
-            iframe.contentWindow?.postMessage(
-              {
-                type: 'hp:fetch:response',
-                id,
-                payload: {
-                  ok: res.ok,
-                  status: res.status,
-                  statusText: res.statusText,
-                  headers: responseHeaders,
-                  body,
-                },
-              },
-              '*',
-            );
           } catch (err) {
             iframe.contentWindow?.postMessage(
               {
@@ -299,9 +263,53 @@ export function PluginRenderer({
           }
           break;
         }
+
+        case 'hp:respond': {
+          const { id: respondId, payload: respondPayload } = msg as {
+            id: string;
+            payload: { response: Record<string, unknown> };
+          };
+
+          if (!onReviewRespond) {
+            iframe.contentWindow?.postMessage(
+              {
+                type: 'hp:respond:result',
+                id: respondId,
+                payload: { ok: false, error: 'Review responses not supported in this context' },
+              },
+              '*',
+            );
+            break;
+          }
+
+          try {
+            await onReviewRespond(respondPayload.response);
+            iframe.contentWindow?.postMessage(
+              {
+                type: 'hp:respond:result',
+                id: respondId,
+                payload: { ok: true },
+              },
+              '*',
+            );
+          } catch (err) {
+            iframe.contentWindow?.postMessage(
+              {
+                type: 'hp:respond:result',
+                id: respondId,
+                payload: {
+                  ok: false,
+                  error: err instanceof Error ? err.message : 'Respond failed',
+                },
+              },
+              '*',
+            );
+          }
+          break;
+        }
       }
     },
-    [onAction, attachments, httpAllowed, allowedDomains],
+    [onAction, onReviewRespond, attachments, pluginName],
   );
 
   useEffect(() => {
@@ -316,6 +324,9 @@ export function PluginRenderer({
     attachments,
     message,
     theme,
+    env,
+    review: review ?? null,
+    isPreview: !!isPreview,
   };
 
   const srcdoc = renderHtml !== null ? buildSrcdoc(renderHtml, context) : undefined;
@@ -323,9 +334,10 @@ export function PluginRenderer({
   if (error) {
     return (
       <div
-        className={`rounded-lg border border-error/20 bg-error-muted p-3 text-sm text-error-foreground ${className || ''}`}
+        className={`flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-3 text-xs text-muted-foreground ${className || ''}`}
       >
-        Plugin error: {error}
+        <AlertTriangle size={14} className="shrink-0 text-amber-500" />
+        <span>{error}</span>
       </div>
     );
   }
@@ -348,10 +360,10 @@ export function PluginRenderer({
       title={`Plugin: ${pluginName}`}
       style={{
         width: '100%',
-        height: `${height}px`,
+        height: isPreview ? '100%' : `${height}px`,
         border: 'none',
-        overflow: 'hidden',
-        borderRadius: '0.5rem',
+        overflow: isPreview ? 'auto' : 'hidden',
+        borderRadius: isPreview ? 0 : '0.5rem',
       }}
       className={className}
     />

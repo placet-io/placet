@@ -10,9 +10,11 @@ import { ReviewCard } from './review-card';
 import { MarkdownContent } from './markdown-content';
 import { FilePreview } from '@/components/files/file-preview';
 import { CanvasOverlay } from './canvas-overlay';
+import { PluginRenderer } from '@/components/plugins/plugin-renderer';
 import { formatFileSize, getFileTypeLabel } from '@/lib/file-utils';
 import { cn } from '@/lib/utils';
 import type { Attachment, Review } from '@humanproxy/shared';
+import type { PluginAttachmentInfo, PluginReviewContext } from '@humanproxy/shared';
 import type { CanvasOverlayHandle } from './canvas-overlay';
 
 interface FilePreviewModalProps {
@@ -34,6 +36,15 @@ interface FilePreviewModalProps {
     annotationFileId?: string,
   ) => Promise<void>;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
+  /** Plugin info for rendering plugin in preview mode */
+  plugin?: {
+    name: string;
+    data: Record<string, unknown>;
+    attachments: PluginAttachmentInfo[];
+    message: { id: string; channelId: string; senderType: string; createdAt: string };
+    review: PluginReviewContext | null;
+    onReviewRespond?: (response: Record<string, unknown>) => Promise<void>;
+  } | null;
 }
 
 export const FilePreviewModal = memo(function FilePreviewModal({
@@ -47,6 +58,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   messageId,
   onReviewRespond,
   onSendAsMessage,
+  plugin,
 }: FilePreviewModalProps) {
   const { annotations, saveAnnotation, revertAnnotation } = useAnnotations();
   const [currentIndex, setCurrentIndex] = useState(() =>
@@ -75,6 +87,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
 
   const current = attachments[currentIndex] ?? attachment;
   const annotation = current ? annotations[current.id] : undefined;
+  const isPluginOnly = !!plugin && !current;
 
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < attachments.length - 1;
@@ -149,7 +162,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
     }
   }, [current, annotations, onSendAsMessage]);
 
-  if (!current) return null;
+  if (!current && !isPluginOnly) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,88 +181,108 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                 </DialogClose>
                 {/* Hide filename on small screens to avoid overflow */}
                 <span className="hidden sm:block text-sm font-medium truncate max-w-48 lg:max-w-72">
-                  {current.filename}
+                  {isPluginOnly ? plugin!.name : current!.filename}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* Annotation controls */}
-                {canAnnotate && !annotating && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs rounded-lg"
-                    onClick={() => setAnnotating(true)}
-                  >
-                    <Pen size={12} />
-                    Annotate
-                  </Button>
-                )}
-                {annotating && (
-                  <div className="flex items-center gap-1.5">
+              {!isPluginOnly && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Annotation controls */}
+                  {canAnnotate && !annotating && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs rounded-lg"
+                      onClick={() => setAnnotating(true)}
+                    >
+                      <Pen size={12} />
+                      Annotate
+                    </Button>
+                  )}
+                  {annotating && (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs rounded-lg"
+                        onClick={() => setAnnotating(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="text-xs rounded-lg"
+                        disabled={annoSaving}
+                        onClick={handleAnnotationSave}
+                      >
+                        {annoSaving ? 'Saving…' : 'Save Annotation'}
+                      </Button>
+                    </div>
+                  )}
+                  {/* Revert button — only when annotation exists and not in draw mode */}
+                  {annotation && !annotating && (
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="text-xs rounded-lg"
-                      onClick={() => setAnnotating(false)}
+                      size="icon-sm"
+                      title="Remove annotation"
+                      onClick={() => revertAnnotation(current!.id)}
                     >
-                      Cancel
+                      <RotateCcw size={14} />
                     </Button>
+                  )}
+                  {/* Send annotation as user message */}
+                  {annotation && !annotating && onSendAsMessage && (
                     <Button
+                      variant="outline"
                       size="sm"
-                      className="text-xs rounded-lg"
-                      disabled={annoSaving}
-                      onClick={handleAnnotationSave}
+                      className="gap-1.5 text-xs rounded-lg"
+                      disabled={sendingAsMsg}
+                      onClick={handleSendAsMessage}
                     >
-                      {annoSaving ? 'Saving…' : 'Save Annotation'}
+                      <Send size={12} />
+                      {sendingAsMsg ? 'Sending…' : 'Send as message'}
                     </Button>
-                  </div>
-                )}
-                {/* Revert button — only when annotation exists and not in draw mode */}
-                {annotation && !annotating && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    title="Remove annotation"
-                    onClick={() => revertAnnotation(current!.id)}
-                  >
-                    <RotateCcw size={14} />
+                  )}
+                  <Button variant="ghost" size="icon-sm" onClick={handleDownload}>
+                    <Download size={16} />
                   </Button>
-                )}
-                {/* Send annotation as user message */}
-                {annotation && !annotating && onSendAsMessage && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs rounded-lg"
-                    disabled={sendingAsMsg}
-                    onClick={handleSendAsMessage}
-                  >
-                    <Send size={12} />
-                    {sendingAsMsg ? 'Sending…' : 'Send as message'}
-                  </Button>
-                )}
-                <Button variant="ghost" size="icon-sm" onClick={handleDownload}>
-                  <Download size={16} />
-                </Button>
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Viewer */}
-            <div className="flex-1 flex items-center justify-center p-4 relative overflow-auto bg-muted/20">
-              {annotating && isImage ? (
-                <CanvasOverlay ref={canvasRef} imageSrc={`/api/files/${current.id}/download`} />
+            <div
+              className={cn(
+                'flex-1 flex items-center justify-center relative overflow-auto bg-muted/20',
+                isPluginOnly ? '' : 'p-4',
+              )}
+            >
+              {isPluginOnly ? (
+                <PluginRenderer
+                  pluginName={plugin!.name}
+                  data={plugin!.data}
+                  attachments={plugin!.attachments}
+                  message={plugin!.message}
+                  review={plugin!.review}
+                  isPreview
+                  onReviewRespond={plugin!.onReviewRespond}
+                  className="w-full h-full"
+                />
+              ) : annotating && isImage ? (
+                <CanvasOverlay ref={canvasRef} imageSrc={`/api/files/${current!.id}/download`} />
               ) : (
                 <FilePreview
-                  fileId={annotation && viewingAnnotated ? annotation.fileId : current.id}
-                  mimeType={current.mimeType}
-                  filename={annotation && viewingAnnotated ? annotation.filename : current.filename}
+                  fileId={annotation && viewingAnnotated ? annotation.fileId : current!.id}
+                  mimeType={current!.mimeType}
+                  filename={
+                    annotation && viewingAnnotated ? annotation.filename : current!.filename
+                  }
                   className="h-full"
                 />
               )}
             </div>
 
             {/* Bottom bar: file navigation and/or original ↔ annotated toggle */}
-            {(attachments.length > 1 || (annotation && !annotating)) && (
+            {!isPluginOnly && (attachments.length > 1 || (annotation && !annotating)) && (
               <div className="flex items-center justify-center gap-3 py-2 border-t border-border/50 flex-wrap">
                 {attachments.length > 1 && (
                   <>
@@ -303,12 +336,23 @@ export const FilePreviewModal = memo(function FilePreviewModal({
 
           {/* ── Right: Context Panel (hidden below lg) ── */}
           <div className="hidden lg:flex w-80 border-l border-border/50 flex-col overflow-hidden shrink-0">
-            {/* File info */}
+            {/* File / Plugin info */}
             <div className="px-4 py-3 border-b border-border/50 space-y-1">
-              <p className="text-sm font-medium truncate">{current.filename}</p>
-              <p className="text-xs text-muted-foreground">
-                {label} · {size}
-              </p>
+              {isPluginOnly ? (
+                <>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Plugin
+                  </p>
+                  <p className="text-sm font-medium truncate">{plugin!.name}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium truncate">{current!.filename}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {label} · {size}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Message text context */}

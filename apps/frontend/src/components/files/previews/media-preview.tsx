@@ -12,7 +12,6 @@ export function MediaPreview({
   className?: string;
 }) {
   if (mimeType.startsWith('image/')) {
-    /* eslint-disable @next/next/no-img-element */
     return (
       <img src={src} alt="preview" className="max-w-full max-h-[65vh] object-contain rounded" />
     );

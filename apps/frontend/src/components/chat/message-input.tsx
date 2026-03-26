@@ -156,7 +156,6 @@ export const MessageInput = memo(function MessageInput({
       {pendingFile && (
         <div className="mx-4 mt-2 flex items-center gap-2.5 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
           {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewUrl}
               alt={pendingFile.name}

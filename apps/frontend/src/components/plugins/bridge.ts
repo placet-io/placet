@@ -23,16 +23,23 @@ export function buildBridgeScript(context: PluginRendererContext): string {
   window.__PLUGIN_ATTACHMENTS__ = ${safeJsonForScript(context.attachments)};
   window.__PLUGIN_MESSAGE__ = ${safeJsonForScript(context.message)};
   window.__PLUGIN_THEME__ = ${safeJsonForScript(context.theme)};
+  window.__PLUGIN_ENV__ = ${safeJsonForScript(context.env)};
+  window.__PLUGIN_REVIEW__ = ${safeJsonForScript(context.review ?? null)};
+  window.__PLUGIN_IS_PREVIEW__ = ${safeJsonForScript(!!context.isPreview)};
 
   var _callbackId = 0;
   var _pendingCallbacks = {};
   var _eventHandlers = {};
+  var _responded = false;
 
   var HumanProxy = {
     data: window.__PLUGIN_DATA__,
     attachments: window.__PLUGIN_ATTACHMENTS__,
     message: window.__PLUGIN_MESSAGE__,
     theme: window.__PLUGIN_THEME__,
+    env: window.__PLUGIN_ENV__,
+    review: window.__PLUGIN_REVIEW__,
+    isPreview: window.__PLUGIN_IS_PREVIEW__,
 
     fetch: function(url, options) {
       return new Promise(function(resolve, reject) {
@@ -79,6 +86,34 @@ export function buildBridgeScript(context: PluginRendererContext): string {
         type: 'hp:emit',
         payload: { action: action, data: data || {} }
       }, '*');
+    },
+
+    respond: function(response) {
+      if (_responded) {
+        return Promise.reject(new Error('Already responded to this review'));
+      }
+      if (!window.__PLUGIN_REVIEW__ || window.__PLUGIN_REVIEW__.status !== 'pending') {
+        return Promise.reject(new Error('No pending review to respond to'));
+      }
+      return new Promise(function(resolve, reject) {
+        var id = 'hp_' + (++_callbackId);
+        _pendingCallbacks[id] = { resolve: resolve, reject: reject };
+
+        var timeout = setTimeout(function() {
+          delete _pendingCallbacks[id];
+          reject(new Error('Respond timeout (30s)'));
+        }, 30000);
+
+        _pendingCallbacks[id].timeout = timeout;
+
+        _responded = true;
+
+        window.parent.postMessage({
+          type: 'hp:respond',
+          id: id,
+          payload: { response: response }
+        }, '*');
+      });
     },
 
     getFile: function(attachmentId) {
@@ -132,7 +167,7 @@ export function buildBridgeScript(context: PluginRendererContext): string {
     var msg = e.data;
     if (!msg || !msg.type) return;
 
-    if ((msg.type === 'hp:fetch:response' || msg.type === 'hp:getFile:response' || msg.type === 'hp:getFileUrl:response') && msg.id && _pendingCallbacks[msg.id]) {
+    if ((msg.type === 'hp:fetch:response' || msg.type === 'hp:getFile:response' || msg.type === 'hp:getFileUrl:response' || msg.type === 'hp:respond:result') && msg.id && _pendingCallbacks[msg.id]) {
       var cb = _pendingCallbacks[msg.id];
       clearTimeout(cb.timeout);
       delete _pendingCallbacks[msg.id];

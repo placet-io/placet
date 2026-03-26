@@ -13,7 +13,7 @@
 #   make clean     — Remove volumes + containers + node_modules
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: setup start stop update validate test lint test-unit test-e2e \
+.PHONY: setup start stop update validate validate-plugin test lint test-unit test-e2e \
         build logs clean reset db-push db-migrate help
 
 SHELL := /bin/bash
@@ -76,6 +76,8 @@ update: _check-env ## Pull latest code, rebuild, and migrate
 # ── Quality ────────────────────────────────────────────────────────────────
 
 validate: ## Run full validation: lint + format check + build
+	@echo "══ Validating plugins ══"
+	npx tsx scripts/validate-plugin.ts
 	@echo "══ Lint ══"
 	npx turbo lint
 	@echo "══ Format check ══"
@@ -83,6 +85,13 @@ validate: ## Run full validation: lint + format check + build
 	@echo "══ Build ══"
 	npx turbo build
 	@echo "✅ Validation passed"
+
+validate-plugin: ## Validate plugin(s): make validate-plugin [PLUGIN=name]
+	@if [ -n "$(PLUGIN)" ]; then \
+		npx tsx scripts/validate-plugin.ts $(PLUGIN); \
+	else \
+		npx tsx scripts/validate-plugin.ts; \
+	fi
 
 lint: ## Run lint across all packages
 	npx turbo lint

@@ -3,7 +3,7 @@
 import { memo, useCallback, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bot, Folder, Menu, MessageSquare, Settings, Terminal, Activity, X } from 'lucide-react';
+import { Folder, Menu, MessageSquare, Settings, Terminal, Activity, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 const NAV_ITEMS = [
@@ -51,8 +51,9 @@ export const MobileNavDrawer = memo(function MobileNavDrawer() {
       >
         <div className="flex items-center justify-between p-4 border-b border-border/50">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <Bot size={20} />
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary shadow-sm">
+              <img src="/logo-white.svg" alt="HumanProxy" className="h-5 w-5 dark:hidden" />
+              <img src="/logo-black.svg" alt="HumanProxy" className="h-5 w-5 hidden dark:block" />
             </div>
             <span className="text-sm font-semibold text-foreground">HumanProxy</span>
           </div>

@@ -125,6 +125,19 @@ model InstalledPlugin {
   @@map("installed_plugins")
 }
 
+model PluginConfig {
+  id         String   @id @default(cuid())
+  pluginName String   @map("plugin_name")
+  version    String
+  envValues  Json     @map("env_values") // { "KROKI_URL": "https://kroki.io" }
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([pluginName, version])
+  @@map("plugin_configs")
+}
+
 model ApiLog {
   id           String   @id @default(cuid())
   apiKeyId     String?  @map("api_key_id")

@@ -79,6 +79,7 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@humanproxy.local}
       THROTTLE_TTL: ${THROTTLE_TTL:-60}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
+      ALLOW_PLUGIN_LOCAL_FETCH: ${ALLOW_PLUGIN_LOCAL_FETCH:-false}
     ports:
       - '${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}'
 

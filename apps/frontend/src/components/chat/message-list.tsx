@@ -211,6 +211,7 @@ export const MessageList = memo(function MessageList({
             createdAt={msg.createdAt}
             status={msg.status as 'info' | 'success' | 'warning' | 'error' | null | undefined}
             review={msg.review}
+            metadata={msg.metadata}
             attachments={msg.attachments}
             onReviewRespond={onReviewRespond}
             onReply={onReply}

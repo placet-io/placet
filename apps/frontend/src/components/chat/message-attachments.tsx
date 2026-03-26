@@ -167,7 +167,6 @@ export const MessageAttachments = memo(function MessageAttachments({
         onClick={() => onPreview(att)}
         className="mt-2 relative block rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={thumbSrc}
           alt={att.filename}

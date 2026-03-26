@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bot, MessageSquare, Folder, Terminal, Activity, Settings } from 'lucide-react';
+import { MessageSquare, Folder, Terminal, Activity, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 const NAV_ITEMS = [
@@ -63,8 +63,17 @@ export const IconBar = memo(function IconBar() {
     <nav className="flex h-full w-16 md:w-20 shrink-0 flex-col items-center bg-card rounded-3xl py-6 shadow-sm border border-border/50">
       {/* Logo */}
       <div className="mb-8">
-        <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-          <Bot size={24} />
+        <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-primary shadow-sm">
+          <img
+            src="/logo-white.svg"
+            alt="HumanProxy"
+            className="h-6 w-6 md:h-7 md:w-7 dark:hidden"
+          />
+          <img
+            src="/logo-black.svg"
+            alt="HumanProxy"
+            className="h-6 w-6 md:h-7 md:w-7 hidden dark:block"
+          />
         </div>
       </div>
 

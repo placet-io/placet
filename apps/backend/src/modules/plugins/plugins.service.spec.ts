@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PluginsService } from './plugins.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -21,7 +22,15 @@ describe('PluginsService', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hp-plugins-'));
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PluginsService],
+      providers: [
+        PluginsService,
+        {
+          provide: PrismaService,
+          useValue: {
+            pluginConfig: { findUnique: jest.fn(), upsert: jest.fn() },
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<PluginsService>(PluginsService);
@@ -56,17 +65,15 @@ describe('PluginsService', () => {
     expect(service.getRenderHtml('test-plugin')).toBe(validHtml);
   });
 
-  it('should skip directories without plugin.json', () => {
+  it('should throw for directories without plugin.json', () => {
     const pluginDir = path.join(tmpDir, 'no-manifest');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(path.join(pluginDir, 'render.html'), validHtml);
 
-    service.discover();
-
-    expect(service.getAllPlugins()).toHaveLength(0);
+    expect(() => service.discover()).toThrow('Plugin validation failed');
   });
 
-  it('should skip invalid manifest files', () => {
+  it('should throw for invalid manifest files', () => {
     const pluginDir = path.join(tmpDir, 'bad-plugin');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
@@ -74,23 +81,18 @@ describe('PluginsService', () => {
       JSON.stringify({ invalid: true }),
     );
 
-    service.discover();
-
-    expect(service.getAllPlugins()).toHaveLength(0);
+    expect(() => service.discover()).toThrow('Plugin validation failed');
   });
 
-  it('should handle plugin without render.html gracefully', () => {
-    const pluginDir = path.join(tmpDir, 'no-html');
+  it('should handle plugin without render.html by throwing', () => {
+    const pluginDir = path.join(tmpDir, 'test-plugin');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
       path.join(pluginDir, 'plugin.json'),
       JSON.stringify(validManifest),
     );
 
-    service.discover();
-
-    expect(service.isRegistered('test-plugin')).toBe(true);
-    expect(service.getRenderHtml('test-plugin')).toBe('');
+    expect(() => service.discover()).toThrow('Plugin validation failed');
   });
 
   it('should discover multiple plugins', () => {
@@ -103,10 +105,12 @@ describe('PluginsService', () => {
       path.join(plugin1Dir, 'plugin.json'),
       JSON.stringify({ ...validManifest, name: 'plugin-a' }),
     );
+    fs.writeFileSync(path.join(plugin1Dir, 'render.html'), validHtml);
     fs.writeFileSync(
       path.join(plugin2Dir, 'plugin.json'),
       JSON.stringify({ ...validManifest, name: 'plugin-b' }),
     );
+    fs.writeFileSync(path.join(plugin2Dir, 'render.html'), validHtml);
 
     service.discover();
 
@@ -135,7 +139,7 @@ describe('PluginsService', () => {
   });
 
   it('should return full plugin details with getPlugin', () => {
-    const pluginDir = path.join(tmpDir, 'full-plugin');
+    const pluginDir = path.join(tmpDir, 'test-plugin');
     fs.mkdirSync(pluginDir);
     fs.writeFileSync(
       path.join(pluginDir, 'plugin.json'),

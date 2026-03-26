@@ -2,11 +2,12 @@
 
 ## 1. Core Concept
 
-A **Plugin** in HumanProxy defines a **custom message type**. It controls:
+A **Plugin** defines a **custom message type**. It controls:
 
 1. **What data a message carries** — input schema (what fields the agent sends)
-2. **How that message renders** — HTML + Tailwind CSS in the frontend
-3. **What logic runs client-side** — HTTP requests (send and receive), dynamic data fetching, user interactions
+2. **How that message renders** — HTML/CSS/JS in a sandboxed iframe
+3. **What logic runs client-side** — HTTP requests, data fetching, user interactions
+4. **What configuration it needs** — environment variables (API keys, URLs, etc.)
 
 A Plugin does **NOT** control:
 
@@ -20,427 +21,303 @@ These are **two independent axes** on a message:
 
 ```
 Message
-  ├── plugin_type: "crm-product"     ← HOW the message renders (Plugin)
-  ├── review: { ... }                ← WHETHER user input is needed (Review)
-  │     ├── type: "approval"         ← WHAT kind of input (built-in review types)
+  ├── metadata.plugin: "form-submit"    ← HOW the message renders (Plugin)
+  ├── review: { ... }                   ← WHETHER user input is needed (Review)
+  │     ├── type: "approval"            ← WHAT kind of input (built-in review types)
   │     └── payload: { options: [...] }
-  └── metadata: { productId: "P-123" } ← Plugin-specific data
-```
-
-A message can have:
-
-- **Plugin only** — renders custom UI, no user action needed (e.g. CRM product card)
-- **Review only** — default message rendering + approval/selection/form buttons
-- **Plugin + Review** — custom rendering + user action required
-- **Neither** — plain text/markdown message
-
-### Examples
-
-```jsonc
-// 1. Status message (no plugin, no review)
-{ "text": "Deployment complete", "status": "success" }
-
-// 2. CRM product card (plugin, no review)
-{ "text": "Found this product:", "metadata": { "plugin": "crm-product", "productId": "P-123" } }
-
-// 3. Approval request (no plugin, review)
-{ "text": "Deploy to production?", "review": { "type": "approval", "payload": { "options": [{"id": "yes", "label": "Deploy"}, {"id": "no", "label": "Cancel"}] } } }
-
-// 4. Annotate this image (plugin + review)
-{ "text": "Mark issues on this mockup", "metadata": { "plugin": "image-annotator", "imageUrl": "..." }, "review": { "type": "freeform", "payload": {} } }
+  └── metadata: { name: "John", ... }   ← Plugin-specific data
 ```
 
 ---
 
 ## 2. Plugin Structure
 
-A plugin is a **directory** in `packages/plugins/` with this structure:
-
 ```
 packages/plugins/
-  crm-product/
-    plugin.json          ← Manifest: metadata + input schema
-    render.html          ← Frontend template (HTML + Tailwind)
-    README.md            ← Optional: usage docs
+  form-submit/
+    plugin.json      ← Manifest: metadata, input schema, env variables, permissions
+    render.html      ← Frontend template (self-contained HTML + CSS + JS)
+    icon.svg         ← Optional: plugin icon (SVG, PNG, JPG, WebP)
 ```
 
-### plugin.json — Manifest
+### plugin.json Schema
 
 ```json
 {
-  "name": "crm-product",
-  "displayName": "CRM Product Card",
-  "description": "Renders product details fetched from a CRM API",
+  "name": "form-submit",
+  "displayName": "Form Submit",
+  "description": "Renders a form and submits to a webhook",
   "version": "1.0.0",
   "author": "HumanProxy",
-  "icon": "package",
-
+  "icon": "./icon.svg",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "productId": { "type": "string", "description": "Product ID to look up" },
-      "apiBaseUrl": { "type": "string", "format": "uri", "description": "CRM API base URL" }
-    },
-    "required": ["productId"]
+      "name": { "type": "string" },
+      "email": { "type": "string" }
+    }
   },
-
   "permissions": {
     "httpRequests": true,
-    "maxHttpDomains": ["*.example.com", "api.crm.io"]
-  }
+    "maxHttpDomains": ["*"]
+  },
+  "env": [
+    {
+      "key": "WEBHOOK_URL",
+      "label": "Webhook URL",
+      "required": true,
+      "default": "https://httpbin.org/post",
+      "description": "URL to submit form data to"
+    }
+  ]
 }
 ```
 
-### render.html — Frontend Template
+### Icon
 
-A self-contained HTML document rendered in a **sandboxed iframe**. The platform injects:
+The `icon` field accepts either:
 
-- **Tailwind CSS** (CDN or bundled)
-- A `HumanProxy` JavaScript bridge object
-- The plugin data as `window.__PLUGIN_DATA__`
+- A **relative file path** starting with `./` (e.g. `"./icon.svg"`) — served via `GET /api/plugins/:name/icon`
+- A **Lucide icon name** (backwards-compat, e.g. `"sparkles"`)
 
-```html
-<div id="plugin-root" class="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700">
-  <div id="loading" class="text-sm text-zinc-500">Loading product...</div>
-  <div id="product" class="hidden">
-    <div class="flex items-center gap-3">
-      <img id="product-image" class="w-16 h-16 rounded object-cover" />
-      <div>
-        <h3 id="product-name" class="font-semibold text-zinc-900 dark:text-zinc-100"></h3>
-        <p id="product-price" class="text-sm text-zinc-500"></p>
-      </div>
-    </div>
-    <p id="product-desc" class="mt-2 text-sm text-zinc-600 dark:text-zinc-400"></p>
-  </div>
-</div>
+### Environment Variables
 
-<script>
-  const data = window.__PLUGIN_DATA__;
-  // data = { productId: "P-123", apiBaseUrl: "https://api.crm.io" }
+The `env` array defines configurable values per plugin:
 
-  async function init() {
-    try {
-      const res = await HumanProxy.fetch(
-        `${data.apiBaseUrl || 'https://api.crm.io'}/products/${data.productId}`,
-      );
-      const product = await res.json();
+| Field         | Required | Description                             |
+| ------------- | -------- | --------------------------------------- |
+| `key`         | Yes      | Variable name (e.g. `API_KEY`)          |
+| `label`       | Yes      | Human-readable label for Settings UI    |
+| `required`    | No       | Whether this variable must be set       |
+| `default`     | No       | Default value                           |
+| `secret`      | No       | If `true`, rendered as a password field |
+| `description` | No       | Help text shown below the input         |
 
-      document.getElementById('product-name').textContent = product.name;
-      document.getElementById('product-price').textContent = `$${product.price}`;
-      document.getElementById('product-desc').textContent = product.description;
-      document.getElementById('product-image').src = product.imageUrl;
-      document.getElementById('loading').classList.add('hidden');
-      document.getElementById('product').classList.remove('hidden');
+Env values are:
 
-      // Tell the platform the rendered height
-      HumanProxy.resize();
-    } catch (err) {
-      document.getElementById('loading').textContent = `Error: ${err.message}`;
-    }
-  }
+- **Stored in the database** (`PluginConfig` table), keyed by `pluginName + version`
+- **Configured in Settings → Plugins** via auto-generated forms
+- **Injected at render time** via `HumanProxy.env`
 
-  init();
-</script>
+---
+
+## 3. Data Flow
+
+```
+Agent sends message via Push API
+  │
+  ├─ Backend receives POST /api/v1/messages
+  │   metadata: { plugin: "form-submit", name: "John", email: "j@test.com" }
+  │
+  ├─ Backend saves message to DB, broadcasts via WebSocket
+  │
+  ├─ Frontend receives message, detects metadata.plugin
+  │
+  ├─ PluginRenderer component:
+  │   ├─ Fetches GET /api/plugins/form-submit/render → { html, env }
+  │   ├─ Fetches GET /api/plugins/form-submit → manifest (for permissions)
+  │   ├─ Builds srcdoc: bridge script + render.html
+  │   └─ Renders sandboxed iframe with srcDoc
+  │
+  └─ Inside iframe:
+      ├─ Bridge script injects HumanProxy global
+      │   ├─ HumanProxy.data = { name: "John", email: "j@test.com" }
+      │   ├─ HumanProxy.env = { WEBHOOK_URL: "https://httpbin.org/post" }
+      │   ├─ HumanProxy.theme = "light" | "dark"
+      │   ├─ HumanProxy.attachments = [...]
+      │   ├─ HumanProxy.message = { id, channelId, ... }
+      │   ├─ HumanProxy.review = { type, status, payload } | null
+      │   └─ HumanProxy.isPreview = false | true
+      │
+      └─ Plugin JS runs, uses HumanProxy.* API
+          └─ HumanProxy.fetch() → postMessage → frontend → POST /api/plugins/:name/fetch → backend HTTP request
 ```
 
 ---
 
-## 3. HumanProxy Bridge API
+## 4. HumanProxy Bridge API
 
-The `HumanProxy` object is injected into every plugin iframe and provides a controlled API:
+The `HumanProxy` object is injected into every plugin iframe:
 
 ```typescript
 interface HumanProxyBridge {
-  // ── Data ──────────────────────────────────────────────────────────
-  /** Plugin input data from the message metadata */
-  data: Record<string, unknown>;
-
-  /** Message context (id, channelId, senderType, createdAt) */
-  message: { id: string; channelId: string; senderType: string; createdAt: string };
-
-  /** Current theme ('light' | 'dark') */
+  // ── Data ──────────────────────────────────
+  data: Record<string, unknown>; // Plugin input data from message metadata
+  env: Record<string, string>; // Environment variables from Settings
+  attachments: PluginAttachmentInfo[]; // Attached files
+  message: { id; channelId; senderType; createdAt };
   theme: 'light' | 'dark';
+  review: { type; status; payload? } | null; // Review context (if message has a review)
 
-  // ── HTTP ──────────────────────────────────────────────────────────
-  /**
-   * Proxied fetch — requests go through the platform's HTTP proxy.
-   * Domain must match `permissions.maxHttpDomains` in plugin.json.
-   * Timeout: 30s. Max response: 5MB.
-   */
-  fetch(url: string, options?: RequestInit): Promise<Response>;
+  // ── HTTP ──────────────────────────────────
+  fetch(url: string, options?): Promise<Response>; // Proxied, domain-restricted
 
-  // ── UI ────────────────────────────────────────────────────────────
-  /** Notify the parent to resize the iframe to fit content */
-  resize(): void;
+  // ── File Access ──────────────────────────
+  getFile(attachmentId: string): Promise<FileResult>; // Base64 data URL
+  getFileUrl(attachmentId: string): Promise<UrlResult>; // Download URL
 
-  /** Show a toast notification in the parent UI */
-  toast(message: string, type?: 'info' | 'success' | 'warning' | 'error'): void;
+  // ── UI ────────────────────────────────────
+  resize(): void; // Fit iframe to content
+  toast(message: string, variant?): void; // Show notification
 
-  // ── Actions ───────────────────────────────────────────────────────
-  /**
-   * Emit a custom action to the parent (e.g. user clicked a button).
-   * The parent can handle this to submit a review response, navigate, etc.
-   */
-  emit(action: string, payload?: Record<string, unknown>): void;
-
-  /**
-   * Listen for events from the parent (e.g. review status changes).
-   */
-  on(event: string, handler: (data: unknown) => void): void;
+  // ── Actions ───────────────────────────────
+  emit(action: string, data?): void; // Send to parent
+  respond(response: object): Promise<Result>; // Submit review response (one-time)
+  on(event: string, handler): void; // Listen from parent
 }
 ```
 
-### Implementation: postMessage bridge
+### postMessage Protocol
 
-The bridge is implemented via `window.postMessage`:
+All communication uses `window.postMessage`:
 
-```
-┌─────────────────────┐     postMessage      ┌─────────────────────┐
-│   Parent (React)     │ ◄──────────────────► │   iframe (Plugin)   │
-│                      │                      │                      │
-│  - Listens for       │  { type, payload }   │  - HumanProxy.fetch()│
-│    'hp:fetch'        │ ──────────────────►  │    → postMessage     │
-│    'hp:resize'       │                      │    'hp:fetch'        │
-│    'hp:toast'        │  { type, result }    │                      │
-│    'hp:emit'         │ ◄──────────────────  │  - Receives response │
-│                      │                      │    via callback      │
-│  - Executes fetch    │                      │                      │
-│    on behalf of      │                      │                      │
-│    plugin (proxy)    │                      │                      │
-└─────────────────────┘                      └─────────────────────┘
-```
+| Message Type             | Direction       | Description                      |
+| ------------------------ | --------------- | -------------------------------- |
+| `hp:fetch`               | iframe → parent | Initiate proxied HTTP request    |
+| `hp:fetch:response`      | parent → iframe | Return fetch result              |
+| `hp:getFile`             | iframe → parent | Request file content             |
+| `hp:getFile:response`    | parent → iframe | Return file as base64            |
+| `hp:getFileUrl`          | iframe → parent | Request download URL             |
+| `hp:getFileUrl:response` | parent → iframe | Return URL                       |
+| `hp:resize`              | iframe → parent | Request iframe height adjustment |
+| `hp:toast`               | iframe → parent | Show toast notification          |
+| `hp:emit`                | iframe → parent | Emit custom action               |
+| `hp:respond`             | iframe → parent | Submit review response           |
+| `hp:respond:result`      | parent → iframe | Return respond result (ok/error) |
+| `hp:event`               | parent → iframe | Deliver event to plugin          |
 
-**Why proxy fetch through the parent?**
-
-- The iframe sandbox doesn't have `allow-same-origin`, so cookies/auth won't leak
-- The parent can enforce domain allowlists from `plugin.json`
-- The parent can add rate limiting, logging, timeout enforcement
-- CORS issues are avoided since the parent (not the iframe) makes the actual request
+**Why proxy fetch?** The iframe sandbox doesn't have `allow-same-origin`, so cookies/auth won't leak. HTTP requests are proxied **server-side** via `POST /api/plugins/:name/fetch` — the backend enforces domain allowlists, permissions, and timeout limits. This also avoids CORS issues since the request originates from the backend, not the browser.
 
 ---
 
-## 4. Built-in Review Types
+## 5. Backend Architecture
 
-Reviews are **NOT plugins** — they are a built-in platform feature. The review system provides these types out of the box:
+### Plugin Discovery
 
-| Type         | Agent sends                                     | User sees                                           |
-| ------------ | ----------------------------------------------- | --------------------------------------------------- |
-| `approval`   | `options: [{id, label, style}]`                 | Buttons (Approve/Reject/etc.)                       |
-| `selection`  | `mode: "single"\|"multi", items: [{id, label}]` | Radio buttons or checkboxes                         |
-| `form`       | `fields: [{name, type, label, required?}]`      | Dynamic form                                        |
-| `text-input` | `placeholder?, markdown?: boolean`              | Textarea                                            |
-| `freeform`   | `{}`                                            | Generic JSON response (used with custom plugin UIs) |
+`PluginsService` scans `packages/plugins/` on startup:
 
-The `freeform` type is the bridge between plugins and reviews: the plugin renders its own UI, and when the user interacts, the plugin calls `HumanProxy.emit('respond', { ... })` which submits the review response.
+1. Reads each `plugin.json`, validates against `PluginManifestSchema` (Zod)
+2. Reads `render.html` content
+3. Registers in an in-memory `Map<string, RegisteredPlugin>`
 
----
+### Plugin Config (Database)
 
-## 5. Plugin Discovery & Installation
+```prisma
+model PluginConfig {
+  id         String   @id @default(cuid())
+  pluginName String   @map("plugin_name")
+  version    String
+  envValues  Json     @map("env_values")  // { "KROKI_URL": "https://kroki.io" }
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-### Approach: Directory-based discovery + declarative config
-
-Inspired by n8n's community node system but simpler:
-
-```
-packages/plugins/
-  approval/           ← Built-in (shipped with repo)
-  selection/
-  form/
-  text-input/
-  crm-product/        ← Custom/community (installed)
-  weather-widget/
-```
-
-### Configuration: `plugins.json` at project root
-
-```json
-{
-  "plugins": {
-    "builtin": true,
-    "community": [
-      { "name": "humanproxy-plugin-crm", "version": "^1.0.0" },
-      { "name": "humanproxy-plugin-weather", "version": "latest" }
-    ]
-  }
+  @@unique([pluginName, version])
+  @@map("plugin_configs")
 }
 ```
 
-### Lifecycle
+Config is **version-coupled**: when a plugin's version changes and env schema differs, existing values carry over for matching keys.
 
-```
-1. App starts (or `make setup` / `make update`)
-   │
-   ├─ 2. PluginDiscoveryService scans packages/plugins/
-   │     Reads each plugin.json manifest
-   │     Validates schemas
-   │     Registers in PluginRegistry
-   │
-   ├─ 3. Compares community list from plugins.json
-   │     If a listed plugin is not in packages/plugins/:
-   │       → npm install <name>@<version> --prefix packages/plugins/<name>
-   │       → Copy plugin files to packages/plugins/<name>/
-   │
-   └─ 4. PluginRegistry is ready
-         Backend: validates incoming messages against plugin schemas
-         Frontend: loads render.html for message display
-```
+### API Endpoints
 
-### Backend: PluginRegistryService
-
-```typescript
-@Injectable()
-export class PluginRegistryService implements OnModuleInit {
-  private plugins = new Map<string, PluginManifest>();
-
-  async onModuleInit() {
-    await this.discover();
-  }
-
-  async discover() {
-    // Scan packages/plugins/*/plugin.json
-    // Validate each manifest
-    // Register in map
-  }
-
-  getPlugin(name: string): PluginManifest | undefined {
-    return this.plugins.get(name);
-  }
-
-  validateMessageMetadata(pluginName: string, metadata: unknown): ValidationResult {
-    const plugin = this.plugins.get(pluginName);
-    if (!plugin) return { valid: false, errors: ['Unknown plugin'] };
-    // Validate against plugin.inputSchema
-  }
-
-  getAllPlugins(): PluginManifest[] {
-    return [...this.plugins.values()];
-  }
-}
-```
-
-### Frontend: Plugin Renderer
-
-```typescript
-// components/plugins/plugin-renderer.tsx
-function PluginRenderer({ pluginName, data, message }: Props) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [html, setHtml] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Fetch render.html for this plugin from the backend
-    // GET /api/plugins/:name/render
-    fetch(`/api/plugins/${pluginName}/render`)
-      .then(r => r.text())
-      .then(setHtml);
-  }, [pluginName]);
-
-  // Inject bridge + data into srcdoc
-  const srcdoc = useMemo(() => {
-    if (!html) return '';
-    return buildSrcdoc(html, data, message, theme);
-  }, [html, data, message, theme]);
-
-  return (
-    <iframe
-      ref={iframeRef}
-      sandbox="allow-scripts"
-      srcDoc={srcdoc}
-      style={{ width: '100%', border: 'none' }}
-    />
-  );
-}
-```
+| Method | Endpoint                    | Auth     | Description                         |
+| ------ | --------------------------- | -------- | ----------------------------------- |
+| GET    | `/api/plugins`              | Required | List all installed plugin manifests |
+| GET    | `/api/plugins/:name`        | Required | Get single plugin manifest          |
+| GET    | `/api/plugins/:name/render` | No       | Get render HTML + resolved env      |
+| GET    | `/api/plugins/:name/config` | Required | Get config + env schema             |
+| PUT    | `/api/plugins/:name/config` | Required | Update env values                   |
+| GET    | `/api/plugins/:name/icon`   | No       | Serve icon file (SVG/PNG/etc.)      |
+| POST   | `/api/plugins/:name/fetch`  | Required | Server-side HTTP proxy for plugins  |
 
 ---
 
-## 6. Security Model
+## 6. Frontend Architecture
 
-| Concern              | Solution                                                                     |
-| -------------------- | ---------------------------------------------------------------------------- |
-| **DOM access**       | `sandbox="allow-scripts"` — no `allow-same-origin`, no parent DOM access     |
-| **Cookies/Storage**  | Sandboxed iframe has no access to parent cookies or localStorage             |
-| **HTTP requests**    | Proxied through parent via postMessage; domain allowlist enforced            |
-| **Script injection** | Plugin HTML is static per-plugin, not user-generated; loaded from disk       |
-| **Resource limits**  | Max iframe height, fetch timeout (30s), response size limit (5MB)            |
-| **Plugin trust**     | Built-in = trusted. Community = explicit install by admin + domain allowlist |
+### PluginRenderer Component
 
----
+Located at `components/plugins/plugin-renderer.tsx`:
 
-## 7. API Endpoints (new)
+1. Fetches `GET /api/plugins/:name/render` → receives `{ html, env }`
+2. Fetches `GET /api/plugins/:name` → receives manifest (for permissions)
+3. Builds `PluginRendererContext` with data, env, attachments, message, theme
+4. Calls `buildSrcdoc(html, context)` → bridge script + render HTML
+5. Renders `<iframe sandbox="allow-scripts" srcDoc={srcdoc} />`
+6. Listens for postMessage events (resize, toast, emit, fetch proxy, file access)
 
-```
-GET    /api/plugins                    ← List installed plugins (manifest only)
-GET    /api/plugins/:name              ← Get plugin details + manifest
-GET    /api/plugins/:name/render       ← Get render.html content for iframe
-POST   /api/plugins/install            ← Install community plugin (admin only)
-DELETE /api/plugins/:name              ← Uninstall plugin (admin only)
-```
+### Bridge Script
 
----
+Located at `components/plugins/bridge.ts`:
 
-## 8. Agent API Usage
+- `buildBridgeScript(context)` — generates `<script>` block injecting `HumanProxy` global
+- `buildSrcdoc(html, context)` — combines bridge script + plugin render HTML
+- Legacy `window.__PLUGIN_DATA__` etc. maintained as aliases
 
-Agent sends a message with plugin data:
+### Settings UI
 
-```bash
-curl -X POST https://humanproxy.example.com/api/v1/messages \
-  -H "Authorization: Bearer hp_..." \
-  -d '{
-    "text": "Found matching product:",
-    "metadata": {
-      "plugin": "crm-product",
-      "productId": "P-42",
-      "apiBaseUrl": "https://api.mycrm.io"
-    }
-  }'
-```
+Located at `components/settings/plugins-section.tsx`:
 
-Agent sends plugin + review:
-
-```bash
-curl -X POST https://humanproxy.example.com/api/v1/messages \
-  -H "Authorization: Bearer hp_..." \
-  -d '{
-    "text": "Please review this order:",
-    "metadata": {
-      "plugin": "crm-product",
-      "productId": "P-42"
-    },
-    "review": {
-      "type": "approval",
-      "payload": {
-        "options": [
-          { "id": "approve", "label": "Approve Order", "style": "primary" },
-          { "id": "reject", "label": "Reject", "style": "danger" }
-        ]
-      },
-      "callback": { "url": "https://my-agent.example.com/webhook/order-review" }
-    }
-  }'
-```
+- Lists all installed plugins with icon, name, version, description
+- Expandable config panel per plugin (only if `env` is defined)
+- Auto-generated form from env schema (text/password inputs)
+- Save → `PUT /api/plugins/:name/config`
 
 ---
 
-## 9. Implementation Phases
+## 7. Security Model
 
-### Phase 3a — Plugin Foundation (current)
+| Concern              | Solution                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| **DOM access**       | `sandbox="allow-scripts"` — no `allow-same-origin`, no parent DOM access           |
+| **Cookies/Storage**  | Sandboxed iframe has no access to parent cookies or localStorage                   |
+| **HTTP requests**    | Server-side proxied via `POST /api/plugins/:name/fetch`; domain allowlist enforced |
+| **Script injection** | Plugin HTML is static per-plugin, not user-generated; loaded from disk             |
+| **Resource limits**  | Max iframe height (800px inline, unlimited in preview), fetch timeout (30s)        |
+| **Env values**       | Stored in DB, injected at render time; secret values not exposed in manifest       |
 
-- [ ] Define `PluginManifest` TypeScript interface in `packages/shared`
-- [ ] Create `packages/plugins/` directory structure
-- [ ] Implement `PluginRegistryService` (backend discovery + validation)
-- [ ] Implement `GET /api/plugins` and `GET /api/plugins/:name/render` endpoints
-- [ ] Implement `PluginRenderer` React component (sandboxed iframe + postMessage bridge)
-- [ ] Build one example plugin: `crm-product` (demonstrates fetch, rendering, resize)
+---
 
-### Phase 3b — Built-in Review Types
+## 8. Built-in Review Types
 
-- [ ] Implement review type components (approval, selection, form, text-input)
-- [ ] These are React components, NOT plugins (no iframe needed)
-- [ ] Review response flow: Frontend → Backend → optional webhook callback
+Reviews are **NOT plugins** — they are built-in React components:
 
-### Phase 5 — Community Plugins
+| Type         | Agent sends                                     | User sees             |
+| ------------ | ----------------------------------------------- | --------------------- |
+| `approval`   | `options: [{id, label, style}]`                 | Buttons               |
+| `selection`  | `mode: "single"\|"multi", items: [{id, label}]` | Radio/checkboxes      |
+| `form`       | `fields: [{name, type, label, required?}]`      | Dynamic form          |
+| `text-input` | `placeholder?, markdown?`                       | Textarea              |
+| `freeform`   | `{}`                                            | Generic JSON response |
 
-- [ ] `plugins.json` config file
-- [ ] Auto-install missing plugins on startup
-- [ ] Plugin settings UI in frontend
-- [ ] Plugin developer documentation + template repo
+The `freeform` type bridges plugins and reviews: the plugin renders custom UI, and on user interaction calls `HumanProxy.respond({ ... })` to submit the review response programmatically. This is a one-time operation per review — the bridge enforces that `respond()` can only be called once per pending review.
+
+---
+
+## 9. File Layout
+
+```
+packages/
+  shared/src/plugins.ts          ← Zod schemas (manifest, env, bridge types, context)
+  plugins/
+    form-submit/                  ← Showcase: form rendering + webhook submission
+    kroki-diagram/                ← Showcase: diagram rendering via Kroki API
+
+apps/
+  backend/
+    prisma/schema.prisma          ← PluginConfig model
+    src/modules/plugins/
+      plugins.module.ts           ← NestJS module
+      plugins.service.ts          ← Discovery, config CRUD, icon resolution
+      plugins.controller.ts       ← REST endpoints
+      dto/
+        update-plugin-config.dto.ts
+
+  frontend/src/
+    components/
+      plugins/
+        bridge.ts                 ← Bridge script injection
+        plugin-renderer.tsx       ← Iframe renderer + postMessage handler
+      settings/
+        plugins-section.tsx       ← Plugin config UI in Settings
+```

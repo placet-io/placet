@@ -15,6 +15,16 @@ export const PluginPermissionsSchema = z.object({
 });
 export type PluginPermissions = z.infer<typeof PluginPermissionsSchema>;
 
+export const PluginEnvVarSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  required: z.boolean().optional(),
+  default: z.string().optional(),
+  secret: z.boolean().optional(),
+  description: z.string().optional(),
+});
+export type PluginEnvVar = z.infer<typeof PluginEnvVarSchema>;
+
 export const PluginManifestSchema = z.object({
   name: z.string().min(1),
   displayName: z.string().min(1),
@@ -24,8 +34,17 @@ export const PluginManifestSchema = z.object({
   icon: z.string().optional(),
   inputSchema: z.record(z.string(), z.unknown()).optional(),
   permissions: PluginPermissionsSchema.optional(),
+  env: z.array(PluginEnvVarSchema).optional(),
 });
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
+
+// ── Plugin Config (update schema for API) ───────────────────────────────────
+
+export const UpdatePluginConfigSchema = z.object({
+  envValues: z.record(z.string(), z.string()),
+  enabled: z.boolean().optional(),
+});
+export type UpdatePluginConfig = z.infer<typeof UpdatePluginConfigSchema>;
 
 // ── Review Types (built-in, NOT plugins) ────────────────────────────────────
 
@@ -148,6 +167,8 @@ export type BridgeMessageType =
   | 'hp:resize'
   | 'hp:toast'
   | 'hp:emit'
+  | 'hp:respond'
+  | 'hp:respond:result'
   | 'hp:event';
 
 export interface BridgeMessage {
@@ -203,6 +224,20 @@ export interface BridgeEmitMessage {
     action: string;
     data?: Record<string, unknown>;
   };
+}
+
+export interface BridgeRespondMessage {
+  type: 'hp:respond';
+  id: string;
+  payload: {
+    response: Record<string, unknown>;
+  };
+}
+
+export interface BridgeRespondResult {
+  type: 'hp:respond:result';
+  id: string;
+  payload: { ok: true } | { ok: false; error: string };
 }
 
 export interface BridgeEventMessage {
@@ -266,6 +301,12 @@ export interface PluginAttachmentInfo {
 
 // ── Plugin Renderer Props (for frontend) ────────────────────────────────────
 
+export interface PluginReviewContext {
+  type: string;
+  status: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface PluginRendererContext {
   pluginName: string;
   data: Record<string, unknown>;
@@ -277,4 +318,7 @@ export interface PluginRendererContext {
     createdAt: string;
   };
   theme: 'light' | 'dark';
+  env: Record<string, string>;
+  review?: PluginReviewContext | null;
+  isPreview?: boolean;
 }

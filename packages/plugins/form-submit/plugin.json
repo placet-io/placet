@@ -1,0 +1,29 @@
+{
+  "name": "form-submit",
+  "displayName": "Form Submit",
+  "description": "Renders a form from structured data and submits it to a configurable webhook URL. Demonstrates forms, buttons, and HumanProxy.fetch.",
+  "version": "1.0.0",
+  "author": "HumanProxy",
+  "icon": "./icon.svg",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string" },
+      "email": { "type": "string" },
+      "message": { "type": "string" }
+    }
+  },
+  "permissions": {
+    "httpRequests": true,
+    "maxHttpDomains": ["*"]
+  },
+  "env": [
+    {
+      "key": "WEBHOOK_URL",
+      "label": "Webhook URL",
+      "required": true,
+      "default": "https://httpbin.org/post",
+      "description": "The URL to submit form data to via POST request."
+    }
+  ]
+}

@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        padding: 16px;
+        color: #1a1a19;
+        background: transparent;
+      }
+      body.dark {
+        color: #e5e5e4;
+      }
+
+      .form-group {
+        margin-bottom: 12px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: #666;
+        margin-bottom: 4px;
+      }
+      .dark label {
+        color: #999;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        background: #fff;
+        color: #1a1a19;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      input:focus,
+      textarea:focus {
+        border-color: #7c9cb5;
+      }
+      .dark input,
+      .dark textarea {
+        background: #2a2a29;
+        border-color: #404040;
+        color: #e5e5e4;
+      }
+      .dark input:focus,
+      .dark textarea:focus {
+        border-color: #8faec8;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 60px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        background: #7c9cb5;
+        color: #fff;
+      }
+      .dark .btn-primary {
+        background: #8faec8;
+        color: #1a1a19;
+      }
+      .btn-primary:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+
+      .status {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      .status.success {
+        background: #f0f6f2;
+        color: #5a8a68;
+      }
+      .dark .status.success {
+        background: #2a3a2e;
+        color: #8cb898;
+      }
+      .status.error {
+        background: #faf0ef;
+        color: #a05a55;
+      }
+      .dark .status.error {
+        background: #3a2a28;
+        color: #c4807a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" placeholder="Enter name" />
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="Enter email" />
+      </div>
+      <div class="form-group">
+        <label for="message">Message</label>
+        <textarea id="message" placeholder="Enter message (optional)"></textarea>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="submitBtn" type="button">Submit</button>
+      </div>
+      <div id="status" class="status" style="display: none"></div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        // Apply theme
+        if (HumanProxy.theme === 'dark') {
+          document.body.classList.add('dark');
+        }
+
+        // Pre-fill from plugin data
+        var data = HumanProxy.data || {};
+        if (data.name) document.getElementById('name').value = data.name;
+        if (data.email) document.getElementById('email').value = data.email;
+        if (data.message) document.getElementById('message').value = data.message;
+
+        var submitBtn = document.getElementById('submitBtn');
+        var statusEl = document.getElementById('status');
+
+        submitBtn.addEventListener('click', function () {
+          var name = document.getElementById('name').value.trim();
+          var email = document.getElementById('email').value.trim();
+          var message = document.getElementById('message').value.trim();
+
+          if (!name || !email) {
+            statusEl.style.display = 'block';
+            statusEl.className = 'status error';
+            statusEl.textContent = 'Name and email are required.';
+            HumanProxy.resize();
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submitting…';
+          statusEl.style.display = 'none';
+
+          var webhookUrl =
+            (HumanProxy.env && HumanProxy.env.WEBHOOK_URL) || 'https://httpbin.org/post';
+
+          HumanProxy.fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, email: email, message: message }),
+          })
+            .then(function (res) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Submit';
+              statusEl.style.display = 'block';
+
+              if (res.ok) {
+                statusEl.className = 'status success';
+                statusEl.textContent = 'Submitted successfully! (Status: ' + res.status + ')';
+                HumanProxy.toast('Form submitted successfully', 'success');
+              } else {
+                statusEl.className = 'status error';
+                statusEl.textContent = 'Failed (Status: ' + res.status + ')';
+                HumanProxy.toast('Submission failed', 'error');
+              }
+              HumanProxy.resize();
+            })
+            .catch(function (err) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Submit';
+              statusEl.style.display = 'block';
+              statusEl.className = 'status error';
+              statusEl.textContent = 'Error: ' + err.message;
+              HumanProxy.toast('Submission error: ' + err.message, 'error');
+              HumanProxy.resize();
+            });
+        });
+
+        // Initial resize
+        HumanProxy.resize();
+      });
+    </script>
+  </body>
+</html>

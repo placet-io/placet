@@ -1,0 +1,46 @@
+{
+  "name": "kroki-diagram",
+  "displayName": "Kroki Diagram",
+  "description": "Renders diagrams (Mermaid, PlantUML, D2, etc.) via a Kroki server. The agent sends diagram code and type, the plugin renders it as SVG.",
+  "version": "1.0.0",
+  "author": "HumanProxy",
+  "icon": "./icon.svg",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "mermaid",
+          "plantuml",
+          "d2",
+          "graphviz",
+          "ditaa",
+          "erd",
+          "nomnoml",
+          "svgbob",
+          "vega",
+          "vegalite",
+          "wavedrom",
+          "bytefield",
+          "excalidraw"
+        ]
+      },
+      "source": { "type": "string" }
+    },
+    "required": ["type", "source"]
+  },
+  "permissions": {
+    "httpRequests": true,
+    "maxHttpDomains": ["kroki.io"]
+  },
+  "env": [
+    {
+      "key": "KROKI_URL",
+      "label": "Kroki Server URL",
+      "required": true,
+      "default": "https://kroki.io",
+      "description": "Base URL of the Kroki server. Use https://kroki.io for the public instance or your self-hosted URL."
+    }
+  ]
+}
