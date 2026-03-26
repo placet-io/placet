@@ -19,6 +19,7 @@ import { EventsModule } from './modules/events/events.module';
 import { PluginsModule } from './modules/plugins/plugins.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ShareModule } from './modules/share/share.module';
+import { PushModule } from './modules/push/push.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
 
 @Module({
@@ -48,6 +49,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
     PluginsModule,
     ApiKeysModule,
     ShareModule,
+    PushModule,
   ],
   controllers: [AppController],
   providers: [

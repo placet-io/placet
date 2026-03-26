@@ -42,10 +42,75 @@ export class AgentsService {
   ) {}
 
   async findAllByOwner(ownerId: string) {
-    return this.prisma.agent.findMany({
+    const agents = await this.prisma.agent.findMany({
       where: { ownerId },
-      select: AGENT_SELECT,
+      select: {
+        ...AGENT_SELECT,
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { text: true, createdAt: true },
+        },
+        channelReads: {
+          where: { userId: ownerId },
+          select: { lastReadAt: true },
+        },
+        _count: {
+          select: { messages: { where: { senderType: 'agent' } } },
+        },
+      },
       orderBy: { createdAt: 'desc' },
+    });
+
+    // Compute unread counts efficiently: count messages after lastReadAt
+    const agentIds = agents
+      .filter((a) => a.channelReads[0]?.lastReadAt)
+      .map((a) => a.id);
+
+    const unreadCounts =
+      agentIds.length > 0
+        ? await this.prisma.$queryRaw<{ channel_id: string; count: bigint }[]>`
+            SELECT m.channel_id, COUNT(*)::bigint AS count
+            FROM messages m
+            JOIN channel_reads cr ON cr.channel_id = m.channel_id AND cr.user_id = ${ownerId}
+            WHERE m.channel_id = ANY(${agentIds})
+              AND m.created_at > cr.last_read_at
+              AND m.sender_type = 'agent'
+            GROUP BY m.channel_id`
+        : [];
+
+    const unreadMap = new Map(
+      unreadCounts.map((r) => [r.channel_id, Number(r.count)]),
+    );
+
+    // For agents without any channelRead entry, all messages are unread
+    const noReadAgents = agents.filter((a) => !a.channelReads[0]);
+    const noReadMap = new Map(
+      noReadAgents.map((a) => [a.id, a._count.messages]),
+    );
+
+    return agents.map(
+      ({ messages, channelReads: _cr, _count: _c, ...agent }) => ({
+        ...agent,
+        lastMessage: messages[0]?.text ?? undefined,
+        lastMessageTime: messages[0]?.createdAt?.toISOString() ?? undefined,
+        unreadCount: unreadMap.get(agent.id) ?? noReadMap.get(agent.id) ?? 0,
+      }),
+    );
+  }
+
+  async markRead(channelId: string, userId: string) {
+    // Verify ownership
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: channelId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    await this.prisma.channelRead.upsert({
+      where: { userId_channelId: { userId, channelId } },
+      update: { lastReadAt: new Date() },
+      create: { userId, channelId },
     });
   }
 

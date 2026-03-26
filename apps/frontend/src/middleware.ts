@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/api'];
 
+const BACKEND_URL = process.env.INTERNAL_API_URL ?? 'http://localhost:3001';
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths (login page, API proxy routes)
+  // Proxy /api/* requests to the backend at runtime
+  if (pathname.startsWith('/api')) {
+    const url = new URL(pathname + request.nextUrl.search, BACKEND_URL);
+    return NextResponse.rewrite(url, {
+      request: { headers: request.headers },
+    });
+  }
+
+  // Allow public paths (login page)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }

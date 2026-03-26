@@ -5,9 +5,10 @@ import { ReviewsAgentController } from './reviews-agent.controller';
 import { MessagesService } from './messages.service';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { EventsModule } from '../events/events.module';
+import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [WebhooksModule, EventsModule],
+  imports: [WebhooksModule, EventsModule, PushModule],
   controllers: [
     MessagesController,
     MessagesAgentController,

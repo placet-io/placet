@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import type { Agent } from '@humanproxy/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Agent, AgentStatus, Message } from '@humanproxy/shared';
 import { api } from '@/lib/api';
+import { useSocket } from '@/lib/contexts/socket-context';
 
 export interface AgentWithLastMessage extends Agent {
   lastMessage?: string;
@@ -14,6 +15,7 @@ export function useAgents() {
   const [agents, setAgents] = useState<AgentWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { socket, connected, activeChannel } = useSocket();
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -31,5 +33,49 @@ export function useAgents() {
     void fetchAgents();
   }, [fetchAgents]);
 
-  return { agents, loading, error, refetch: fetchAgents };
+  // Listen for real-time messages to update sidebar (last message + unread)
+  // Keep a ref to activeChannel so the socket handler never sees a stale value
+  const activeRef = useRef(activeChannel);
+  activeRef.current = activeChannel;
+
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    const handleMessage = (msg: Message) => {
+      setAgents((prev) =>
+        prev.map((a) => {
+          if (a.id !== msg.channelId) return a;
+          const isViewing = activeRef.current === msg.channelId;
+          return {
+            ...a,
+            lastMessage: msg.text ?? '📎 Attachment',
+            lastMessageTime: msg.createdAt,
+            // Only increment unread for agent messages when chat is NOT active
+            unreadCount:
+              msg.senderType === 'agent' && !isViewing ? (a.unreadCount ?? 0) + 1 : a.unreadCount,
+          };
+        }),
+      );
+    };
+
+    const handleStatus = (data: { agentId: string; status: AgentStatus }) => {
+      setAgents((prev) =>
+        prev.map((a) => (a.id === data.agentId ? { ...a, status: data.status } : a)),
+      );
+    };
+
+    socket.on('message:created', handleMessage);
+    socket.on('agent:status', handleStatus);
+
+    return () => {
+      socket.off('message:created', handleMessage);
+      socket.off('agent:status', handleStatus);
+    };
+  }, [socket, connected]);
+
+  const clearUnread = useCallback((channelId: string) => {
+    setAgents((prev) => prev.map((a) => (a.id === channelId ? { ...a, unreadCount: 0 } : a)));
+  }, []);
+
+  return { agents, loading, error, refetch: fetchAgents, clearUnread };
 }

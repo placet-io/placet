@@ -48,9 +48,20 @@ describe('AgentsService', () => {
 
   describe('findAllByOwner', () => {
     it('should return agents for owner', async () => {
-      const agents = [{ id: 'a1', name: 'Bot' }];
+      const agents = [
+        {
+          id: 'a1',
+          name: 'Bot',
+          messages: [],
+          channelReads: [],
+          _count: { messages: 0 },
+        },
+      ];
       prisma.agent.findMany.mockResolvedValue(agents);
-      expect(await service.findAllByOwner('u1')).toEqual(agents);
+      const result = await service.findAllByOwner('u1');
+      expect(result).toEqual([
+        expect.objectContaining({ id: 'a1', name: 'Bot', unreadCount: 0 }),
+      ]);
     });
   });
 

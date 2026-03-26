@@ -39,23 +39,19 @@ function persist(map: AnnotationMap) {
  * Value: { fileId, filename } of the uploaded annotated file
  */
 export function useAnnotations() {
-  const [annotations, setAnnotations] = useState<AnnotationMap>({});
+  const [annotations, setAnnotations] = useState<AnnotationMap>(load);
 
   useEffect(() => {
-    setAnnotations(load());
     const sync = () => setAnnotations(load());
     window.addEventListener(UPDATE_EVENT, sync);
     return () => window.removeEventListener(UPDATE_EVENT, sync);
   }, []);
 
-  const saveAnnotation = useCallback(
-    (originalId: string, fileId: string, filename: string) => {
-      const next = { ...load(), [originalId]: { fileId, filename } };
-      persist(next);
-      setAnnotations(next);
-    },
-    [],
-  );
+  const saveAnnotation = useCallback((originalId: string, fileId: string, filename: string) => {
+    const next = { ...load(), [originalId]: { fileId, filename } };
+    persist(next);
+    setAnnotations(next);
+  }, []);
 
   const revertAnnotation = useCallback((originalId: string) => {
     const next = { ...load() };

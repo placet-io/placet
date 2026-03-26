@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { Bot, Folder, Menu, MessageSquare, Settings, Terminal, Activity, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
 const NAV_ITEMS = [
   { href: '/chats', icon: MessageSquare, label: 'Agents' },
   { href: '/files', icon: Folder, label: 'Files' },
@@ -78,7 +77,7 @@ export const MobileNavDrawer = memo(function MobileNavDrawer() {
                 )}
               >
                 <Icon size={18} />
-                {label}
+                <span className="flex-1">{label}</span>
               </Link>
             );
           })}

@@ -49,6 +49,16 @@ Default login: `admin@humanproxy.local` / `changeme` (configurable in `.env`).
 
 All configuration lives in a single `.env` file at the project root. On first `make setup`, it is auto-created from `.env.example`. See [`.env.example`](.env.example) for available variables.
 
+### Push Notifications
+
+`make setup` auto-generates VAPID keys for Web Push notifications. To regenerate manually:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Copy the output into `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in your `.env`, then restart the backend.
+
 ---
 
 ## Tech Stack

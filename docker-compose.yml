@@ -74,6 +74,9 @@ services:
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       APP_URL: ${APP_URL:-http://localhost:3001}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@humanproxy.local}
     ports:
       - '${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}'
 
@@ -81,13 +84,13 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
-      args:
-        INTERNAL_API_URL: http://backend:${BACKEND_PORT:-3001}
     restart: unless-stopped
     depends_on:
       - backend
     environment:
       INTERNAL_API_URL: http://backend:${BACKEND_PORT:-3001}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:${BACKEND_PORT:-3001}}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     ports:
       - '3000:3000'
 

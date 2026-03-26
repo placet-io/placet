@@ -46,12 +46,12 @@ export const ChatListItem = memo(function ChatListItem({
             </span>
           )}
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
+        <div className="relative flex items-center gap-2">
+          <p className={cn('truncate text-xs text-muted-foreground', unreadCount > 0 && 'pr-7')}>
             {lastMessage ?? description ?? 'No messages yet'}
           </p>
           {unreadCount > 0 && (
-            <Badge className="h-5 min-w-5 px-1.5 rounded-full text-[10px] font-semibold shrink-0">
+            <Badge className="absolute right-0 h-5 min-w-5 px-1.5 rounded-full text-[10px] font-semibold">
               {unreadCount}
             </Badge>
           )}

@@ -40,13 +40,19 @@ const RESPONSIVE_CSS = `
 const RESIZE_SCRIPT = `
   <script>
     function reportHeight() {
+      if (!document.body) return;
       window.parent.postMessage(
         { type: '__hp_iframe_height__', height: document.body.scrollHeight },
         '*'
       );
     }
-    document.addEventListener('DOMContentLoaded', reportHeight);
-    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    function startObserver() {
+      if (!document.body) return;
+      new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+      reportHeight();
+    }
+    if (document.body) { startObserver(); }
+    else { document.addEventListener('DOMContentLoaded', startObserver); }
     window.addEventListener('load', reportHeight);
   </script>
 `;

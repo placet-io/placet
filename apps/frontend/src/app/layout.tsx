@@ -23,12 +23,27 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Expose runtime config to client-side code via a global.
+  // This avoids NEXT_PUBLIC_* build-time inlining, so a single prebuilt
+  // Docker image works for any deployment — users just set env vars.
+  const runtimeConfig = JSON.stringify({
+    wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001',
+    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+  });
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__HP_CONFIG__=${runtimeConfig}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
       </body>

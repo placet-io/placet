@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 const STORAGE_KEY = 'humanproxy:chat-settings';
 
@@ -24,11 +24,7 @@ function load(): ChatSettings {
 }
 
 export function useChatSettings() {
-  const [settings, setSettings] = useState<ChatSettings>(DEFAULTS);
-
-  useEffect(() => {
-    setSettings(load());
-  }, []);
+  const [settings, setSettings] = useState<ChatSettings>(load);
 
   const update = useCallback((patch: Partial<ChatSettings>) => {
     setSettings((prev) => {

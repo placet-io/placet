@@ -17,7 +17,12 @@ function ChatsLayoutInner({ children }: { children: React.ReactNode }) {
     avatarUrl: a.avatarUrl,
     description: a.description,
     lastMessage: a.lastMessage,
-    lastMessageTime: a.lastActiveAt ? formatRelativeTime(a.lastActiveAt) : undefined,
+    lastMessageTime: a.lastMessageTime
+      ? formatRelativeTime(a.lastMessageTime)
+      : a.lastActiveAt
+        ? formatRelativeTime(a.lastActiveAt)
+        : undefined,
+    unreadCount: a.unreadCount,
   }));
 
   return (

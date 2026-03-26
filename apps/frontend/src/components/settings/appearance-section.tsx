@@ -2,10 +2,11 @@
 
 import { memo } from 'react';
 import { useTheme } from 'next-themes';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Bell, Monitor, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useChatSettings } from '@/lib/hooks/use-chat-settings';
+import { useSocket } from '@/lib/contexts/socket-context';
 
 const THEMES = [
   { key: 'light', label: 'Light', icon: Sun },
@@ -16,6 +17,10 @@ const THEMES = [
 export const AppearanceSection = memo(function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const { settings, update } = useChatSettings();
+  const { notificationsEnabled, requestNotifications } = useSocket();
+
+  const notificationsDenied =
+    typeof Notification !== 'undefined' && Notification.permission === 'denied';
 
   return (
     <div className="space-y-6">
@@ -66,6 +71,42 @@ export const AppearanceSection = memo(function AppearanceSection() {
               }`}
             />
           </button>
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-2 border-t border-border/50">
+        <div className="flex items-center gap-2">
+          <Bell size={16} className="text-muted-foreground" />
+          <Label className="text-muted-foreground">Notifications</Label>
+        </div>
+        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Browser notifications</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {notificationsDenied
+                ? 'Notifications have been blocked. Please enable them in your browser settings.'
+                : 'Get notified when an agent sends a new message while the tab is in the background.'}
+            </p>
+          </div>
+          {notificationsDenied ? (
+            <span className="text-xs text-muted-foreground italic">Blocked</span>
+          ) : (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notificationsEnabled}
+              onClick={requestNotifications}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                notificationsEnabled ? 'bg-primary' : 'bg-input'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                  notificationsEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          )}
         </div>
       </div>
     </div>

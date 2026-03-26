@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message, PaginatedResponse } from '@humanproxy/shared';
 import { api } from '@/lib/api';
+import { useSocket } from '@/lib/contexts/socket-context';
 
 const PAGE_SIZE = 25;
 
@@ -13,6 +14,7 @@ export function useMessages(channelId: string | null) {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cursorRef = useRef<string | null>(null);
+  const { socket, connected, subscribe, unsubscribe, markRead } = useSocket();
 
   // Load initial (newest) batch
   const fetchMessages = useCallback(async () => {
@@ -64,6 +66,37 @@ export function useMessages(channelId: string | null) {
     void fetchMessages();
   }, [fetchMessages]);
 
+  // ── WebSocket: subscribe to channel + listen for real-time events ──
+  useEffect(() => {
+    if (!channelId || !socket || !connected) return;
+
+    subscribe(channelId);
+    markRead(channelId);
+
+    const handleMessageCreated = (msg: Message) => {
+      if (msg.channelId !== channelId) return;
+      setMessages((prev) => {
+        // Deduplicate — we may have optimistically added this already
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    };
+
+    const handleReviewResponded = (msg: Message) => {
+      if (msg.channelId !== channelId) return;
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
+    };
+
+    socket.on('message:created', handleMessageCreated);
+    socket.on('review:responded', handleReviewResponded);
+
+    return () => {
+      socket.off('message:created', handleMessageCreated);
+      socket.off('review:responded', handleReviewResponded);
+      unsubscribe(channelId);
+    };
+  }, [channelId, socket, connected, subscribe, unsubscribe, markRead]);
+
   const sendMessage = useCallback(
     async (text: string) => {
       if (!channelId) return;
@@ -71,7 +104,8 @@ export function useMessages(channelId: string | null) {
         method: 'POST',
         body: JSON.stringify({ channelId, text }),
       });
-      setMessages((prev) => [...prev, msg]);
+      // Add optimistically — WebSocket handler deduplicates
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
     },
     [channelId],
   );
@@ -117,7 +151,7 @@ export function useMessages(channelId: string | null) {
         method: 'POST',
         body: JSON.stringify({ channelId, attachmentIds: [attachmentId] }),
       });
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
     },
     [channelId],
   );

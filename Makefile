@@ -125,3 +125,17 @@ _check-env:
 		cp .env.example .env; \
 		echo "   Please review .env and adjust values if needed."; \
 	fi
+	@if grep -q '^VAPID_PUBLIC_KEY=$$' .env 2>/dev/null; then \
+		echo "══ Generating VAPID keys for push notifications ══"; \
+		VAPID_KEYS=$$(npx --yes web-push generate-vapid-keys --json 2>/dev/null); \
+		if [ -n "$$VAPID_KEYS" ]; then \
+			VAPID_PUB=$$(echo "$$VAPID_KEYS" | node -e "process.stdin.on('data',d=>{const j=JSON.parse(d);process.stdout.write(j.publicKey)})"); \
+			VAPID_PRV=$$(echo "$$VAPID_KEYS" | node -e "process.stdin.on('data',d=>{const j=JSON.parse(d);process.stdout.write(j.privateKey)})"); \
+			sed -i.bak "s|^VAPID_PUBLIC_KEY=$$|VAPID_PUBLIC_KEY=$$VAPID_PUB|" .env; \
+			sed -i.bak "s|^VAPID_PRIVATE_KEY=$$|VAPID_PRIVATE_KEY=$$VAPID_PRV|" .env; \
+			rm -f .env.bak; \
+			echo "   VAPID keys generated and written to .env"; \
+		else \
+			echo "   ⚠️  Could not generate VAPID keys. Push notifications will be disabled."; \
+		fi; \
+	fi

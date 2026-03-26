@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { PushService } from '../push/push.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { RespondReviewDto } from './dto/respond-review.dto';
 
@@ -25,6 +26,7 @@ export class MessagesService {
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly webhooks: WebhooksService,
+    private readonly push: PushService,
   ) {}
 
   // ── Agent API ──────────────────────────────────────────────
@@ -65,7 +67,11 @@ export class MessagesService {
     // Attach orphan files if IDs were provided
     if (dto.attachmentIds?.length) {
       await this.prisma.attachment.updateMany({
-        where: { id: { in: dto.attachmentIds }, messageId: null, channelId: dto.channelId },
+        where: {
+          id: { in: dto.attachmentIds },
+          messageId: null,
+          channelId: dto.channelId,
+        },
         data: { messageId: message.id },
       });
       // Re-fetch to include the newly linked attachments
@@ -73,12 +79,36 @@ export class MessagesService {
         where: { id: message.id },
         include: { attachments: true },
       });
-      this.events.emitToChannel(dto.channelId, 'message:created', withAttachments);
+      this.events.emitToChannel(dto.channelId, 'message:created', {
+        ...withAttachments,
+        agentName: agent.name,
+      });
+      this.events.emitToUser(agent.ownerId, 'message:created', {
+        ...withAttachments,
+        agentName: agent.name,
+      });
+      void this.push.sendToUser(agent.ownerId, {
+        title: agent.name,
+        body: withAttachments?.text ?? 'Sent an attachment',
+        channelId: dto.channelId,
+      });
       return withAttachments!;
     }
 
     // Tier 3: WebSocket is always active
-    this.events.emitToChannel(dto.channelId, 'message:created', message);
+    this.events.emitToChannel(dto.channelId, 'message:created', {
+      ...message,
+      agentName: agent.name,
+    });
+    this.events.emitToUser(agent.ownerId, 'message:created', {
+      ...message,
+      agentName: agent.name,
+    });
+    void this.push.sendToUser(agent.ownerId, {
+      title: agent.name,
+      body: message.text ?? 'Sent an attachment',
+      channelId: dto.channelId,
+    });
     return message;
   }
 
@@ -179,7 +209,12 @@ export class MessagesService {
     };
   }
 
-  async createFromUser(userId: string, channelId: string, text?: string, attachmentIds?: string[]) {
+  async createFromUser(
+    userId: string,
+    channelId: string,
+    text?: string,
+    attachmentIds?: string[],
+  ) {
     // Verify user owns the agent
     const agent = await this.prisma.agent.findFirst({
       where: { id: channelId, ownerId: userId },
@@ -208,6 +243,7 @@ export class MessagesService {
       });
       const final = withAttachments!;
       this.events.emitToChannel(channelId, 'message:created', final);
+      this.events.emitToUser(userId, 'message:created', final);
       if (agent.webhookUrl) {
         void this.webhooks.dispatch(
           { url: agent.webhookUrl, method: 'POST' },
@@ -220,6 +256,7 @@ export class MessagesService {
 
     // Tier 3: WebSocket — always active
     this.events.emitToChannel(channelId, 'message:created', message);
+    this.events.emitToUser(userId, 'message:created', message);
 
     // Tier 1: Chat-level default webhook
     if (agent.webhookUrl) {
@@ -397,7 +434,9 @@ export class MessagesService {
       ...review,
       status: 'completed',
       response: dto.response,
-      ...(dto.annotationFileId ? { annotationFileId: dto.annotationFileId } : {}),
+      ...(dto.annotationFileId
+        ? { annotationFileId: dto.annotationFileId }
+        : {}),
       completed_at: new Date().toISOString(),
     };
 
@@ -417,7 +456,9 @@ export class MessagesService {
       message_id: messageId,
       review_type: review.type as string,
       response: dto.response,
-      ...(dto.annotationFileId ? { annotationFileId: dto.annotationFileId } : {}),
+      ...(dto.annotationFileId
+        ? { annotationFileId: dto.annotationFileId }
+        : {}),
       responded_at: updatedReview.completed_at,
     };
 

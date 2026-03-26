@@ -4,6 +4,7 @@ import { MessagesService } from './messages.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { PushService } from '../push/push.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -18,8 +19,9 @@ describe('MessagesService', () => {
     };
     agent: { findFirst: jest.Mock; findMany: jest.Mock };
   };
-  let events: { emitToChannel: jest.Mock };
+  let events: { emitToChannel: jest.Mock; emitToUser: jest.Mock };
   let webhooks: { dispatch: jest.Mock };
+  let push: { sendToUser: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -36,8 +38,9 @@ describe('MessagesService', () => {
         findMany: jest.fn(),
       },
     };
-    events = { emitToChannel: jest.fn() };
+    events = { emitToChannel: jest.fn(), emitToUser: jest.fn() };
     webhooks = { dispatch: jest.fn() };
+    push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +48,7 @@ describe('MessagesService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: EventsGateway, useValue: events },
         { provide: WebhooksService, useValue: webhooks },
+        { provide: PushService, useValue: push },
       ],
     }).compile();
 

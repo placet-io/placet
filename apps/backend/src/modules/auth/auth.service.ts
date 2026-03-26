@@ -145,4 +145,9 @@ export class AuthService implements OnModuleInit {
       },
     };
   }
+
+  /** Short-lived token (30s) for WebSocket handshake auth */
+  createWsTicket(userId: string): string {
+    return this.jwt.sign({ sub: userId }, { expiresIn: '30s' });
+  }
 }

@@ -104,6 +104,18 @@ export class AgentsController {
     return this.agentsService.remove(id, req.user.id);
   }
 
+  @Post(':id/read')
+  @ApiOperation({ summary: 'Mark a chat as read' })
+  @ApiOkResponse({ description: 'Marked as read' })
+  @ApiNotFoundResponse({ description: 'Agent not found', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  markRead(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.agentsService.markRead(id, req.user.id);
+  }
+
   @Get(':id/stats')
   @ApiOperation({ summary: 'Get agent statistics (messages, errors, uptime)' })
   @ApiOkResponse({ description: 'Agent statistics' })

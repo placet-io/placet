@@ -15,8 +15,6 @@ COPY packages/shared/ ./packages/shared/
 RUN npm run build --workspace=@humanproxy/shared
 COPY apps/frontend/ ./apps/frontend/
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG INTERNAL_API_URL=http://backend:3001
-ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 RUN npm run build --workspace=@humanproxy/frontend
 
 # Production
@@ -27,8 +25,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=build /app/apps/frontend/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
+COPY --from=build /app/apps/frontend/public ./apps/frontend/public
 COPY --from=build --chown=nextjs:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
 
 USER nextjs

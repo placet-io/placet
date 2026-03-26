@@ -135,4 +135,15 @@ export class AuthController {
     res.clearCookie('access_token', { path: '/' });
     return { message: 'Logged out' };
   }
+
+  @Post('ws-ticket')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get a short-lived ticket for WebSocket auth' })
+  @ApiOkResponse({ description: 'WebSocket ticket (valid 30s)' })
+  wsTicket(@Req() req: RequestWithUser) {
+    const ticket = this.authService.createWsTicket(req.user.id);
+    return { ticket };
+  }
 }

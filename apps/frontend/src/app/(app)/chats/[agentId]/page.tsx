@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatHeader } from '@/components/chat/chat-header';
 import type { ChatHeaderHandle } from '@/components/chat/chat-header';
 import { ChatSettings } from '@/components/chat/chat-settings';
@@ -10,6 +10,7 @@ import { MessageInput } from '@/components/chat/message-input';
 import type { QuotedMessage } from '@/components/chat/message-input';
 import { useAgentsContext } from '@/lib/contexts/agents-context';
 import { useMessages } from '@/lib/hooks/use-messages';
+import { useSocket } from '@/lib/contexts/socket-context';
 
 export default function ChatThreadPage() {
   const params = useParams<{ agentId: string }>();
@@ -18,7 +19,8 @@ export default function ChatThreadPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null);
 
-  const { agents } = useAgentsContext();
+  const { agents, clearUnread } = useAgentsContext();
+  const { markRead } = useSocket();
   const agent = agents.find((a) => a.id === agentId);
   const agentName = agent?.name ?? 'Agent';
   const agentAvatarUrl = agent?.avatarUrl
@@ -36,6 +38,12 @@ export default function ChatThreadPage() {
     respondToReview,
     sendAsMessage,
   } = useMessages(agentId);
+
+  // Clear unread badge and mark as read on server when entering chat
+  useEffect(() => {
+    clearUnread(agentId);
+    markRead(agentId);
+  }, [agentId, clearUnread, markRead]);
 
   const handleSend = useCallback(
     (text: string) => {

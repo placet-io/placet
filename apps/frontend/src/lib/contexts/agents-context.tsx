@@ -11,6 +11,7 @@ interface AgentsContextValue {
   error: string | null;
   refetch: () => Promise<void>;
   createAgent: (name: string) => Promise<Agent>;
+  clearUnread: (channelId: string) => void;
 }
 
 const AgentsContext = createContext<AgentsContextValue | null>(null);
