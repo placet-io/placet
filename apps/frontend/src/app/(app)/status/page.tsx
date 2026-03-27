@@ -8,7 +8,7 @@ import { AgentStatusRow } from '@/components/status/agent-status-card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { GlobalStatsResponse } from '@humanproxy/shared';
+import type { GlobalStatsResponse } from '@placet/shared';
 
 export default function StatusPage() {
   const { agents, loading, error, refetch } = useAgents();

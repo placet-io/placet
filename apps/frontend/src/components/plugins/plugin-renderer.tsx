@@ -6,7 +6,7 @@ import type {
   PluginAttachmentInfo,
   PluginRendererContext,
   PluginReviewContext,
-} from '@humanproxy/shared';
+} from '@placet/shared';
 import { buildSrcdoc } from './bridge';
 
 interface PluginRendererProps {

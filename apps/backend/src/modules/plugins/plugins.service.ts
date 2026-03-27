@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PluginManifestSchema } from '@humanproxy/shared';
-import type { PluginManifest } from '@humanproxy/shared';
+import { PluginManifestSchema } from '@placet/shared';
+import type { PluginManifest } from '@placet/shared';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../../prisma/prisma.service';

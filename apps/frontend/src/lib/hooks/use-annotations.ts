@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'humanproxy:annotations';
+const STORAGE_KEY = 'placet:annotations';
 const UPDATE_EVENT = 'hp:annotation-update';
 
 export interface AnnotationEntry {

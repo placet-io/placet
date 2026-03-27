@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { useAgents, type AgentWithLastMessage } from '@/lib/hooks/use-agents';
 import { api } from '@/lib/api';
-import type { Agent } from '@humanproxy/shared';
+import type { Agent } from '@placet/shared';
 
 interface AgentsContextValue {
   agents: AgentWithLastMessage[];

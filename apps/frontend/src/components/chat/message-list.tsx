@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Copy, Check, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './message-bubble';
-import type { Message } from '@humanproxy/shared';
+import type { Message } from '@placet/shared';
 
 interface MessageListProps {
   messages: Message[];

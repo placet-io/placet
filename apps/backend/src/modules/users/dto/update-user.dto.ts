@@ -1,4 +1,4 @@
 import { createZodDto } from 'nestjs-zod';
-import { UpdateUserSchema } from '@humanproxy/shared';
+import { UpdateUserSchema } from '@placet/shared';
 
 export class UpdateUserDto extends createZodDto(UpdateUserSchema) {}

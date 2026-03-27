@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 // ---------------------------------------------------------------------------
-// HumanProxy – Plugin Validator
+// Placet – Plugin Validator
 // ---------------------------------------------------------------------------
 // Validates one or all plugins in packages/plugins/.
 //
@@ -12,7 +12,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { PluginManifestSchema } from '@humanproxy/shared';
+import { PluginManifestSchema } from '@placet/shared';
 
 interface ValidationError {
   plugin: string;

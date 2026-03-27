@@ -13,8 +13,8 @@ import { CanvasOverlay } from './canvas-overlay';
 import { PluginRenderer } from '@/components/plugins/plugin-renderer';
 import { formatFileSize, getFileTypeLabel } from '@/lib/file-utils';
 import { cn } from '@/lib/utils';
-import type { Attachment, Review } from '@humanproxy/shared';
-import type { PluginAttachmentInfo, PluginReviewContext } from '@humanproxy/shared';
+import type { Attachment, Review } from '@placet/shared';
+import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
 import type { CanvasOverlayHandle } from './canvas-overlay';
 
 interface FilePreviewModalProps {

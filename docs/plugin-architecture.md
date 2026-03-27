@@ -1,4 +1,4 @@
-# HumanProxy — Plugin Architecture
+# Placet — Plugin Architecture
 
 ## 1. Core Concept
 
@@ -48,7 +48,7 @@ packages/plugins/
   "displayName": "Form Submit",
   "description": "Renders a form and submits to a webhook",
   "version": "1.0.0",
-  "author": "HumanProxy",
+  "author": "Placet",
   "icon": "./icon.svg",
   "inputSchema": {
     "type": "object",
@@ -97,7 +97,7 @@ Env values are:
 
 - **Stored in the database** (`PluginConfig` table), keyed by `pluginName + version`
 - **Configured in Settings → Plugins** via auto-generated forms
-- **Injected at render time** via `HumanProxy.env`
+- **Injected at render time** via `Placet.env`
 
 ---
 
@@ -120,27 +120,27 @@ Agent sends message via Push API
   │   └─ Renders sandboxed iframe with srcDoc
   │
   └─ Inside iframe:
-      ├─ Bridge script injects HumanProxy global
-      │   ├─ HumanProxy.data = { name: "John", email: "j@test.com" }
-      │   ├─ HumanProxy.env = { WEBHOOK_URL: "https://httpbin.org/post" }
-      │   ├─ HumanProxy.theme = "light" | "dark"
-      │   ├─ HumanProxy.attachments = [...]
-      │   ├─ HumanProxy.message = { id, channelId, ... }
-      │   ├─ HumanProxy.review = { type, status, payload } | null
-      │   └─ HumanProxy.isPreview = false | true
+      ├─ Bridge script injects Placet global
+      │   ├─ Placet.data = { name: "John", email: "j@test.com" }
+      │   ├─ Placet.env = { WEBHOOK_URL: "https://httpbin.org/post" }
+      │   ├─ Placet.theme = "light" | "dark"
+      │   ├─ Placet.attachments = [...]
+      │   ├─ Placet.message = { id, channelId, ... }
+      │   ├─ Placet.review = { type, status, payload } | null
+      │   └─ Placet.isPreview = false | true
       │
-      └─ Plugin JS runs, uses HumanProxy.* API
-          └─ HumanProxy.fetch() → postMessage → frontend → POST /api/plugins/:name/fetch → backend HTTP request
+      └─ Plugin JS runs, uses Placet.* API
+          └─ Placet.fetch() → postMessage → frontend → POST /api/plugins/:name/fetch → backend HTTP request
 ```
 
 ---
 
-## 4. HumanProxy Bridge API
+## 4. Placet Bridge API
 
-The `HumanProxy` object is injected into every plugin iframe:
+The `Placet` object is injected into every plugin iframe:
 
 ```typescript
-interface HumanProxyBridge {
+interface PlacetBridge {
   // ── Data ──────────────────────────────────
   data: Record<string, unknown>; // Plugin input data from message metadata
   env: Record<string, string>; // Environment variables from Settings
@@ -250,7 +250,7 @@ Located at `components/plugins/plugin-renderer.tsx`:
 
 Located at `components/plugins/bridge.ts`:
 
-- `buildBridgeScript(context)` — generates `<script>` block injecting `HumanProxy` global
+- `buildBridgeScript(context)` — generates `<script>` block injecting `Placet` global
 - `buildSrcdoc(html, context)` — combines bridge script + plugin render HTML
 - Legacy `window.__PLUGIN_DATA__` etc. maintained as aliases
 
@@ -290,7 +290,7 @@ Reviews are **NOT plugins** — they are built-in React components:
 | `text-input` | `placeholder?, markdown?`                       | Textarea              |
 | `freeform`   | `{}`                                            | Generic JSON response |
 
-The `freeform` type bridges plugins and reviews: the plugin renders custom UI, and on user interaction calls `HumanProxy.respond({ ... })` to submit the review response programmatically. This is a one-time operation per review — the bridge enforces that `respond()` can only be called once per pending review.
+The `freeform` type bridges plugins and reviews: the plugin renders custom UI, and on user interaction calls `Placet.respond({ ... })` to submit the review response programmatically. This is a one-time operation per review — the bridge enforces that `respond()` can only be called once per pending review.
 
 ---
 

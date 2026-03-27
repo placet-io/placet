@@ -64,14 +64,10 @@ export const IconBar = memo(function IconBar() {
       {/* Logo */}
       <div className="mb-8">
         <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-primary shadow-sm">
-          <img
-            src="/logo-white.svg"
-            alt="HumanProxy"
-            className="h-6 w-6 md:h-7 md:w-7 dark:hidden"
-          />
+          <img src="/logo-white.svg" alt="Placet" className="h-6 w-6 md:h-7 md:w-7 dark:hidden" />
           <img
             src="/logo-black.svg"
-            alt="HumanProxy"
+            alt="Placet"
             className="h-6 w-6 md:h-7 md:w-7 hidden dark:block"
           />
         </div>

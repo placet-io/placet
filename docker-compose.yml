@@ -1,22 +1,24 @@
 services:
   postgres:
+    container_name: placet-postgres
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-humanproxy}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-humanproxy}
-      POSTGRES_DB: ${POSTGRES_DB:-humanproxy}
+      POSTGRES_USER: ${POSTGRES_USER:-placet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-placet}
+      POSTGRES_DB: ${POSTGRES_DB:-placet}
     ports:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-humanproxy}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-placet}']
       interval: 10s
       timeout: 5s
       retries: 5
 
   minio:
+    container_name: placet-minio
     image: minio/minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -35,6 +37,7 @@ services:
       retries: 5
 
   minio-setup:
+    container_name: placet-minio-setup
     image: minio/mc
     depends_on:
       minio:
@@ -50,9 +53,10 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-humanproxy}
+      MINIO_BUCKET: ${MINIO_BUCKET:-placet}
 
   backend:
+    container_name: placet-backend
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
@@ -63,20 +67,20 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       BACKEND_PORT: ${BACKEND_PORT:-3001}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-humanproxy}:${POSTGRES_PASSWORD:-humanproxy}@postgres:5432/${POSTGRES_DB:-humanproxy}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-placet}:${POSTGRES_PASSWORD:-placet}@postgres:5432/${POSTGRES_DB:-placet}
       MINIO_ENDPOINT: minio
       MINIO_PORT: ${MINIO_PORT:-9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-humanproxy}
+      MINIO_BUCKET: ${MINIO_BUCKET:-placet}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@humanproxy.local}
+      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@placet.local}
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       APP_URL: ${APP_URL:-http://localhost:3001}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@humanproxy.local}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@placet.local}
       THROTTLE_TTL: ${THROTTLE_TTL:-60}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
       ALLOW_PLUGIN_LOCAL_FETCH: ${ALLOW_PLUGIN_LOCAL_FETCH:-false}
@@ -84,6 +88,7 @@ services:
       - '${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}'
 
   frontend:
+    container_name: placet-frontend
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile

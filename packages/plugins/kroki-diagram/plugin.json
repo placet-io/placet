@@ -3,7 +3,7 @@
   "displayName": "Kroki Diagram",
   "description": "Renders diagrams (Mermaid, PlantUML, D2, etc.) via a Kroki server. The agent sends diagram code and type, the plugin renders it as SVG.",
   "version": "1.0.0",
-  "author": "HumanProxy",
+  "author": "Placet",
   "icon": "./icon.svg",
   "inputSchema": {
     "type": "object",

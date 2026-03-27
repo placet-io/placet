@@ -14,7 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Review } from '@humanproxy/shared';
+import type { Review } from '@placet/shared';
 
 // ── Sub-components for each review type ──────────────────────
 

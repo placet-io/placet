@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Agent, AgentStatus, Message } from '@humanproxy/shared';
+import type { Agent, AgentStatus, Message } from '@placet/shared';
 import { api } from '@/lib/api';
 import { useSocket } from '@/lib/contexts/socket-context';
 

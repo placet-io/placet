@@ -112,11 +112,11 @@
 
     <script>
       document.addEventListener('DOMContentLoaded', function () {
-        if (HumanProxy.theme === 'dark') {
+        if (Placet.theme === 'dark') {
           document.body.classList.add('dark');
         }
 
-        var data = HumanProxy.data || {};
+        var data = Placet.data || {};
         var diagramType = data.type || 'mermaid';
         var source = data.source || '';
 
@@ -129,14 +129,14 @@
           errorEl.style.display = 'block';
           errorEl.className = 'error';
           errorEl.textContent = 'No diagram source provided.';
-          HumanProxy.resize();
+          Placet.resize();
           return;
         }
 
-        var krokiUrl = (HumanProxy.env && HumanProxy.env.KROKI_URL) || 'https://kroki.io';
+        var krokiUrl = (Placet.env && Placet.env.KROKI_URL) || 'https://kroki.io';
         var endpoint = krokiUrl.replace(/\/+$/, '') + '/' + diagramType + '/svg';
 
-        HumanProxy.fetch(endpoint, {
+        Placet.fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
           body: source,
@@ -157,12 +157,12 @@
             } else {
               showFallback(diagramType, source, 'Kroki API error (Status: ' + res.status + ')');
             }
-            HumanProxy.resize();
+            Placet.resize();
           })
           .catch(function (err) {
             loadingEl.style.display = 'none';
             showFallback(diagramType, source, 'Failed to render: ' + err.message);
-            HumanProxy.resize();
+            Placet.resize();
           });
 
         function showFallback(type, src, msg) {
@@ -187,7 +187,7 @@
           return d.innerHTML;
         }
 
-        HumanProxy.resize();
+        Placet.resize();
       });
     </script>
   </body>

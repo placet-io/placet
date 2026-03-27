@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Attachment } from '@humanproxy/shared';
+import type { Attachment } from '@placet/shared';
 import { api } from '@/lib/api';
 
 interface AttachmentWithChannel extends Attachment {

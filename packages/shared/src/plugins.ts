@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// HumanProxy – Plugin System Types & Schemas
+// Placet – Plugin System Types & Schemas
 // ---------------------------------------------------------------------------
 // Defines the plugin manifest format, review types, and the bridge API
 // contract between the platform and sandboxed plugin iframes.

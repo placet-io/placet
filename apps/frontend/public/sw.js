@@ -1,4 +1,4 @@
-// HumanProxy Push Notification Service Worker
+// Placet Push Notification Service Worker
 // This runs independently of the main page — it stays alive even when the tab
 // is backgrounded or closed, ensuring push notifications always arrive.
 
@@ -9,10 +9,10 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: 'HumanProxy', body: event.data.text() };
+    payload = { title: 'Placet', body: event.data.text() };
   }
 
-  const { title = 'HumanProxy', body = '', channelId = '' } = payload;
+  const { title = 'Placet', body = '', channelId = '' } = payload;
 
   event.waitUntil(
     self.registration.showNotification(title, {

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { ApiKey, CreateApiKeyResponse } from '@humanproxy/shared';
+import type { ApiKey, CreateApiKeyResponse } from '@placet/shared';
 
 export const ApiKeysSection = memo(function ApiKeysSection() {
   const [keys, setKeys] = useState<ApiKey[]>([]);

@@ -140,12 +140,12 @@
     <script>
       document.addEventListener('DOMContentLoaded', function () {
         // Apply theme
-        if (HumanProxy.theme === 'dark') {
+        if (Placet.theme === 'dark') {
           document.body.classList.add('dark');
         }
 
         // Pre-fill from plugin data
-        var data = HumanProxy.data || {};
+        var data = Placet.data || {};
         if (data.name) document.getElementById('name').value = data.name;
         if (data.email) document.getElementById('email').value = data.email;
         if (data.message) document.getElementById('message').value = data.message;
@@ -162,7 +162,7 @@
             statusEl.style.display = 'block';
             statusEl.className = 'status error';
             statusEl.textContent = 'Name and email are required.';
-            HumanProxy.resize();
+            Placet.resize();
             return;
           }
 
@@ -171,9 +171,9 @@
           statusEl.style.display = 'none';
 
           var webhookUrl =
-            (HumanProxy.env && HumanProxy.env.WEBHOOK_URL) || 'https://httpbin.org/post';
+            (Placet.env && Placet.env.WEBHOOK_URL) || 'https://httpbin.org/post';
 
-          HumanProxy.fetch(webhookUrl, {
+          Placet.fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: name, email: email, message: message }),
@@ -186,13 +186,13 @@
               if (res.ok) {
                 statusEl.className = 'status success';
                 statusEl.textContent = 'Submitted successfully! (Status: ' + res.status + ')';
-                HumanProxy.toast('Form submitted successfully', 'success');
+                Placet.toast('Form submitted successfully', 'success');
               } else {
                 statusEl.className = 'status error';
                 statusEl.textContent = 'Failed (Status: ' + res.status + ')';
-                HumanProxy.toast('Submission failed', 'error');
+                Placet.toast('Submission failed', 'error');
               }
-              HumanProxy.resize();
+              Placet.resize();
             })
             .catch(function (err) {
               submitBtn.disabled = false;
@@ -200,13 +200,13 @@
               statusEl.style.display = 'block';
               statusEl.className = 'status error';
               statusEl.textContent = 'Error: ' + err.message;
-              HumanProxy.toast('Submission error: ' + err.message, 'error');
-              HumanProxy.resize();
+              Placet.toast('Submission error: ' + err.message, 'error');
+              Placet.resize();
             });
         });
 
         // Initial resize
-        HumanProxy.resize();
+        Placet.resize();
       });
     </script>
   </body>

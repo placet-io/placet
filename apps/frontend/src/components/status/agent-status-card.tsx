@@ -9,7 +9,7 @@ import {
   Loader2,
   XCircle,
 } from 'lucide-react';
-import type { Agent, AgentStatsResponse, AgentStatus } from '@humanproxy/shared';
+import type { Agent, AgentStatsResponse, AgentStatus } from '@placet/shared';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';

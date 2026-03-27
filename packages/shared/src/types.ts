@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// HumanProxy – Shared Zod Schemas & Inferred Types
+// Placet – Shared Zod Schemas & Inferred Types
 // ---------------------------------------------------------------------------
 // Single source of truth for all data shapes. Used by:
 //   Backend:  createZodDto(schema) → NestJS DTO + Swagger docs + validation

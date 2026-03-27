@@ -19,7 +19,7 @@ import { PrismaService } from './../src/prisma/prisma.service';
 };
 
 /**
- * E2E tests for the HumanProxy backend API.
+ * E2E tests for the Placet backend API.
  * Uses the real local PostgreSQL database.
  *
  * Requirements:
@@ -31,7 +31,7 @@ import { PrismaService } from './../src/prisma/prisma.service';
  */
 
 // Test credentials (must match .env INITIAL_USER_EMAIL / INITIAL_USER_PASSWORD)
-const TEST_EMAIL = process.env.INITIAL_USER_EMAIL ?? 'admin@humanproxy.local';
+const TEST_EMAIL = process.env.INITIAL_USER_EMAIL ?? 'admin@placet.local';
 const TEST_PASSWORD = process.env.INITIAL_USER_PASSWORD ?? 'changeme';
 
 interface ResponseBody {
@@ -57,7 +57,7 @@ interface MessageResponse {
   review?: unknown;
 }
 
-describe('HumanProxy API (e2e)', () => {
+describe('Placet API (e2e)', () => {
   let app: INestApplication;
   let httpServer: App;
   let prisma: PrismaService;

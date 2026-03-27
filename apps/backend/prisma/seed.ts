@@ -14,7 +14,7 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // ── 1. Create owner user ─────────────────────────────────────
-  const email = process.env.INITIAL_USER_EMAIL || 'admin@humanproxy.local';
+  const email = process.env.INITIAL_USER_EMAIL || 'admin@placet.local';
   const password = process.env.INITIAL_USER_PASSWORD || 'changeme';
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.upsert({
@@ -277,7 +277,7 @@ async function main() {
   console.log(
     `  ${emailMessages.length + codeMessages.length + supportMessages.length} messages created`,
   );
-  console.log('\n  Login: admin@humanproxy.local / changeme');
+  console.log('\n  Login: admin@placet.local / changeme');
   console.log(`  API Key: ${rawKey}`);
   console.log('\n  Chat IDs:');
   for (const a of agents) {

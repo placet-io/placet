@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { LogRow } from '@/components/logs/log-row';
-import type { ApiLog, PaginatedResponse } from '@humanproxy/shared';
+import type { ApiLog, PaginatedResponse } from '@placet/shared';
 
 const PAGE_SIZE = 25;
 

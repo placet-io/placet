@@ -10,7 +10,7 @@ import { Prisma } from '@prisma/client';
 import {
   MAX_REVIEW_DURATION_SECONDS,
   DEFAULT_REVIEW_DURATION_SECONDS,
-} from '@humanproxy/shared';
+} from '@placet/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhooksService } from '../webhooks/webhooks.service';

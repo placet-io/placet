@@ -1,12 +1,12 @@
 /**
- * HumanProxy Plugin Bridge — injected into sandboxed iframes.
+ * Placet Plugin Bridge — injected into sandboxed iframes.
  *
  * This script is prepended to every plugin's render.html. It provides
- * the `HumanProxy` global object that plugins use to communicate with
+ * the `Placet` global object that plugins use to communicate with
  * the parent application via postMessage.
  */
 
-import type { PluginRendererContext } from '@humanproxy/shared';
+import type { PluginRendererContext } from '@placet/shared';
 
 // ── Bridge script injected into iframe srcdoc ───────────────────────────────
 
@@ -32,7 +32,7 @@ export function buildBridgeScript(context: PluginRendererContext): string {
   var _eventHandlers = {};
   var _responded = false;
 
-  var HumanProxy = {
+  var Placet = {
     data: window.__PLUGIN_DATA__,
     attachments: window.__PLUGIN_ATTACHMENTS__,
     message: window.__PLUGIN_MESSAGE__,
@@ -184,7 +184,7 @@ export function buildBridgeScript(context: PluginRendererContext): string {
     }
   });
 
-  window.HumanProxy = HumanProxy;
+  window.Placet = Placet;
 })();
 </script>`;
 }

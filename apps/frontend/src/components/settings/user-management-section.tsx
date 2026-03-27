@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { User } from '@humanproxy/shared';
+import type { User } from '@placet/shared';
 
 export const UserManagementSection = memo(function UserManagementSection() {
   const [users, setUsers] = useState<User[]>([]);
@@ -101,7 +101,7 @@ export const UserManagementSection = memo(function UserManagementSection() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="font-semibold text-foreground">Team Members</h3>
-              <p className="text-sm text-muted-foreground">Manage who has access to HumanProxy.</p>
+              <p className="text-sm text-muted-foreground">Manage who has access to Placet.</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => setShowInvite(true)}>
               <Plus size={16} className="mr-1" />

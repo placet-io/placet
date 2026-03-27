@@ -7,7 +7,7 @@ import { formatLogTime, formatShortDate } from '@/lib/format-date';
 import { MethodBadge } from './method-badge';
 import { LogStatusBadge } from './log-status-badge';
 import { LogDetailPanel } from './log-detail-panel';
-import type { ApiLog } from '@humanproxy/shared';
+import type { ApiLog } from '@placet/shared';
 
 interface LogRowProps {
   log: ApiLog;

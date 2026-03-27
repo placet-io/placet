@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 
-const STORAGE_KEY = 'humanproxy:chat-settings';
+const STORAGE_KEY = 'placet:chat-settings';
 
 interface ChatSettings {
   inlineHtml: boolean;

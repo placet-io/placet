@@ -1,6 +1,6 @@
 # Plugins
 
-HumanProxy uses a **directory-based plugin system**. Each plugin defines a custom message type — how it looks in the chat and what logic it can run.
+Placet uses a **directory-based plugin system**. Each plugin defines a custom message type — how it looks in the chat and what logic it can run.
 
 ## How Plugins Work
 
@@ -96,7 +96,7 @@ Each entry in the `env` array defines a configurable value:
 | `secret`      | No       | If `true`, rendered as a password field  |
 | `description` | No       | Help text shown below the input          |
 
-Env values are configured per-plugin in **Settings → Plugins** and stored in the database, version-coupled. Plugins access them at runtime via `HumanProxy.env`.
+Env values are configured per-plugin in **Settings → Plugins** and stored in the database, version-coupled. Plugins access them at runtime via `Placet.env`.
 
 ### 3. Create `render.html`
 
@@ -124,17 +124,17 @@ Env values are configured per-plugin in **Settings → Plugins** and stored in t
 
     <script>
       document.addEventListener('DOMContentLoaded', function () {
-        if (HumanProxy.theme === 'dark') document.body.classList.add('dark');
+        if (Placet.theme === 'dark') document.body.classList.add('dark');
 
-        var data = HumanProxy.data;
+        var data = Placet.data;
         document.getElementById('title').textContent = data.title;
         document.getElementById('info').textContent = data.url || 'No URL';
 
         // Access env values configured in Settings
-        var apiKey = HumanProxy.env.API_KEY;
-        var baseUrl = HumanProxy.env.BASE_URL || 'https://api.example.com';
+        var apiKey = Placet.env.API_KEY;
+        var baseUrl = Placet.env.BASE_URL || 'https://api.example.com';
 
-        HumanProxy.resize();
+        Placet.resize();
       });
     </script>
   </body>
@@ -165,32 +165,32 @@ Go to **Settings → Plugins**, expand your plugin, fill in the environment vari
 
 ## Bridge API
 
-Every plugin iframe gets a `HumanProxy` global object:
+Every plugin iframe gets a `Placet` global object:
 
 ```javascript
 // Access the plugin's input data
-var data = HumanProxy.data;
+var data = Placet.data;
 
 // Access environment variables (configured in Settings)
-var apiKey = HumanProxy.env.API_KEY;
+var apiKey = Placet.env.API_KEY;
 
 // Access attached files (id, filename, mimeType, size)
-var files = HumanProxy.attachments;
+var files = Placet.attachments;
 
 // Access message context
-var msg = HumanProxy.message; // { id, channelId, senderType, createdAt }
+var msg = Placet.message; // { id, channelId, senderType, createdAt }
 
 // Current theme
-var theme = HumanProxy.theme; // 'light' or 'dark'
+var theme = Placet.theme; // 'light' or 'dark'
 
 // Whether the plugin is rendered in the full-screen preview modal
-var isPreview = HumanProxy.isPreview; // true or false
+var isPreview = Placet.isPreview; // true or false
 
 // Resize the iframe to fit content
-HumanProxy.resize();
+Placet.resize();
 
 // Make an HTTP request (proxied through the backend server, respects maxHttpDomains)
-HumanProxy.fetch('https://api.example.com/data', {
+Placet.fetch('https://api.example.com/data', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ key: apiKey }),
@@ -199,64 +199,64 @@ HumanProxy.fetch('https://api.example.com/data', {
 });
 
 // Get file content as base64 data URL
-HumanProxy.getFile(files[0].id).then(function (file) {
+Placet.getFile(files[0].id).then(function (file) {
   // file = { ok: true, data: "data:image/png;base64,...", mimeType: "image/png", filename: "photo.png" }
 });
 
 // Get a download URL for a file
-HumanProxy.getFileUrl(files[0].id).then(function (result) {
+Placet.getFileUrl(files[0].id).then(function (result) {
   // result = { ok: true, url: "/api/files/.../download" }
 });
 
 // Show a toast notification
-HumanProxy.toast('Done!', 'success');
+Placet.toast('Done!', 'success');
 
 // Emit an action to the parent
-HumanProxy.emit('respond', { approved: true });
+Placet.emit('respond', { approved: true });
 
 // Access the review context (if message has a review)
-var review = HumanProxy.review; // { type, status, payload } or null
+var review = Placet.review; // { type, status, payload } or null
 
 // Submit a review response (one-time only, must be pending)
-HumanProxy.respond({ approved: true })
+Placet.respond({ approved: true })
   .then(function (result) {
     // result = { ok: true }
-    HumanProxy.toast('Response submitted!', 'success');
+    Placet.toast('Response submitted!', 'success');
   })
   .catch(function (err) {
     // err.message = 'Already responded to this review' / 'No pending review to respond to'
   });
 
 // Listen for events from the parent
-HumanProxy.on('theme-changed', function (data) {
+Placet.on('theme-changed', function (data) {
   /* ... */
 });
 ```
 
 ### Properties
 
-| Property                 | Description                                                    |
-| ------------------------ | -------------------------------------------------------------- |
-| `HumanProxy.data`        | Plugin input data from the message metadata                    |
-| `HumanProxy.env`         | Environment variables configured in Settings                   |
-| `HumanProxy.attachments` | Array of attached files (`{ id, filename, mimeType, size }`)   |
-| `HumanProxy.message`     | Message context (`id`, `channelId`, `senderType`, `createdAt`) |
-| `HumanProxy.theme`       | Current theme (`'light'` or `'dark'`)                          |
-| `HumanProxy.review`      | Review context (`{ type, status, payload }`) or `null`         |
-| `HumanProxy.isPreview`   | `true` when rendered in the full-screen preview modal          |
+| Property             | Description                                                    |
+| -------------------- | -------------------------------------------------------------- |
+| `Placet.data`        | Plugin input data from the message metadata                    |
+| `Placet.env`         | Environment variables configured in Settings                   |
+| `Placet.attachments` | Array of attached files (`{ id, filename, mimeType, size }`)   |
+| `Placet.message`     | Message context (`id`, `channelId`, `senderType`, `createdAt`) |
+| `Placet.theme`       | Current theme (`'light'` or `'dark'`)                          |
+| `Placet.review`      | Review context (`{ type, status, payload }`) or `null`         |
+| `Placet.isPreview`   | `true` when rendered in the full-screen preview modal          |
 
 ### Methods
 
-| Method                                | Description                                                  |
-| ------------------------------------- | ------------------------------------------------------------ |
-| `HumanProxy.fetch(url, options?)`     | Server-side proxied HTTP request (respects `maxHttpDomains`) |
-| `HumanProxy.getFile(attachmentId)`    | Get file content as base64 data URL                          |
-| `HumanProxy.getFileUrl(attachmentId)` | Get a download URL for a file                                |
-| `HumanProxy.resize()`                 | Resize iframe to fit content                                 |
-| `HumanProxy.toast(message, type?)`    | Show toast (`'info'`, `'success'`, `'warning'`, `'error'`)   |
-| `HumanProxy.emit(action, data?)`      | Send action to parent                                        |
-| `HumanProxy.respond(response)`        | Submit review response (one-time, returns Promise)           |
-| `HumanProxy.on(event, handler)`       | Listen for parent events                                     |
+| Method                            | Description                                                  |
+| --------------------------------- | ------------------------------------------------------------ |
+| `Placet.fetch(url, options?)`     | Server-side proxied HTTP request (respects `maxHttpDomains`) |
+| `Placet.getFile(attachmentId)`    | Get file content as base64 data URL                          |
+| `Placet.getFileUrl(attachmentId)` | Get a download URL for a file                                |
+| `Placet.resize()`                 | Resize iframe to fit content                                 |
+| `Placet.toast(message, type?)`    | Show toast (`'info'`, `'success'`, `'warning'`, `'error'`)   |
+| `Placet.emit(action, data?)`      | Send action to parent                                        |
+| `Placet.respond(response)`        | Submit review response (one-time, returns Promise)           |
+| `Placet.on(event, handler)`       | Listen for parent events                                     |
 
 ---
 
@@ -265,7 +265,7 @@ HumanProxy.on('theme-changed', function (data) {
 An agent sends a plugin message by including `metadata.plugin`:
 
 ```bash
-curl -X POST https://humanproxy.example.com/api/v1/messages \
+curl -X POST https://placet.example.com/api/v1/messages \
   -H "Authorization: Bearer hp_..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -337,19 +337,19 @@ Plugins can be expanded into the full-screen **preview modal** (the same one use
 
 In preview mode:
 
-- `HumanProxy.isPreview` is `true`
+- `Placet.isPreview` is `true`
 - The iframe fills the entire viewer area (no max height limit)
-- `HumanProxy.resize()` is a no-op — the iframe stretches to fill available space
+- `Placet.resize()` is a no-op — the iframe stretches to fill available space
 
 Use this to build responsive layouts:
 
 ```javascript
-if (HumanProxy.isPreview) {
+if (Placet.isPreview) {
   // Full-screen layout — use flexbox, fill the viewport
   document.body.style.height = '100%';
   document.body.style.overflow = 'auto';
 } else {
   // Inline layout — compact, auto-height
-  HumanProxy.resize();
+  Placet.resize();
 }
 ```

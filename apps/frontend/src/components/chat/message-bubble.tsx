@@ -12,8 +12,8 @@ import { MessageAttachments } from './message-attachments';
 import { FilePreviewModal } from './file-preview-modal';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format-date';
-import type { Attachment, Review } from '@humanproxy/shared';
-import type { PluginAttachmentInfo, PluginReviewContext } from '@humanproxy/shared';
+import type { Attachment, Review } from '@placet/shared';
+import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
 
 interface MessageBubbleProps {
   messageId: string;

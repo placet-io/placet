@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api, ApiError } from '@/lib/api';
-import type { LoginResponse } from '@humanproxy/shared';
+import type { LoginResponse } from '@placet/shared';
 
 export default function LoginPage() {
   return (
@@ -78,7 +78,7 @@ function LoginForm({ onSuccess }: { onSuccess: (mustChange: boolean, password: s
             <Bot className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-xl font-semibold">Sign In</CardTitle>
-          <CardDescription>Sign in to your HumanProxy account</CardDescription>
+          <CardDescription>Sign in to your Placet account</CardDescription>
         </CardHeader>
 
         <CardContent>

@@ -1,4 +1,4 @@
 import { createZodDto } from 'nestjs-zod';
-import { ChangePasswordSchema } from '@humanproxy/shared';
+import { ChangePasswordSchema } from '@placet/shared';
 
 export class ChangePasswordDto extends createZodDto(ChangePasswordSchema) {}

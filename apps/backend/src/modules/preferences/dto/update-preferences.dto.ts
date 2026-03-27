@@ -1,5 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
-import { UpdatePreferencesSchema } from '@humanproxy/shared';
+import { UpdatePreferencesSchema } from '@placet/shared';
 
 export class UpdatePreferencesDto extends createZodDto(
   UpdatePreferencesSchema,

@@ -1,10 +1,10 @@
 {
-  "name": "@humanproxy/backend",
+  "name": "@placet/backend",
   "version": "0.1.0",
-  "description": "HumanProxy backend API",
+  "description": "Placet backend API",
   "author": "",
   "private": true,
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
@@ -29,7 +29,7 @@
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^9.4.0",
     "@fastify/static": "^9.0.0",
-    "@humanproxy/shared": "*",
+    "@placet/shared": "*",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",

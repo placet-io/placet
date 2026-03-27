@@ -1,4 +1,4 @@
 import { createZodDto } from 'nestjs-zod';
-import { CreateAgentMessageSchema } from '@humanproxy/shared';
+import { CreateAgentMessageSchema } from '@placet/shared';
 
 export class CreateMessageDto extends createZodDto(CreateAgentMessageSchema) {}

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { Agent } from '@humanproxy/shared';
+import type { Agent } from '@placet/shared';
 
 type WebhookConfig = Pick<Agent, 'webhookUrl' | 'webhookHeaders' | 'webhookAuth'>;
 

@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# HumanProxy — Project Makefile
+# Placet — Project Makefile
 # ─────────────────────────────────────────────────────────────────────────────
 # Usage:
 #   make setup     — First-time setup (install, build, docker up, migrate)
@@ -34,7 +34,7 @@ setup: _check-env ## First-time project setup
 	@echo "══ Starting Docker services ══"
 	docker compose up -d --build
 	@echo "══ Waiting for Postgres to be healthy ══"
-	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-humanproxy} > /dev/null 2>&1; do \
+	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-placet} > /dev/null 2>&1; do \
 		sleep 1; \
 	done
 	@echo "══ Waiting for MinIO bucket setup ══"
@@ -64,7 +64,7 @@ update: _check-env ## Pull latest code, rebuild, and migrate
 	@echo "══ Rebuilding Docker images ══"
 	docker compose up -d --build
 	@echo "══ Waiting for Postgres to be healthy ══"
-	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-humanproxy} > /dev/null 2>&1; do \
+	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-placet} > /dev/null 2>&1; do \
 		sleep 1; \
 	done
 	@echo "══ Waiting for MinIO bucket setup ══"
@@ -100,11 +100,11 @@ test: test-unit test-e2e ## Run all tests (unit + e2e)
 
 test-unit: ## Run unit tests
 	@echo "══ Unit tests ══"
-	npm test --workspace=@humanproxy/backend
+	npm test --workspace=@placet/backend
 
 test-e2e: ## Run e2e tests
 	@echo "══ E2E tests ══"
-	npm run test:e2e --workspace=@humanproxy/backend
+	npm run test:e2e --workspace=@placet/backend
 
 # ── Database ───────────────────────────────────────────────────────────────
 

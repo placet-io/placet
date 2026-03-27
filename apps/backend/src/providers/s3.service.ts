@@ -14,7 +14,7 @@ export class S3Service {
   readonly bucket: string;
 
   constructor(private readonly config: ConfigService) {
-    this.bucket = this.config.get<string>('MINIO_BUCKET', 'humanproxy');
+    this.bucket = this.config.get<string>('MINIO_BUCKET', 'placet');
 
     const host = this.config.get<string>('MINIO_ENDPOINT', 'localhost');
     const port = this.config.get<string>('MINIO_PORT', '9000');

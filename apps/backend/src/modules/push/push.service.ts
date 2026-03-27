@@ -18,7 +18,7 @@ export class PushService implements OnModuleInit {
     const privateKey = this.config.get<string>('VAPID_PRIVATE_KEY');
     const subject = this.config.get<string>(
       'VAPID_SUBJECT',
-      'mailto:admin@humanproxy.local',
+      'mailto:admin@placet.local',
     );
 
     if (!publicKey || !privateKey) {

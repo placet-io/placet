@@ -8,7 +8,7 @@ import type {
   AgentStatsResponse,
   AgentStatus,
   GlobalStatsResponse,
-} from '@humanproxy/shared';
+} from '@placet/shared';
 
 /** Prisma requires DbNull for nullable JSON columns instead of plain null */
 function jsonOrDbNull(

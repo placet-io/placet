@@ -5,7 +5,7 @@ import { Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getFileTypeLabel, formatFileSize } from '@/lib/file-utils';
 import { FileIcon } from '@/components/shared/file-icon';
-import type { Attachment } from '@humanproxy/shared';
+import type { Attachment } from '@placet/shared';
 
 interface AttachmentCardProps {
   attachment: Attachment;

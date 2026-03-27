@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'HumanProxy',
+  title: 'Placet',
   description: 'Chat-based agent inbox for AI-human interaction',
 };
 

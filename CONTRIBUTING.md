@@ -1,88 +1,51 @@
-# Contributing to HumanProxy
+# Contributing to Placet
 
-Thank you for your interest in contributing! Here's how to get started.
+Thank you for your interest in contributing!
 
-## Development Setup
+For local setup, project structure, code style, branch conventions, and testing — see **[DEVELOPMENT.md](DEVELOPMENT.md)**.
 
-### Prerequisites
+## How to Contribute
 
-- **Node.js** >= 22
-- **npm** >= 10
-- **Docker** & **Docker Compose** (for local services)
+1. **Open an issue first** — describe the bug or feature before writing code. This avoids duplicate work and ensures it aligns with the project direction.
+2. **Fork** the repository and create a branch from `main` (`git checkout -b feat/my-feature`)
+3. **Make your changes** — follow the conventions in [DEVELOPMENT.md](DEVELOPMENT.md)
+4. **Run `make validate`** to confirm lint, format, and tests all pass
+5. **Open a Pull Request** against `main` with a clear description of what changed and why
 
-### Getting Started
-
-```bash
-# Clone the repo
-git clone https://github.com/your-org/humanproxy.git
-cd humanproxy
-
-# Install dependencies
-npm install
-
-# Copy environment variables
-cp .env.example .env
-
-# Start infrastructure (Postgres + MinIO)
-docker compose up postgres minio -d
-
-# Generate Prisma client
-npm run prisma:generate --workspace=@humanproxy/backend
-
-# Run database migrations
-npm run prisma:migrate --workspace=@humanproxy/backend
-
-# Start development servers
-npm run dev
-```
-
-## Project Structure
-
-```
-humanproxy/
-├── apps/
-│   ├── backend/    # NestJS + Fastify API
-│   └── frontend/   # Next.js 15 App
-├── packages/
-│   └── shared/     # Shared types & utilities
-└── docker-compose.yml
-```
-
-## Workflow
-
-1. **Fork** the repository
-2. **Create a branch** from `main` (`git checkout -b feat/my-feature`)
-3. **Make your changes** — follow existing code style
-4. **Run checks** before committing:
-   ```bash
-   npm run lint
-   npm run test
-   npm run build
-   ```
-5. **Commit** with a descriptive message
-6. **Open a Pull Request** against `main`
-
-## Code Style
-
-- We use **Prettier** for formatting and **ESLint** for linting
-- Run `npm run format` to auto-format all files
-- Single quotes, trailing commas, semicolons, 100 char line width
-
-## Commit Messages
-
-Use clear, descriptive commit messages. We recommend the [Conventional Commits](https://www.conventionalcommits.org/) format:
-
-- `feat: add agent creation endpoint`
-- `fix: resolve WebSocket reconnection issue`
-- `docs: update API reference`
-- `chore: upgrade dependencies`
+PRs require passing CI and maintainer review before merge. Please be patient — this is a maintainer-reviewed project.
 
 ## Reporting Issues
 
-- Use **GitHub Issues** to report bugs or request features
+- Use **GitHub Issues** for bugs and feature requests
 - Include reproduction steps and environment details for bugs
-- Check existing issues before creating a new one
+- Check existing issues before opening a new one
 
-## License
+## License & Contributor Agreement
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+Placet is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
+
+By submitting a pull request or otherwise contributing to this project, you agree to the following terms:
+
+1. You grant **centerbit** (the project maintainer) a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use, reproduce, modify, sublicense, relicense, distribute, and otherwise exploit your contribution in any form, including in proprietary or commercially licensed versions of the software.
+
+2. You represent that you are the original author of the contribution and have the right to grant the above license. If your employer has rights to intellectual property that you create, you represent that you have received permission to make contributions on behalf of your employer, or that your employer has waived such rights.
+
+3. You understand that your contribution will be publicly available under the AGPL-3.0, and that the above grant allows the maintainer to also offer the software under alternative license terms.
+
+4. You are not expected to provide support for your contribution, unless you choose to do so.
+
+This agreement ensures that all contributions can be maintained and distributed consistently, while keeping the project fully open source under the AGPL-3.0.
+
+Placet is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
+
+By submitting a pull request or otherwise contributing to this project, you agree to the following terms:
+
+1. You grant **centerbit** (the project maintainer) a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use, reproduce, modify, sublicense, relicense, distribute, and otherwise exploit your contribution in any form, including in proprietary or commercially licensed versions of the software.
+
+2. You represent that you are the original author of the contribution and have the right to grant the above license. If your employer has rights to intellectual property that you create, you represent that you have received permission to make contributions on behalf of your employer, or that your employer has waived such rights.
+
+3. You understand that your contribution will be publicly available under the AGPL-3.0, and that the above grant allows the maintainer to also offer the software under alternative license terms.
+
+4. You are not expected to provide support for your contribution, unless you choose to do so.
+
+This agreement ensures that all contributions can be maintained and distributed consistently, while keeping the project fully open source under the AGPL-3.0.

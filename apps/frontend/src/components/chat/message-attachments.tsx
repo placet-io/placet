@@ -5,7 +5,7 @@ import { Maximize2 } from 'lucide-react';
 import { AttachmentCard } from './attachment-card';
 import { useChatSettings } from '@/lib/hooks/use-chat-settings';
 import { useAnnotations } from '@/lib/hooks/use-annotations';
-import type { Attachment } from '@humanproxy/shared';
+import type { Attachment } from '@placet/shared';
 
 interface MessageAttachmentsProps {
   attachments: Attachment[];

@@ -6,7 +6,7 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages/shared/package.json ./packages/shared/
-RUN npm ci --workspace=@humanproxy/backend --workspace=@humanproxy/shared
+RUN npm ci --workspace=@placet/backend --workspace=@placet/shared
 
 # Generate Prisma client
 FROM deps AS prisma
@@ -19,9 +19,9 @@ FROM prisma AS build
 COPY tsconfig.base.json ./
 COPY packages/shared/ ./packages/shared/
 COPY packages/plugins/ ./packages/plugins/
-RUN npm run build --workspace=@humanproxy/shared
+RUN npm run build --workspace=@placet/shared
 COPY apps/backend/ ./apps/backend/
-RUN npm run build --workspace=@humanproxy/backend
+RUN npm run build --workspace=@placet/backend
 
 # Production – keep monorepo layout so Prisma + workspace symlinks resolve
 FROM base AS runner

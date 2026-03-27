@@ -3,7 +3,7 @@
 import { memo, useMemo } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ApiLog } from '@humanproxy/shared';
+import type { ApiLog } from '@placet/shared';
 
 const SENSITIVE_KEYS = new Set([
   'password',

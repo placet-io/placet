@@ -52,10 +52,10 @@ export const MobileNavDrawer = memo(function MobileNavDrawer() {
         <div className="flex items-center justify-between p-4 border-b border-border/50">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary shadow-sm">
-              <img src="/logo-white.svg" alt="HumanProxy" className="h-5 w-5 dark:hidden" />
-              <img src="/logo-black.svg" alt="HumanProxy" className="h-5 w-5 hidden dark:block" />
+              <img src="/logo-white.svg" alt="Placet" className="h-5 w-5 dark:hidden" />
+              <img src="/logo-black.svg" alt="Placet" className="h-5 w-5 hidden dark:block" />
             </div>
-            <span className="text-sm font-semibold text-foreground">HumanProxy</span>
+            <span className="text-sm font-semibold text-foreground">Placet</span>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClose}>
             <X size={18} />

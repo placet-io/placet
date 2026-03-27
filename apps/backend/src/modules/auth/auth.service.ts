@@ -32,7 +32,7 @@ export class AuthService implements OnModuleInit {
   private async seedInitialUser() {
     const email = this.config.get<string>(
       'INITIAL_USER_EMAIL',
-      'admin@humanproxy.local',
+      'admin@placet.local',
     );
     const password = this.config.get<string>(
       'INITIAL_USER_PASSWORD',

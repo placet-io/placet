@@ -1,4 +1,4 @@
 import { createZodDto } from 'nestjs-zod';
-import { RespondReviewSchema } from '@humanproxy/shared';
+import { RespondReviewSchema } from '@placet/shared';
 
 export class RespondReviewDto extends createZodDto(RespondReviewSchema) {}

@@ -1,9 +1,9 @@
 {
   "name": "form-submit",
   "displayName": "Form Submit",
-  "description": "Renders a form from structured data and submits it to a configurable webhook URL. Demonstrates forms, buttons, and HumanProxy.fetch.",
+  "description": "Renders a form from structured data and submits it to a configurable webhook URL. Demonstrates forms, buttons, and Placet.fetch.",
   "version": "1.0.0",
-  "author": "HumanProxy",
+  "author": "Placet",
   "icon": "./icon.svg",
   "inputSchema": {
     "type": "object",

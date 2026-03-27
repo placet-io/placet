@@ -9,6 +9,7 @@ import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
 // Prisma returns BigInt for `size` columns — make them JSON-serialisable.
 // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
@@ -51,6 +52,7 @@ async function bootstrap() {
   });
 
   app.useLogger(app.get(Logger));
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   const corsOrigin = process.env.CORS_ORIGIN;
   app.enableCors({
@@ -59,7 +61,7 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('HumanProxy API')
+    .setTitle('Placet API')
     .setDescription('Chat-based agent inbox for AI-human interaction')
     .setVersion('0.1.0')
     .addBearerAuth()

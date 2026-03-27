@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Placet — Traefik Reverse Proxy (Optional Override)
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+#
+# Or set in .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.traefik.yml
+#
+# Required .env variables:
+#   DOMAIN=placet.example.com
+#   ACME_EMAIL=admin@example.com      (for Let's Encrypt certificates)
+#
+# This adds a Traefik reverse proxy with:
+#   - Automatic HTTPS via Let's Encrypt
+#   - Frontend at https://${DOMAIN}
+#   - Backend API at https://${DOMAIN}/api/*
+#   - WebSocket upgrade support
+#   - HTTP → HTTPS redirect
+#
+# Note: The base docker-compose.yml still exposes direct ports (3000, 3001,
+# 9000, 9001). In production, use a firewall (e.g. ufw, iptables, cloud
+# security group) to block external access to those ports — only 80 and 443
+# should be publicly reachable.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  traefik:
+    container_name: placet-traefik
+    image: traefik:v3
+    restart: unless-stopped
+    command:
+      - --api.dashboard=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # HTTP → HTTPS redirect
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      # Let's Encrypt
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+  frontend:
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.frontend.rule: Host(`${DOMAIN}`)
+      traefik.http.routers.frontend.entrypoints: websecure
+      traefik.http.routers.frontend.tls.certresolver: letsencrypt
+      traefik.http.services.frontend.loadbalancer.server.port: 3000
+
+  backend:
+    labels:
+      traefik.enable: 'true'
+      # API routes
+      traefik.http.routers.backend.rule: Host(`${DOMAIN}`) && PathPrefix(`/api`)
+      traefik.http.routers.backend.entrypoints: websecure
+      traefik.http.routers.backend.tls.certresolver: letsencrypt
+      traefik.http.services.backend.loadbalancer.server.port: ${BACKEND_PORT:-3001}
+      # WebSocket (Socket.io)
+      traefik.http.routers.backend-ws.rule: Host(`${DOMAIN}`) && PathPrefix(`/socket.io`)
+      traefik.http.routers.backend-ws.entrypoints: websecure
+      traefik.http.routers.backend-ws.tls.certresolver: letsencrypt
+      traefik.http.services.backend-ws.loadbalancer.server.port: ${BACKEND_PORT:-3001}
+
+volumes:
+  letsencrypt:

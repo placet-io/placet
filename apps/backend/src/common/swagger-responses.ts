@@ -18,7 +18,7 @@ class LoginUser {
   @ApiProperty({ example: 'clxyz123' })
   id: string;
 
-  @ApiProperty({ example: 'admin@humanproxy.local' })
+  @ApiProperty({ example: 'admin@placet.local' })
   email: string;
 
   @ApiProperty({ example: 'Admin' })
@@ -39,7 +39,7 @@ export class UserResponse {
   @ApiProperty({ example: 'clxyz123' })
   id: string;
 
-  @ApiProperty({ example: 'admin@humanproxy.local' })
+  @ApiProperty({ example: 'admin@placet.local' })
   email: string;
 
   @ApiProperty({ example: 'Admin' })
