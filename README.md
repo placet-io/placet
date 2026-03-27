@@ -10,38 +10,42 @@
 </p>
 
 <p align="center">
-  <a href="#quickstart"><img src="https://img.shields.io/badge/Get%20Started-blue?style=for-the-badge" alt="Get Started" /></a>
-  <a href="https://github.com/centerbitco/placet/releases"><img src="https://img.shields.io/github/v/release/centerbitco/placet?style=for-the-badge&label=Release" alt="Release" /></a>
-  <a href="https://github.com/centerbitco/placet/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/centerbitco/placet/ci.yml?style=for-the-badge&label=CI" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge" alt="License" /></a>
+  <img src="https://img.shields.io/badge/Self--Hostable-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Self-Hostable" />
+  <img src="https://img.shields.io/badge/Plugin%20System-8B5CF6?style=for-the-badge&logo=puzzle-piece&logoColor=white" alt="Plugin System" />
+  <img src="https://img.shields.io/badge/Real--Time-10B981?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Real-Time" />
+  <img src="https://img.shields.io/badge/REST%20API-F97316?style=for-the-badge&logo=swagger&logoColor=white" alt="REST API" />
+  <img src="https://img.shields.io/badge/Human--in--the--Loop-3B82F6?style=for-the-badge&logo=users&logoColor=white" alt="Human-in-the-Loop" />
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white" alt="NestJS" />
   <img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/Prisma-2D3748?logo=prisma&logoColor=white" alt="Prisma" />
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Turborepo-0F0F0F?logo=turborepo&logoColor=white" alt="Turborepo" />
+  <img src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
 </p>
 
 ---
 
 ## Why Placet?
 
-AI agents are getting more capable every day — but they still need humans in the loop. Approvals, reviews, feedback, complex decisions. Today, most teams wire this through Slack, Teams, or email — tools designed for human-to-human chat, not human-to-agent collaboration.
+AI agents are getting more capable every day, but they still need humans in the loop. Approvals, reviews, feedback, complex decisions. Today, most teams wire this through Slack, Teams, or email (tools designed for human-to-human chat, not human-to-agent collaboration).
 
 **The problem:**
 
 - Messenger apps aren't built for structured agent interactions. An approval button in Slack is a hack, not a feature.
-- AI can do much more than send text messages. Agents generate images, diagrams, documents, code — but there's no good way to review and respond to rich content inline.
+- AI can do much more than send text messages. Agents generate images, diagrams, documents, and code, but there's no good way to review and respond to rich content inline.
 - Reviewing files (images, PDFs, documents) requires switching to external services. Annotations, comparisons, and approvals happen outside the conversation.
 - Every integration requires custom glue code. There's no standard way for agents to present custom UIs.
 
 **Placet is different:**
 
-- **Purpose-built for Human-in-the-Loop.** Not a chat app with agent integrations bolted on — the entire platform is designed around the agent-human interaction loop.
-- **Rich message types out of the box.** Agents send structured reviews (approval buttons, forms, selections, free text), files with inline preview, and custom plugin UIs — all rendered natively in the chat.
-- **Everything reviewable in one place.** Images, PDFs, video, documents, spreadsheets — all viewable and annotatable directly in the conversation. No context switching.
+- **Purpose-built for Human-in-the-Loop.** Not a chat app with agent integrations bolted on. The entire platform is designed around the agent-human interaction loop.
+- **Rich message types out of the box.** Agents send structured reviews (approval buttons, forms, selections, free text), files with inline preview, and custom plugin UIs, all rendered natively in the chat.
+- **Everything reviewable in one place.** Images, PDFs, video, documents, and spreadsheets are all viewable and annotatable directly in the conversation. No context switching.
 - **Plugin system for unlimited flexibility.** Two files (`plugin.json` + `render.html`) = a custom message type. Build CRM cards, diagram renderers, diff viewers, or whatever your workflow needs. Plugins run in sandboxed iframes with a full Bridge API.
 - **Multiple communication channels.** WebSocket for real-time, webhooks for async delivery, long-polling for synchronous agents. Your agent connects however it wants.
 - **Self-hostable, no vendor lock-in.** One `docker compose up` and you're running. No cloud dependency, no LLM provider coupling. Placet connects to _your_ systems, not the other way around.
@@ -55,6 +59,7 @@ AI agents are getting more capable every day — but they still need humans in t
 ```bash
 git clone https://github.com/centerbitco/placet.git
 cd placet
+cp .env.example .env
 make setup
 ```
 
@@ -82,7 +87,7 @@ curl -X POST http://localhost:3001/api/v1/messages \
   -d '{"text": "Hello from my agent!", "status": "success"}'
 ```
 
-4. Open the agent's chat — your message appears in real-time.
+4. Open the agent's chat and your message appears in real-time.
 
 ### Request human approval
 
@@ -110,15 +115,15 @@ curl -X POST http://localhost:3001/api/v1/messages \
 
 ### Agent Communication
 
-| Feature             | Description                                                                                    |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| **Push API**        | Agents send messages via `POST /api/v1/messages` — text, status, attachments, reviews, plugins |
-| **Chat-as-Storage** | Agents query their own chat history with search, filters, and cursor pagination                |
-| **Agent Status**    | Heartbeat endpoint with 4 states (active, busy, error, offline) and status history             |
-| **WebSocket**       | Real-time delivery via Socket.io — messages, reviews, agent status                             |
-| **Webhooks**        | Outbound delivery on review responses with tiered priority and SSRF protection                 |
-| **Long-polling**    | Synchronous wait for review responses (30s timeout)                                            |
-| **Web Push**        | Browser push notifications via Service Worker + VAPID                                          |
+| Feature             | Description                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| **Push API**        | Agents send messages via `POST /api/v1/messages` (text, status, attachments, reviews, and plugins) |
+| **Chat-as-Storage** | Agents query their own chat history with search, filters, and cursor pagination                    |
+| **Agent Status**    | Heartbeat endpoint with 4 states (active, busy, error, offline) and status history                 |
+| **WebSocket**       | Real-time delivery via Socket.io (messages, reviews, and agent status)                             |
+| **Webhooks**        | Outbound delivery on review responses with tiered priority and SSRF protection                     |
+| **Long-polling**    | Synchronous wait for review responses (30s timeout)                                                |
+| **Web Push**        | Browser push notifications via Service Worker + VAPID                                              |
 
 ### Review System
 
@@ -315,7 +320,7 @@ All configuration lives in `.env` at the project root. Created automatically on 
 | ----------------------- | -------------------- | ---------------------------------------------------------------------------- |
 | `LOG_FORMAT`            | `pretty`             | Log output format: `pretty` (colored, human-readable) or `json` (structured) |
 | `LOG_LEVEL`             | `info`               | Log level: `debug`, `info`, `warn`, `error`                                  |
-| `JWT_SECRET`            | —                    | **Required.** Secret for JWT signing                                         |
+| `JWT_SECRET`            | (none)               | **Required.** Secret for JWT signing                                         |
 | `INITIAL_USER_EMAIL`    | `admin@placet.local` | Email for the auto-created admin user                                        |
 | `INITIAL_USER_PASSWORD` | `changeme`           | Password for the auto-created admin user                                     |
 | `CORS_ORIGIN`           | `*`                  | Allowed origins (comma-separated for production)                             |
