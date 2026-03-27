@@ -11,8 +11,8 @@
 
 <p align="center">
   <a href="#quickstart"><img src="https://img.shields.io/badge/Get%20Started-blue?style=for-the-badge" alt="Get Started" /></a>
-  <a href="https://github.com/your-org/placet/releases"><img src="https://img.shields.io/github/v/release/your-org/placet?style=for-the-badge&label=Release" alt="Release" /></a>
-  <a href="https://github.com/your-org/placet/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/your-org/placet/ci.yml?style=for-the-badge&label=CI" alt="CI" /></a>
+  <a href="https://github.com/centerbitco/placet/releases"><img src="https://img.shields.io/github/v/release/centerbitco/placet?style=for-the-badge&label=Release" alt="Release" /></a>
+  <a href="https://github.com/centerbitco/placet/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/centerbitco/placet/ci.yml?style=for-the-badge&label=CI" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
@@ -53,7 +53,7 @@ AI agents are getting more capable every day — but they still need humans in t
 > **Prerequisites:** Git, Node.js 22+, Docker & Docker Compose
 
 ```bash
-git clone https://github.com/your-org/placet.git
+git clone https://github.com/centerbitco/placet.git
 cd placet
 make setup
 ```

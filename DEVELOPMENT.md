@@ -19,7 +19,7 @@ This document describes how to set up Placet for local development and outlines 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/placet.git
+git clone https://github.com/centerbitco/placet.git
 cd placet
 
 # Install all dependencies
