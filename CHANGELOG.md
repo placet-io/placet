@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-03-30
+
+### Added
+
+- Documentation site with concepts, integration guides, and plugin docs
+- Example projects for Python, TypeScript, LangChain, and WebSocket
+- Contributor License Agreement (CLA) in `CONTRIBUTING.md`
+- `DEVELOPMENT.md` — full development guidelines (setup, branching, commits, migrations, release process)
+- Optional Traefik reverse proxy overlay (`docker-compose.traefik.yml`) for production deployments with automatic HTTPS via Let's Encrypt
+- GitHub Actions CI pipeline (build, lint, format check, test)
+- GitHub Actions release workflow — runs CI and creates GitHub Release on version tags
+- Explicit `container_name` for all Docker Compose services (`placet-postgres`, `placet-backend`, etc.)
+
 ### Changed
 
 - Renamed project from HumanProxy to Placet
@@ -14,14 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release pipeline simplified — Docker image publishing removed; users self-host via `git clone` + `make setup`
 - `CONTRIBUTING.md` restructured; development setup moved to dedicated `DEVELOPMENT.md`
 
-### Added
+### Fixed
 
-- Contributor License Agreement (CLA) in `CONTRIBUTING.md`
-- `DEVELOPMENT.md` — full development guidelines (setup, branching, commits, migrations, release process)
-- Optional Traefik reverse proxy overlay (`docker-compose.traefik.yml`) for production deployments with automatic HTTPS via Let's Encrypt
-- GitHub Actions CI pipeline (build, lint, format check, test)
-- GitHub Actions release workflow — runs CI and creates GitHub Release on version tags
-- Explicit `container_name` for all Docker Compose services (`placet-postgres`, `placet-backend`, etc.)
+- Minor bug fixes across backend and frontend
 
 ## [0.1.0] — 2026-03-26
 

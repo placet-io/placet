@@ -1,0 +1,137 @@
+---
+title: Creating Plugins
+description: Step-by-step guide to building a Placet plugin.
+---
+
+## Create a Plugin
+
+<Steps>
+  <Step title="Create the directory">
+    ```bash
+    mkdir packages/plugins/my-plugin
+    ```
+  </Step>
+  <Step title="Define plugin.json">
+    ```json
+    {
+      "name": "my-plugin",
+      "displayName": "My Plugin",
+      "description": "What this plugin does",
+      "version": "1.0.0",
+      "author": "Your Name",
+      "icon": "./icon.svg",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "url": { "type": "string" }
+        },
+        "required": ["title"]
+      },
+      "permissions": {
+        "httpRequests": true,
+        "maxHttpDomains": ["api.example.com"]
+      },
+      "env": [
+        {
+          "key": "API_KEY",
+          "label": "API Key",
+          "required": true,
+          "secret": true,
+          "description": "Your API key for the external service."
+        }
+      ]
+    }
+    ```
+  </Step>
+  <Step title="Create render.html">
+    ```html
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: sans-serif;
+            padding: 16px;
+            color: #1a1a19;
+            background: transparent;
+          }
+          body.dark { color: #e5e5e4; }
+        </style>
+      </head>
+      <body>
+        <div id="app">
+          <h3 id="title"></h3>
+          <p id="info"></p>
+        </div>
+        <script>
+          document.addEventListener('DOMContentLoaded', function () {
+            if (Placet.theme === 'dark') document.body.classList.add('dark');
+            document.getElementById('title').textContent = Placet.data.title;
+            document.getElementById('info').textContent = Placet.data.url || 'No URL';
+            Placet.resize();
+          });
+        </script>
+      </body>
+    </html>
+    ```
+  </Step>
+  <Step title="Optionally add an icon">
+    Place an `icon.svg` (or `.png`) in the plugin directory and reference it in `plugin.json`:
+    ```json
+    { "icon": "./icon.svg" }
+    ```
+  </Step>
+  <Step title="Restart the backend">
+    ```bash
+    make stop && make start
+    ```
+    The plugin is automatically discovered and available.
+  </Step>
+  <Step title="Configure env values">
+    Go to **Settings → Plugins**, expand your plugin, fill in the environment variables, and click **Save**.
+  </Step>
+</Steps>
+
+## Manifest Reference
+
+### Top-Level Fields
+
+| Field                        | Required | Description                                           |
+| ---------------------------- | -------- | ----------------------------------------------------- |
+| `name`                       | Yes      | Unique plugin identifier (kebab-case)                 |
+| `displayName`                | Yes      | Human-readable name                                   |
+| `version`                    | Yes      | Semver version                                        |
+| `description`                | No       | Short description                                     |
+| `author`                     | No       | Author name                                           |
+| `icon`                       | No       | Relative file path (`./icon.svg`) or Lucide icon name |
+| `inputSchema`                | No       | JSON Schema for the plugin's input data               |
+| `permissions.httpRequests`   | No       | Whether the plugin can make HTTP requests             |
+| `permissions.maxHttpDomains` | No       | Allowed domains for HTTP requests (`["*"]` = any)     |
+| `env`                        | No       | Array of environment variable definitions             |
+
+### Environment Variables
+
+Each entry in the `env` array:
+
+| Field         | Required | Description                              |
+| ------------- | -------- | ---------------------------------------- |
+| `key`         | Yes      | Variable name (e.g. `API_KEY`)           |
+| `label`       | Yes      | Human-readable label for the Settings UI |
+| `required`    | No       | Whether this variable must be set        |
+| `default`     | No       | Default value                            |
+| `secret`      | No       | If `true`, rendered as a password field  |
+| `description` | No       | Help text shown below the input          |
+
+<Info>
+  Env values are configured per-plugin in **Settings → Plugins** and stored in the database,
+  version-coupled. Plugins access them at runtime via `Placet.env`.
+</Info>
+
+## Validate a Plugin
+
+Use the included validation script:
+
+```bash
+npx ts-node scripts/validate-plugin.ts packages/plugins/my-plugin
+```

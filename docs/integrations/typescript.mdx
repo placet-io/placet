@@ -1,0 +1,117 @@
+---
+title: TypeScript / Node.js
+description: Integrate Placet from TypeScript or Node.js applications.
+---
+
+<Info>
+  Runnable example in
+  [`examples/typescript/`](https://github.com/centerbitco/placet/tree/main/examples/typescript)
+  covers upload, messaging, approval, and download in a single script.
+</Info>
+
+## Send a Message
+
+Use the built-in `fetch` API (Node.js 18+):
+
+```typescript
+const PLACET_URL = 'https://your-placet-instance.com';
+const API_KEY = 'hp_your-api-key';
+const CHANNEL_ID = 'your-agent-id';
+
+const headers = {
+  Authorization: `Bearer ${API_KEY}`,
+  'Content-Type': 'application/json',
+};
+
+const resp = await fetch(`${PLACET_URL}/api/v1/messages`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({
+    channelId: CHANNEL_ID,
+    text: 'Build completed successfully.',
+    status: 'success',
+  }),
+});
+
+const msg = await resp.json();
+console.log(`Message sent: ${msg.id}`);
+```
+
+## Upload a File
+
+Upload a file without creating a message (can be attached later):
+
+```typescript
+const form = new FormData();
+form.append('file', new Blob([fileBuffer], { type: 'application/pdf' }), 'report.pdf');
+form.append('channelId', CHANNEL_ID);
+
+const uploadResp = await fetch(`${PLACET_URL}/api/v1/files/store`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${API_KEY}` },
+  body: form,
+});
+
+const attachment = await uploadResp.json();
+console.log(`Uploaded: ${attachment.filename} (id: ${attachment.id})`);
+```
+
+## Send Message with File & Approval
+
+Attach a previously uploaded file and request human approval:
+
+```typescript
+const approvalResp = await fetch(`${PLACET_URL}/api/v1/messages`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({
+    channelId: CHANNEL_ID,
+    text: 'Please review the attached report.',
+    status: 'warning',
+    attachmentIds: [attachment.id],
+    review: {
+      type: 'approval',
+      payload: {
+        options: [
+          { id: 'approve', label: 'Approve', style: 'primary' },
+          { id: 'reject', label: 'Reject', style: 'danger' },
+        ],
+      },
+    },
+  }),
+});
+
+const approvalMsg = await approvalResp.json();
+
+// Long-poll for the review response (up to 30s)
+const reviewResp = await fetch(
+  `${PLACET_URL}/api/v1/reviews/${approvalMsg.id}/wait?channel=${CHANNEL_ID}&timeout=30000`,
+  { headers },
+);
+const review = await reviewResp.json();
+
+if (review.status === 'completed') {
+  console.log(`Decision: ${review.message.review.response.selectedOption}`);
+}
+```
+
+## Download a File
+
+```typescript
+const dlResp = await fetch(`${PLACET_URL}/api/v1/files/${attachment.id}/download`, {
+  headers: { Authorization: `Bearer ${API_KEY}` },
+});
+
+const buffer = await dlResp.arrayBuffer();
+// Save or process the file buffer
+```
+
+## Report Agent Status
+
+```typescript
+await fetch(`${PLACET_URL}/api/v1/status/ping`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({ agentId: CHANNEL_ID, status: 'active' }),
+});
+```

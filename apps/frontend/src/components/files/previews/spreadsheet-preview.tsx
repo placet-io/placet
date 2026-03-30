@@ -79,7 +79,9 @@ function useSpreadsheetData(fileId: string, mimeType: string) {
         const buffer = await res.arrayBuffer();
         const XLSX = await import('xlsx');
         const workbook = XLSX.read(buffer, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) throw new Error('Workbook has no sheets');
+        const firstSheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json<string[]>(firstSheet, {
           header: 1,
           defval: '',

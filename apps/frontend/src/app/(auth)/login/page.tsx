@@ -62,7 +62,7 @@ function LoginForm({ onSuccess }: { onSuccess: (mustChange: boolean, password: s
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      onSuccess(data.user.mustChangePassword === true, password);
+      onSuccess(data.user?.mustChangePassword === true, password);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Login failed. Try again.');
     } finally {

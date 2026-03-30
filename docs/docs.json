@@ -1,0 +1,81 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "Placet",
+  "colors": {
+    "primary": "#7c9cb5",
+    "light": "#8faec8",
+    "dark": "#5a7d96"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/placet-logo.png",
+    "dark": "/logo/placet-logo.png"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["index", "quickstart", "self-hosting"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/agents",
+              "concepts/channels",
+              "concepts/connection-types"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/python",
+              "integrations/langchain",
+              "integrations/typescript",
+              "integrations/curl"
+            ]
+          },
+          {
+            "group": "Plugins",
+            "pages": ["plugins/overview", "plugins/creating-plugins", "plugins/bridge-api"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "openapi": "/openapi.json"
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/centerbitco/placet",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/centerbitco/placet"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/centerbitco/placet"
+    }
+  },
+  "background": {
+    "style": "gradient"
+  },
+  "rounded": "default"
+}

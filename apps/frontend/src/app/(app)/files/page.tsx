@@ -287,7 +287,7 @@ export default function FilesPage() {
                         {file.filename}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {agentMap.get(file.message.channelId) ?? 'Unknown'} &middot;{' '}
+                        {agentMap.get(file.message?.channelId ?? '') ?? 'Unknown'} &middot;{' '}
                         {formatFileSize(file.size)} &middot; {formatRelativeTime(file.createdAt)}
                       </p>
                     </div>
@@ -363,7 +363,7 @@ export default function FilesPage() {
                 <FileTypeBadge mimeType={previewFile.mimeType} filename={previewFile.filename} />
                 <span>{formatFileSize(previewFile.size)}</span>
                 <span>&middot;</span>
-                <span>{agentMap.get(previewFile.message.channelId) ?? 'Unknown'}</span>
+                <span>{agentMap.get(previewFile.message?.channelId ?? '') ?? 'Unknown'}</span>
                 <span>&middot;</span>
                 <span>{formatRelativeTime(previewFile.createdAt)}</span>
               </div>

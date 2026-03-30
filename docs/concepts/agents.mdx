@@ -1,0 +1,221 @@
+---
+title: Agents
+description: How agents connect to and interact with Placet.
+---
+
+## What is an Agent?
+
+An **agent** in Placet represents an external AI system, automation workflow, or no-code tool that sends messages to humans for review. Each agent gets its own chat channel in the inbox.
+
+## Creating an Agent
+
+Agents are created through the **Settings → Agents** page in the web UI, or via the API.
+
+Each agent has:
+
+- **Name**: displayed in the inbox sidebar
+- **Description**: optional context about the agent's purpose
+- **Avatar**: optional visual identifier
+
+## Authentication
+
+Agents authenticate via **API Keys**, created in **Settings → API Keys**. API keys are prefixed with `hp_` for easy identification.
+
+```bash
+curl -X POST http://localhost:3001/api/v1/messages \
+  -H "Authorization: Bearer hp_your-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello from my agent!"}'
+```
+
+## Message Types
+
+Agents can send different types of messages:
+
+### Plain text
+
+```json
+{
+  "text": "Deployment completed successfully.",
+  "status": "success"
+}
+```
+
+### With review (approval buttons)
+
+```json
+{
+  "text": "Deploy v2.1 to production?",
+  "review": {
+    "type": "approval",
+    "payload": {
+      "options": [
+        { "id": "approve", "label": "Approve", "style": "primary" },
+        { "id": "reject", "label": "Reject", "style": "danger" }
+      ]
+    }
+  }
+}
+```
+
+### With plugin rendering
+
+```json
+{
+  "text": "Form submission required",
+  "metadata": {
+    "plugin": "form-submit",
+    "name": "John Doe",
+    "email": "john@example.com"
+  }
+}
+```
+
+## Review Types
+
+Agents can request human input by adding a `review` object to any message. Each review type renders a different interactive UI.
+
+### Approval
+
+Presents styled buttons for a yes/no or go/no-go decision. Optionally allows a comment.
+
+```json
+{
+  "type": "approval",
+  "payload": {
+    "options": [
+      { "id": "approve", "label": "Approve", "style": "primary" },
+      { "id": "reject", "label": "Reject", "style": "danger" }
+    ],
+    "allowComment": true
+  }
+}
+```
+
+Button styles: `primary`, `danger`, `secondary`, `ghost`. Response: `{ "selectedOption": "approve", "comment": "Looks good" }`.
+
+### Selection
+
+Shows radio buttons (single) or checkboxes (multi) for the user to choose from.
+
+```json
+{
+  "type": "selection",
+  "payload": {
+    "mode": "single",
+    "items": [
+      { "id": "option_a", "label": "Option A", "description": "First choice" },
+      { "id": "option_b", "label": "Option B", "description": "Second choice" }
+    ]
+  }
+}
+```
+
+Response: `{ "selectedIds": ["option_a"] }`.
+
+### Form
+
+Renders a dynamic form with multiple field types. Supports 12 field types: `text`, `number`, `email`, `url`, `textarea`, `select`, `checkbox`, `date`, `time`, `datetime`, `range`, `password`.
+
+```json
+{
+  "type": "form",
+  "payload": {
+    "fields": [
+      { "name": "environment", "type": "select", "label": "Environment", "required": true,
+        "options": [{ "value": "staging", "label": "Staging" }, { "value": "prod", "label": "Production" }] },
+      { "name": "version", "type": "text", "label": "Version", "placeholder": "e.g. 2.1.0" },
+      { "name": "notify", "type": "checkbox", "label": "Send notification" }
+    ],
+    "submitLabel": "Deploy"
+  }
+}
+```
+
+Response: `{ "environment": "prod", "version": "2.1.0", "notify": true }`.
+
+### Text Input
+
+Shows a textarea for free-text responses. Supports markdown preview and character limits.
+
+```json
+{
+  "type": "text-input",
+  "payload": {
+    "placeholder": "Describe the issue...",
+    "markdown": true,
+    "minLength": 10,
+    "maxLength": 2000
+  }
+}
+```
+
+Response: `{ "text": "The deployment failed because..." }`.
+
+### Freeform
+
+Accepts any JSON response. Used primarily with plugins that define their own response UI.
+
+```json
+{
+  "type": "freeform",
+  "payload": {}
+}
+```
+
+Response: any JSON object.
+
+### Review Options
+
+All review types support optional fields:
+
+| Field              | Description                                        |
+| ------------------ | -------------------------------------------------- |
+| `expiresInSeconds` | Auto-expire after N seconds (default: 86400 / 24h) |
+| `expiresAt`        | Expire at a specific ISO timestamp (max: 36h)      |
+| `callback`         | Legacy inline webhook `{ url, method?, headers? }` |
+
+## Message Status
+
+Each message can carry a `status` that controls its visual appearance in the chat:
+
+| Status    | Use case                                |
+| --------- | --------------------------------------- |
+| `info`    | Neutral status update (default)         |
+| `success` | Task completed successfully             |
+| `warning` | Needs attention or pending decision     |
+| `error`   | Something went wrong                    |
+
+## File Attachments
+
+Agents can upload files and attach them to messages. Upload a file first, then reference it by ID:
+
+```json
+{
+  "text": "Please review the attached report.",
+  "attachmentIds": ["file-id-from-upload"],
+  "review": { "type": "approval", "payload": { "options": [...] } }
+}
+```
+
+Files are previewed inline in the chat. Supported formats include images, PDFs, video, audio, Office documents, spreadsheets, code files, and more. Users can annotate images directly in the preview.
+
+## Agent Status
+
+Agents can report their operational status via the heartbeat endpoint:
+
+```bash
+curl -X POST "$PLACET_URL/api/v1/status/ping" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"agentId": "your-agent-id", "status": "active", "message": "Processing 42 tasks"}'
+```
+
+| Status    | Description                |
+| --------- | -------------------------- |
+| `active`  | Agent is running normally  |
+| `busy`    | Agent is processing a task |
+| `error`   | Agent encountered an error |
+| `offline` | Agent is not connected     |
+
+The status is displayed in the chat sidebar and on a dedicated **Status** page that shows all agents with uptime, message statistics, and a status history timeline.

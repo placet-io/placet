@@ -101,9 +101,10 @@ export const MessageBubble = memo(function MessageBubble({
   );
 
   // Build plugin data — everything in metadata except "plugin" key
-  const pluginData = pluginName
-    ? Object.fromEntries(Object.entries(metadata!).filter(([k]) => k !== 'plugin'))
-    : {};
+  const pluginData =
+    pluginName && metadata
+      ? Object.fromEntries(Object.entries(metadata).filter(([k]) => k !== 'plugin'))
+      : {};
 
   // Map Attachment[] to PluginAttachmentInfo[]
   const pluginAttachments: PluginAttachmentInfo[] = attachments.map((a) => ({

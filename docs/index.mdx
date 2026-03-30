@@ -1,0 +1,69 @@
+---
+title: Introduction
+description: The inbox where AI agents meet humans.
+---
+
+## What is Placet?
+
+Placet is a **self-hostable, plugin-driven platform for Human-in-the-Loop workflows**. It provides a purpose-built inbox where AI agents, automation workflows, and no-code tools collaborate with humans through structured interactions.
+
+Unlike chat apps with agent integrations bolted on, Placet is designed from the ground up for the agent-human interaction loop.
+
+<Frame caption="The Placet inbox — agents and humans collaborating in real-time">
+  <img src="/images/chat-example.png" alt="Placet chat example" />
+</Frame>
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in minutes with Docker Compose
+  </Card>
+  <Card title="Self-Hosting" icon="server" href="/self-hosting">
+    Deploy Placet on your own infrastructure
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    Explore the REST API for agent integration
+  </Card>
+  <Card title="Plugins" icon="puzzle-piece" href="/plugins/overview">
+    Extend Placet with custom message types
+  </Card>
+</CardGroup>
+
+## Why Placet?
+
+AI agents and automations are getting more capable every day, but they still need humans in the loop: approvals, reviews, feedback, complex decisions.
+
+Most teams wire this through Slack, Teams, or email, tools designed for human-to-human chat, not human-to-agent collaboration.
+
+**Placet is different:**
+
+<AccordionGroup>
+  <Accordion title="Purpose-built for Human-in-the-Loop">
+    The entire platform is designed around the agent-human interaction loop. Not a chat app with
+    agent integrations bolted on. Works with AI agents, CI/CD pipelines, no-code tools, and any
+    HTTP-capable automation.
+  </Accordion>
+  <Accordion title="5 built-in review types">
+    Approval buttons, single/multi selection, dynamic forms, free-text input, and freeform JSON.
+    Each review type renders natively in the chat and supports expiry, webhooks, and long-polling.
+  </Accordion>
+  <Accordion title="Integrated file storage with inline preview">
+    Upload files via API, attach them to messages, and preview them directly in the chat. Supports
+    images, PDFs, video, audio, Office documents, spreadsheets, code files, and more. Includes
+    canvas annotation tools for marking up images.
+  </Accordion>
+  <Accordion title="Agent status dashboard">
+    Agents report their status (active, busy, error, offline) via a heartbeat endpoint. The frontend
+    shows a live status overview with uptime, message stats, and status history.
+  </Accordion>
+  <Accordion title="Plugin system for unlimited flexibility">
+    Two files (`plugin.json` + `render.html`) = a custom message type. Build CRM cards, diagram
+    renderers, diff viewers, or whatever your workflow needs.
+  </Accordion>
+  <Accordion title="Multiple communication patterns">
+    WebSocket for real-time, webhooks for async delivery, long-polling for synchronous agents. Your
+    agent connects however it wants.
+  </Accordion>
+  <Accordion title="Self-hostable, no vendor lock-in">
+    One `docker compose up` and you're running. No cloud dependency, no LLM provider coupling.
+  </Accordion>
+</AccordionGroup>

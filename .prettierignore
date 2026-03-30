@@ -12,3 +12,9 @@ apps/frontend/next-env.d.ts
 
 # Package lock
 package-lock.json
+
+# Examples
+examples
+
+# Docs
+docs/openapi.json

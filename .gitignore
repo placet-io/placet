@@ -50,3 +50,6 @@ minio-data/
 # notes
 notes/
 /apps/backend/test/input-files
+
+# Examples local env
+examples/.env

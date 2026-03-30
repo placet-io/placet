@@ -1,0 +1,113 @@
+---
+title: Python
+description: Integrate Placet with Python using requests.
+---
+
+<Info>
+  Runnable example in
+  [`examples/python/`](https://github.com/centerbitco/placet/tree/main/examples/python) covers
+  upload, messaging, approval, and download in a single script.
+</Info>
+
+## Send a Message
+
+```python
+import requests
+
+PLACET_URL = "https://your-placet-instance.com"
+API_KEY = "hp_your-api-key"
+CHANNEL_ID = "your-agent-id"
+
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
+}
+
+resp = requests.post(
+    f"{PLACET_URL}/api/v1/messages",
+    headers=headers,
+    json={
+        "channelId": CHANNEL_ID,
+        "text": "Deployment completed successfully.",
+        "status": "success",
+    },
+)
+msg = resp.json()
+print(f"Message sent: {msg['id']}")
+```
+
+## Upload a File
+
+Upload a file without creating a message (can be attached later):
+
+```python
+with open("report.pdf", "rb") as f:
+    resp = requests.post(
+        f"{PLACET_URL}/api/v1/files/store",
+        headers={"Authorization": f"Bearer {API_KEY}"},
+        files={"file": ("report.pdf", f, "application/pdf")},
+        data={"channelId": CHANNEL_ID},
+    )
+attachment = resp.json()
+print(f"Uploaded: {attachment['filename']} (id: {attachment['id']})")
+```
+
+## Send Message with File & Approval
+
+Attach a previously uploaded file and request human approval:
+
+```python
+resp = requests.post(
+    f"{PLACET_URL}/api/v1/messages",
+    headers=headers,
+    json={
+        "channelId": CHANNEL_ID,
+        "text": "Please review the attached report.",
+        "status": "warning",
+        "attachmentIds": [attachment["id"]],
+        "review": {
+            "type": "approval",
+            "payload": {
+                "options": [
+                    {"id": "approve", "label": "Approve", "style": "primary"},
+                    {"id": "reject", "label": "Reject", "style": "danger"},
+                ],
+            },
+        },
+    },
+)
+approval_msg = resp.json()
+
+# Long-poll for the human's response (max 30s)
+result = requests.get(
+    f"{PLACET_URL}/api/v1/reviews/{approval_msg['id']}/wait",
+    headers=headers,
+    params={"channel": CHANNEL_ID, "timeout": "30000"},
+)
+review = result.json()
+
+if review["status"] == "completed":
+    chosen = review["message"]["review"]["response"]["selectedOption"]
+    print(f"Human chose: {chosen}")
+```
+
+## Download a File
+
+```python
+resp = requests.get(
+    f"{PLACET_URL}/api/v1/files/{attachment['id']}/download",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+)
+with open("downloaded.pdf", "wb") as f:
+    f.write(resp.content)
+```
+
+## Report Agent Status
+
+```python
+requests.post(
+    f"{PLACET_URL}/api/v1/status/ping",
+    headers=headers,
+    json={"agentId": CHANNEL_ID, "status": "active"},
+)
+```

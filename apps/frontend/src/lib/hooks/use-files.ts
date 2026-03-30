@@ -5,7 +5,7 @@ import type { Attachment } from '@placet/shared';
 import { api } from '@/lib/api';
 
 interface AttachmentWithChannel extends Attachment {
-  message: { channelId: string; createdAt: string };
+  message: { channelId: string; createdAt: string } | null;
 }
 
 interface FilesResponse {

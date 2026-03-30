@@ -1,0 +1,310 @@
+---
+title: LangChain
+description: Build an AI chat agent with human-in-the-loop using LangChain and Placet.
+---
+
+<Info>
+  Runnable example in
+  [`examples/langchain/`](https://github.com/centerbitco/placet/tree/main/examples/langchain), a
+  GPT-powered chat agent with approvals, selections, and forms via WebSocket.
+</Info>
+
+## Overview
+
+Placet integrates with [LangChain](https://python.langchain.com/) as a **human-in-the-loop** tool.
+Your LangChain agent receives messages in real-time via WebSocket and can send replies, request
+approvals, present selections, or ask the user to fill in forms, all rendered natively in the
+Placet UI.
+
+The agent uses four tools:
+
+| Tool            | Description                                   | Blocking |
+| --------------- | --------------------------------------------- | -------- |
+| `send_message`  | Send a one-way message (status update, reply) | No       |
+| `ask_approval`  | Approve / Reject buttons                      | Yes      |
+| `ask_selection` | Pick one option from a list                   | Yes      |
+| `ask_form`      | Fill in a multi-field form                    | Yes      |
+
+Blocking tools wait for the user's response via a WebSocket `review:responded` event (up to 5
+minutes).
+
+## Message Helper
+
+All tools post messages through the same helper:
+
+```python
+import requests
+
+PLACET_URL = "https://your-placet-instance.com"
+API_KEY = "hp_your-api-key"
+CHANNEL_ID = "your-agent-id"
+
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
+}
+
+
+def post_message(**kwargs):
+    resp = requests.post(
+        f"{PLACET_URL}/api/v1/messages",
+        headers=headers,
+        json={"channelId": CHANNEL_ID, **kwargs},
+    )
+    resp.raise_for_status()
+    return resp.json()
+```
+
+## Tools
+
+### send_message
+
+Fire-and-forget: sends a message and returns immediately:
+
+```python
+from langchain_core.tools import tool
+
+
+@tool
+def send_message(text: str, status: str = "info") -> str:
+    """Send a plain message to the user. No response expected.
+
+    Args:
+        text: Markdown-formatted message text.
+        status: One of 'info', 'success', 'warning', 'error'.
+    """
+    post_message(text=text, status=status)
+    return "Message sent."
+```
+
+### ask_approval
+
+Shows Approve / Reject buttons. Blocks until the user clicks one:
+
+```python
+@tool
+def ask_approval(question: str) -> str:
+    """Present the user with an Approve / Reject decision.
+    Blocks until the user clicks a button (up to 5 minutes).
+
+    Returns: 'approve', 'reject', or 'timeout'.
+    """
+    msg = post_message(
+        text=question,
+        status="warning",
+        review={
+            "type": "approval",
+            "payload": {
+                "options": [
+                    {"id": "approve", "label": "Approve", "style": "primary"},
+                    {"id": "reject", "label": "Reject", "style": "danger"},
+                ],
+            },
+        },
+    )
+    data = wait_review(msg["id"])
+    if data:
+        return data["review"]["response"]["selectedOption"]
+    return "timeout"
+```
+
+### ask_selection
+
+Presents a list of options for the user to pick from:
+
+```python
+@tool
+def ask_selection(question: str, options: str) -> str:
+    """Present multiple options for the user to choose from.
+
+    Args:
+        question: The question to display above the options.
+        options: Comma-separated list, e.g. "Option A, Option B, Option C"
+
+    Returns: The id of the selected option, or 'timeout'.
+    """
+    items = [
+        {"id": o.strip().lower().replace(" ", "_"), "label": o.strip()}
+        for o in options.split(",")
+    ]
+    msg = post_message(
+        text=question,
+        status="info",
+        review={"type": "selection", "payload": {"mode": "single", "items": items}},
+    )
+    data = wait_review(msg["id"])
+    if data:
+        ids = data["review"]["response"].get("selectedIds", [])
+        return ids[0] if ids else "unknown"
+    return "timeout"
+```
+
+### ask_form
+
+Shows a form with input fields:
+
+```python
+@tool
+def ask_form(question: str, fields: str) -> str:
+    """Ask the user to fill in a form with one or more fields.
+
+    Args:
+        question: Instruction text displayed above the form.
+        fields: Comma-separated field names, e.g. "Name, Email, Environment"
+
+    Returns: The filled values as "field: value" pairs, or 'timeout'.
+    """
+    field_list = [
+        {"name": f.strip().lower().replace(" ", "_"), "type": "text",
+         "label": f.strip(), "required": True}
+        for f in fields.split(",")
+    ]
+    msg = post_message(
+        text=question,
+        status="info",
+        review={"type": "form", "payload": {"fields": field_list, "submitLabel": "Submit"}},
+    )
+    data = wait_review(msg["id"])
+    if data:
+        resp = data["review"]["response"]
+        return ", ".join(f"{k}: {v}" for k, v in resp.items() if k != "selectedOption")
+    return "timeout"
+```
+
+## Waiting for Reviews via WebSocket
+
+The blocking tools above call `wait_review()`, which uses a `threading.Event` that gets set when
+the WebSocket delivers the `review:responded` event for the corresponding message:
+
+```python
+import threading
+
+_review_events = {}   # message_id → threading.Event
+_review_results = {}  # message_id → response data
+
+
+def wait_review(message_id, timeout=300):
+    """Block until the WebSocket delivers review:responded for this message."""
+    event = threading.Event()
+    _review_events[message_id] = event
+    event.wait(timeout=timeout)
+    _review_events.pop(message_id, None)
+    return _review_results.pop(message_id, None)
+```
+
+The WebSocket handler fills `_review_results` and signals the event:
+
+```python
+@sio.on("review:responded", namespace="/ws")
+def on_review(data):
+    msg_id = data.get("id")
+    if msg_id and msg_id in _review_events:
+        _review_results[msg_id] = data
+        _review_events[msg_id].set()
+```
+
+This avoids HTTP long-polling entirely. Reviews resolve in real-time over the same
+WebSocket connection.
+
+## Agent
+
+Wire the tools into a ChatGPT agent with explicit instructions to always use tools
+(the agent's plain-text output is not visible to the user):
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+llm = ChatOpenAI(model="gpt-5.2-instant")
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system",
+     "You are a helpful AI assistant communicating through Placet.\n\n"
+     "IMPORTANT: You MUST use the provided tools to communicate. "
+     "NEVER reply with plain text — the user cannot see it.\n\n"
+     "Guidelines:\n"
+     "- Follow-up questions with fixed choices → use ask_selection.\n"
+     "- Need free-text input → use ask_form.\n"
+     "- Yes/no or go/no-go decision → use ask_approval.\n"
+     "- Everything else (replies, explanations) → use send_message.\n"
+     "- If any tool returns 'timeout', do NOT retry. "
+     "Send a message that you're stopping because the user didn't respond in time."),
+    MessagesPlaceholder("chat_history"),
+    ("human", "{input}"),
+    MessagesPlaceholder("agent_scratchpad"),
+])
+
+tools = [send_message, ask_approval, ask_selection, ask_form]
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True,
+                         handle_parsing_errors=True)
+```
+
+## WebSocket Connection
+
+The agent connects via Socket.IO, subscribes to its channel, and dispatches incoming
+user messages to the LangChain executor:
+
+```python
+import socketio
+from langchain_core.messages import HumanMessage
+
+sio = socketio.Client(reconnection=False)
+
+chat_history = []
+
+
+def handle_user_message(text):
+    """Process a user message through the LangChain agent."""
+    chat_history.append(HumanMessage(content=text))
+    executor.invoke({"input": text, "chat_history": chat_history})
+
+
+seen = set()
+
+
+@sio.on("message:created", namespace="/ws")
+def on_message(data):
+    if data.get("id") in seen or data.get("senderType") != "user":
+        return
+    seen.add(data["id"])
+    text = (data.get("text") or "").strip()
+    if text:
+        handle_user_message(text)
+```
+
+### WebSocket Authentication
+
+Placet WebSocket requires a short-lived ticket (not the API key). Login to get a JWT,
+then exchange it for a ticket:
+
+```python
+def get_ws_ticket():
+    """Login → extract JWT from cookie → get short-lived WS ticket."""
+    resp = requests.post(
+        f"{PLACET_URL}/api/auth/login",
+        json={"email": "admin@placet.local", "password": "changeme"},
+    )
+    resp.raise_for_status()
+    cookie = next(
+        (c for c in resp.headers.get("Set-Cookie", "").split(",")
+         if "access_token=" in c), None
+    )
+    if not cookie:
+        raise RuntimeError("No access_token cookie in login response")
+    jwt = cookie.split("access_token=")[1].split(";")[0]
+
+    resp = requests.post(
+        f"{PLACET_URL}/api/auth/ws-ticket",
+        headers={"Authorization": f"Bearer {jwt}"},
+    )
+    resp.raise_for_status()
+    return resp.json()["ticket"]
+
+
+ticket = get_ws_ticket()
+sio.connect(PLACET_URL, namespaces=["/ws"],
+            auth={"token": ticket}, transports=["websocket"])
+sio.wait()
+```

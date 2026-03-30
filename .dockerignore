@@ -6,6 +6,8 @@ dist
 .github
 notes
 coverage
+examples
+docs
 *.md
 !package.json
 .env
