@@ -340,9 +340,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             <div className="px-4 py-3 border-b border-border/50 space-y-1">
               {isPluginOnly ? (
                 <>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                    Plugin
-                  </p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Plugin</p>
                   <p className="text-sm font-medium truncate">{plugin!.name}</p>
                 </>
               ) : (
