@@ -41,7 +41,7 @@ export const ChatListItem = memo(function ChatListItem({
         <div className="flex items-baseline justify-between gap-2 mb-0.5">
           <h3 className="truncate text-sm font-medium text-foreground">{name}</h3>
           {lastMessageTime && (
-            <span className="shrink-0 text-[11px] text-muted-foreground whitespace-nowrap">
+            <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
               {lastMessageTime}
             </span>
           )}
@@ -51,7 +51,7 @@ export const ChatListItem = memo(function ChatListItem({
             {lastMessage ?? description ?? 'No messages yet'}
           </p>
           {unreadCount > 0 && (
-            <Badge className="absolute right-0 h-5 min-w-5 px-1.5 rounded-full text-[10px] font-semibold">
+            <Badge className="absolute right-0 h-5 min-w-5 px-1.5 rounded-full text-[11px] font-semibold">
               {unreadCount}
             </Badge>
           )}

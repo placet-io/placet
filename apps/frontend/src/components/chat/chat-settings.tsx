@@ -397,11 +397,9 @@ export const ChatSettings = memo(function ChatSettings({
                   </Button>
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Credentials are sent as an{' '}
-                <code className="bg-muted px-1 py-0.5 rounded text-[10px]">
-                  Authorization: Basic
-                </code>{' '}
+                <code className="bg-muted px-1 py-0.5 rounded text-xs">Authorization: Basic</code>{' '}
                 header.
               </p>
             </div>

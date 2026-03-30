@@ -14,7 +14,7 @@ export const FileTypeBadge = memo(function FileTypeBadge({
   filename,
 }: FileTypeBadgeProps) {
   return (
-    <Badge variant="outline" className="text-[10px] shrink-0">
+    <Badge variant="outline" className="text-xs shrink-0">
       {getFileTypeLabel(mimeType, filename)}
     </Badge>
   );

@@ -40,7 +40,7 @@ export const AttachmentCard = memo(function AttachmentCard({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">{attachment.filename}</p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {label} · {size}
         </p>
       </div>

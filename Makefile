@@ -109,10 +109,10 @@ test-e2e: ## Run e2e tests
 # ── Database ───────────────────────────────────────────────────────────────
 
 db-push: ## Push Prisma schema to database (dev/setup)
-	docker compose exec -T backend npx prisma db push
+	docker compose run --rm -T backend npx prisma db push
 
 db-migrate: ## Run Prisma migrations (production)
-	docker compose exec -T backend npx prisma migrate deploy
+	docker compose run --rm -T backend npx prisma migrate deploy
 
 # ── Utilities ──────────────────────────────────────────────────────────────
 

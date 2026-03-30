@@ -8,6 +8,9 @@ dist/
 out/
 build/
 
+# Next.js generated
+**/next-env.d.ts
+
 # Turbo
 .turbo/
 

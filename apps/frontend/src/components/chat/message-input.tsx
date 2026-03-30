@@ -136,9 +136,7 @@ export const MessageInput = memo(function MessageInput({
       {quotedMessage && !pendingFile && (
         <div className="mx-4 mt-2 flex items-center gap-2 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
           <div className="flex-1 min-w-0 border-l-2 border-primary/40 pl-2">
-            <p className="text-[10px] font-medium text-muted-foreground">
-              {quotedMessage.senderName}
-            </p>
+            <p className="text-xs font-medium text-muted-foreground">{quotedMessage.senderName}</p>
             <p className="text-xs text-foreground truncate">{quotedMessage.text || 'Attachment'}</p>
           </div>
           <Button
@@ -172,7 +170,7 @@ export const MessageInput = memo(function MessageInput({
           )}
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium truncate">{pendingFile.name}</p>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {(pendingFile.size / 1024).toFixed(0)} KB
             </p>
           </div>
