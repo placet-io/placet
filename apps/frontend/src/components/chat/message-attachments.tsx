@@ -174,7 +174,7 @@ export const MessageAttachments = memo(function MessageAttachments({
           loading="lazy"
         />
         {annotation && (
-          <span className="absolute top-1.5 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded-md bg-black/60 text-white backdrop-blur-sm">
+          <span className="absolute top-1.5 left-1.5 text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-black/60 text-white backdrop-blur-sm">
             Annotated
           </span>
         )}

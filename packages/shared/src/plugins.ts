@@ -94,7 +94,20 @@ export type SelectionResponse = z.infer<typeof SelectionResponseSchema>;
 
 export const FormFieldSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(['text', 'number', 'email', 'url', 'textarea', 'select', 'checkbox']),
+  type: z.enum([
+    'text',
+    'number',
+    'email',
+    'url',
+    'textarea',
+    'select',
+    'checkbox',
+    'date',
+    'time',
+    'datetime',
+    'range',
+    'password',
+  ]),
   label: z.string().min(1),
   required: z.boolean().optional(),
   placeholder: z.string().optional(),
@@ -107,6 +120,10 @@ export const FormFieldSchema = z.object({
     )
     .optional(),
   defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  step: z.number().optional(),
+  unit: z.string().optional(),
 });
 
 export const FormInputSchema = z.object({

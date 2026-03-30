@@ -4,6 +4,13 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { Link, Plus, Trash2, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Agent } from '@placet/shared';
@@ -143,17 +150,21 @@ export const WebhookSection = memo(function WebhookSection() {
           {/* Chat selector */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Chat</label>
-            <select
-              value={selectedAgent ?? ''}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground"
+            <Select
+              value={selectedAgent ?? undefined}
+              onValueChange={(val) => setSelectedAgent((val ?? '') as string)}
             >
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a chat…" />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Webhook URL */}
@@ -235,7 +246,7 @@ export const WebhookSection = memo(function WebhookSection() {
             </div>
             <p className="text-xs text-muted-foreground">
               Credentials are sent as an{' '}
-              <code className="bg-muted px-1 py-0.5 rounded text-[10px]">Authorization: Basic</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-xs">Authorization: Basic</code>{' '}
               header.
             </p>
           </div>

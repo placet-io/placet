@@ -340,7 +340,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             <div className="px-4 py-3 border-b border-border/50 space-y-1">
               {isPluginOnly ? (
                 <>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
                     Plugin
                   </p>
                   <p className="text-sm font-medium truncate">{plugin!.name}</p>
@@ -358,7 +358,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             {/* Message text context */}
             {messageText && (
               <div className="px-4 py-3 border-b border-border/50 overflow-auto max-h-40">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
                   Message
                 </p>
                 <div className="text-xs leading-relaxed">
@@ -370,7 +370,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             {/* Review actions */}
             {review && onReviewRespond && (
               <div className="flex-1 px-4 py-3 overflow-auto">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                   Review
                 </p>
                 <ReviewCard

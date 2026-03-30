@@ -222,7 +222,7 @@ export const MessageBubble = memo(function MessageBubble({
               <div className="flex items-center gap-2 mb-1 ml-1">
                 <span className="text-xs font-medium text-foreground">{senderName}</span>
                 {status && (
-                  <Badge variant={STATUS_VARIANT[status]} className="text-[10px] h-4 px-1.5">
+                  <Badge variant={STATUS_VARIANT[status]} className="text-xs h-4 px-1.5">
                     {status}
                   </Badge>
                 )}
@@ -246,6 +246,7 @@ export const MessageBubble = memo(function MessageBubble({
                   isUser
                     ? 'bg-primary text-primary-foreground rounded-tr-sm'
                     : 'bg-muted text-foreground rounded-tl-sm',
+                  review && 'md:min-w-[360px] lg:min-w-[420px] xl:min-w-[480px]',
                 )}
               >
                 {quotedName && quotedText && (
@@ -259,7 +260,7 @@ export const MessageBubble = memo(function MessageBubble({
                   >
                     <p
                       className={cn(
-                        'text-[10px] font-semibold',
+                        'text-xs font-semibold',
                         isUser ? 'text-primary-foreground/80' : 'text-primary',
                       )}
                     >
@@ -326,9 +327,9 @@ export const MessageBubble = memo(function MessageBubble({
             </div>
 
             <div className={cn('flex items-center gap-2 mt-1', isUser ? 'mr-1' : 'ml-1')}>
-              <span className="text-[10px] text-muted-foreground">{time}</span>
+              <span className="text-xs text-muted-foreground">{time}</span>
               {isUser && status && (
-                <Badge variant={STATUS_VARIANT[status]} className="text-[10px] h-4 px-1.5">
+                <Badge variant={STATUS_VARIANT[status]} className="text-xs h-4 px-1.5">
                   {status}
                 </Badge>
               )}
