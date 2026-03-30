@@ -1,0 +1,100 @@
+---
+title: Quickstart
+description: Get Placet running locally in under 5 minutes.
+---
+
+## Prerequisites
+
+- **Git**
+- **Node.js 22+**
+- **Docker & Docker Compose**
+
+## Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash git clone https://github.com/centerbitco/placet.git cd placet ```
+  </Step>
+  <Step title="Configure environment">
+    ```bash cp .env.example .env ``` Edit `.env` to set your desired admin email, password, and
+    other settings.
+  </Step>
+  <Step title="Start everything">
+    ```bash make setup ``` This installs dependencies, builds packages, starts all Docker services
+    (Postgres, MinIO, Backend, Frontend), runs migrations, and creates the initial user.
+  </Step>
+</Steps>
+
+## Access the services
+
+Once setup completes, the following services are available:
+
+| Service           | URL                              |
+| ----------------- | -------------------------------- |
+| **Frontend**      | `http://localhost:3000`          |
+| **Backend API**   | `http://localhost:3001`          |
+| **Swagger Docs**  | `http://localhost:3001/api/docs` |
+| **MinIO Console** | `http://localhost:9001`          |
+
+**Default login:** `admin@placet.local` / `changeme` (configurable in `.env`)
+
+## Send your first agent message
+
+<Steps>
+  <Step title="Create an API key">
+    Go to **Settings → API Keys** and create a new key.
+  </Step>
+  <Step title="Create an agent">
+    Go to **Settings → Agents** and create a new agent.
+  </Step>
+  <Step title="Send a message">
+    ```bash
+    curl -X POST http://localhost:3001/api/v1/messages \
+      -H "Authorization: Bearer hp_your-key-here" \
+      -H "Content-Type: application/json" \
+      -d '{"text": "Hello from my agent!", "status": "success"}'
+    ```
+  </Step>
+  <Step title="View the message">
+    Open the agent's chat in the frontend and your message appears in real-time.
+  </Step>
+</Steps>
+
+## Request human approval
+
+```bash
+curl -X POST http://localhost:3001/api/v1/messages \
+  -H "Authorization: Bearer hp_your-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Deploy v2.1 to production?",
+    "review": {
+      "type": "approval",
+      "payload": {
+        "options": [
+          { "id": "approve", "label": "Approve", "style": "primary" },
+          { "id": "reject", "label": "Reject", "style": "danger" }
+        ]
+      }
+    }
+  }'
+```
+
+The message appears with approval buttons. When the user clicks one, you receive the response via webhook or by polling the API.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="How It Works" icon="sitemap" href="/concepts/how-it-works">
+    Understand how agents and humans interact in Placet
+  </Card>
+  <Card title="Plugins" icon="puzzle-piece" href="/plugins/overview">
+    Build custom message types with the plugin system
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    Full REST API documentation
+  </Card>
+  <Card title="Self-Hosting" icon="server" href="/self-hosting">
+    Deploy Placet on your own infrastructure
+  </Card>
+</CardGroup>

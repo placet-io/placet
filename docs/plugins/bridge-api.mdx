@@ -1,0 +1,167 @@
+---
+title: Bridge API
+description: The Placet JavaScript API available inside plugin iframes.
+---
+
+## Overview
+
+Every plugin iframe gets a `Placet` global object, the **Bridge API**. It provides access to message data, environment variables, file handling, HTTP requests, and UI controls.
+
+## Properties
+
+| Property             | Type                      | Description                                                    |
+| -------------------- | ------------------------- | -------------------------------------------------------------- |
+| `Placet.data`        | `Record<string, unknown>` | Plugin input data from the message metadata                    |
+| `Placet.env`         | `Record<string, string>`  | Environment variables configured in Settings                   |
+| `Placet.attachments` | `AttachmentInfo[]`        | Array of attached files (`{ id, filename, mimeType, size }`)   |
+| `Placet.message`     | `MessageContext`          | Message context (`id`, `channelId`, `senderType`, `createdAt`) |
+| `Placet.theme`       | `'light' \| 'dark'`       | Current theme                                                  |
+| `Placet.review`      | `ReviewContext \| null`   | Review context (`{ type, status, payload }`) or `null`         |
+| `Placet.isPreview`   | `boolean`                 | `true` when rendered in the full-screen preview modal          |
+
+## Methods
+
+### `Placet.resize()`
+
+Resizes the iframe to fit its content. Call this after rendering.
+
+```javascript
+document.addEventListener('DOMContentLoaded', function () {
+  // ... render content ...
+  Placet.resize();
+});
+```
+
+### `Placet.fetch(url, options)`
+
+Makes an HTTP request **proxied through the backend server**. Respects the `maxHttpDomains` permission.
+
+```javascript
+Placet.fetch('https://api.example.com/data', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ key: Placet.env.API_KEY }),
+}).then(function (res) {
+  var json = JSON.parse(res.body);
+});
+```
+
+<Warning>
+  HTTP requests are **server-side proxied** through the backend. The backend enforces domain
+  allowlists, permissions, and timeout limits (30s).
+</Warning>
+
+### `Placet.getFile(attachmentId)`
+
+Returns file content as a base64 data URL.
+
+```javascript
+Placet.getFile(Placet.attachments[0].id).then(function (file) {
+  // file = { ok: true, data: "data:image/png;base64,...", mimeType: "image/png", filename: "photo.png" }
+});
+```
+
+### `Placet.getFileUrl(attachmentId)`
+
+Returns a download URL for the file.
+
+```javascript
+Placet.getFileUrl(Placet.attachments[0].id).then(function (result) {
+  // result = { ok: true, url: "/api/files/.../download" }
+});
+```
+
+### `Placet.toast(message, variant)`
+
+Shows a toast notification in the parent UI.
+
+```javascript
+Placet.toast('Done!', 'success'); // success, error, warning, info
+```
+
+### `Placet.emit(action, data)`
+
+Emits a custom action to the parent application.
+
+```javascript
+Placet.emit('respond', { approved: true });
+```
+
+### `Placet.respond(response)`
+
+Submits a review response. This is a **one-time operation** per pending review.
+
+```javascript
+Placet.respond({ approved: true })
+  .then(function (result) {
+    Placet.toast('Response submitted!', 'success');
+  })
+  .catch(function (err) {
+    // "Already responded to this review" or "No pending review"
+  });
+```
+
+### `Placet.on(event, handler)`
+
+Listens for events from the parent application.
+
+```javascript
+Placet.on('theme-changed', function (data) {
+  document.body.classList.toggle('dark', data.theme === 'dark');
+});
+```
+
+## Complete Example
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 16px;
+        background: transparent;
+      }
+      body.dark {
+        color: #e5e5e4;
+      }
+      .card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 16px;
+      }
+      body.dark .card {
+        border-color: #404040;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h3 id="title"></h3>
+      <p id="content"></p>
+      <button id="action">Submit</button>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (Placet.theme === 'dark') document.body.classList.add('dark');
+
+        document.getElementById('title').textContent = Placet.data.title;
+        document.getElementById('content').textContent = Placet.data.description;
+
+        document.getElementById('action').addEventListener('click', function () {
+          Placet.fetch(Placet.env.WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Placet.data),
+          }).then(function () {
+            Placet.toast('Submitted!', 'success');
+          });
+        });
+
+        Placet.resize();
+      });
+    </script>
+  </body>
+</html>
+```

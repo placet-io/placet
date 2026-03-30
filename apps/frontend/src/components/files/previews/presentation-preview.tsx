@@ -69,7 +69,9 @@ function usePresentationSlides(fileId: string) {
         const parser = new DOMParser();
 
         for (const file of slideFiles) {
-          const xml = await zip.file(file)!.async('text');
+          const zipEntry = zip.file(file);
+          if (!zipEntry) continue;
+          const xml = await zipEntry.async('text');
           const doc = parser.parseFromString(xml, 'application/xml');
           // Extract text from <a:t> elements
           const textElements = doc.getElementsByTagNameNS(

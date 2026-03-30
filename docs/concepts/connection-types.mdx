@@ -1,0 +1,255 @@
+---
+title: Connection Types
+description: How agents receive responses via WebSocket, Webhooks, and Long-Polling.
+---
+
+Placet supports three patterns for delivering human responses back to agents. You can use them independently or combine them.
+
+```mermaid
+flowchart LR
+    Human["👤 Human responds"] --> Backend["Placet Backend"]
+    Backend --> WS["WebSocket"]
+    Backend --> WH["Webhook"]
+    Backend --> LP["Long-Poll"]
+    WS --> Agent["🤖 Agent"]
+    WH --> Agent
+    LP --> Agent
+
+    style WS fill:#7c9cb5,color:#fff
+    style WH fill:#5a7d96,color:#fff
+    style LP fill:#8faec8,color:#fff
+```
+
+## Comparison
+
+| Feature                   | WebSocket           | Webhook                | Long-Polling   |
+| ------------------------- | ------------------- | ---------------------- | -------------- |
+| **Latency**               | Real-time           | Near real-time         | Up to 30s      |
+| **Direction**             | Bidirectional       | Push to agent          | Agent pulls    |
+| **Persistent connection** | Yes                 | No                     | No             |
+| **Firewall-friendly**     | Requires WS support | Agent needs public URL | Yes            |
+| **Best for**              | Interactive agents  | Background automations | Simple scripts |
+
+---
+
+## WebSocket
+
+Real-time bidirectional communication via [Socket.IO](https://socket.io/) on the `/ws` namespace.
+
+### How it works
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Placet
+    participant Human
+
+    Agent->>Placet: Connect to /ws (JWT auth)
+    Agent->>Placet: POST /api/v1/messages (with review)
+    Placet->>Human: Show in chat UI
+    Human->>Placet: Respond to review
+    Placet->>Agent: message:updated event (WebSocket)
+```
+
+### Events
+
+| Event              | Direction       | Description                         |
+| ------------------ | --------------- | ----------------------------------- |
+| `message:created`  | Server → Client | New message in a subscribed channel |
+| `review:responded` | Server → Client | Human completed a review            |
+| `review:expired`   | Server → Client | Review expired (default: 24h)       |
+| `agent:status`     | Server → Client | Agent ping status changed           |
+
+### Connection Example
+
+```typescript
+import { io } from 'socket.io-client';
+
+const socket = io('https://your-placet-instance.com/ws', {
+  auth: { token: 'your-jwt-token' },
+});
+
+socket.on('connect', () => {
+  console.log('Connected to Placet WebSocket');
+});
+
+socket.on('review:responded', (data) => {
+  console.log(`Review ${data.id} answered: ${data.review.response.selectedOption}`);
+});
+
+socket.on('message:created', (data) => {
+  console.log(`New message: ${data.text}`);
+});
+```
+
+<Note>
+  WebSocket connections use **JWT authentication** (not API keys). This is primarily used by the
+  frontend. For agent integrations, prefer webhooks or long-polling with API keys.
+</Note>
+
+---
+
+## Webhooks
+
+Receive HTTP callbacks when a human responds. No persistent connection required, Placet pushes to your endpoint.
+
+### How it works
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Placet
+    participant Human
+
+    Agent->>Placet: POST /api/v1/messages (with webhookUrl)
+    Placet->>Human: Show in chat UI
+    Human->>Placet: Respond to review
+    Placet->>Agent: POST webhookUrl (response payload)
+```
+
+### Webhook Priority
+
+Placet dispatches webhooks in a 3-tier priority order:
+
+1. **Message-level `webhookUrl`**: set per message in the request body
+2. **Agent-level `webhookUrl`**: configured on the agent in settings
+3. **Legacy callback**: fallback for backward compatibility
+
+The first matching webhook URL is used. If multiple tiers are configured, higher priority wins.
+
+### Setting a Webhook
+
+**Per message:**
+
+```bash
+curl -X POST "$PLACET_URL/api/v1/messages" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channelId": "your-agent-id",
+    "text": "Approve deployment?",
+    "webhookUrl": "https://your-server.com/webhook",
+    "review": {
+      "type": "approval",
+      "payload": {
+        "options": [
+          {"id": "approve", "label": "Approve", "style": "primary"},
+          {"id": "reject", "label": "Reject", "style": "danger"}
+        ]
+      }
+    }
+  }'
+```
+
+### Webhook Security
+
+- **SSRF protection**: Placet validates webhook URLs against an allowlist and blocks private/internal IPs
+- **Timeout**: Webhook requests have a 10-second timeout
+- **Retries**: Failed deliveries are not retried (design your agent to handle missed webhooks)
+
+<Warning>
+  Your webhook endpoint must be publicly accessible. Placet blocks requests to private IP ranges
+  (`10.x.x.x`, `172.16-31.x.x`, `192.168.x.x`, `127.x.x.x`) to prevent SSRF attacks.
+</Warning>
+
+---
+
+## Long-Polling
+
+The simplest pattern: your agent sends a request and waits for a response. No server infrastructure needed.
+
+### How it works
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Placet
+    participant Human
+
+    Agent->>Placet: POST /api/v1/messages (with review)
+    Placet->>Human: Show in chat UI
+    Agent->>Placet: GET /api/v1/reviews/{id}/wait
+    Note over Placet: Polls DB every 2s, max 30s
+    Human->>Placet: Respond to review
+    Placet->>Agent: 200 OK (review response)
+```
+
+### Usage
+
+```bash
+# 1. Send a message with a review
+RESPONSE=$(curl -s -X POST "$PLACET_URL/api/v1/messages" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channelId": "your-agent-id",
+    "text": "Continue processing?",
+    "review": {
+      "type": "approval",
+      "payload": {
+        "options": [
+          {"id": "yes", "label": "Yes"},
+          {"id": "no", "label": "No"}
+        ]
+      }
+    }
+  }')
+
+MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.id')
+
+# 2. Long-poll for the response
+curl -s "$PLACET_URL/api/v1/reviews/$MESSAGE_ID/wait?channel=your-agent-id&timeout=30000" \
+  -H "Authorization: Bearer $PLACET_API_KEY"
+```
+
+### Parameters
+
+| Parameter | Default    | Description                           |
+| --------- | ---------- | ------------------------------------- |
+| `channel` | _required_ | Agent/channel ID                      |
+| `timeout` | `30000`    | Max wait time in ms (capped at 30000) |
+
+### Response States
+
+| `status`    | Meaning                                                |
+| ----------- | ------------------------------------------------------ |
+| `completed` | Human responded, `response` field contains the answer |
+| `pending`   | Timeout reached, no response yet, retry the poll      |
+| `expired`   | Review expired (default 24h), no response will come   |
+
+<Tip>
+  If the first poll returns `pending`, simply call the endpoint again. The review stays active until
+  a human responds or it expires (default 24 hours, max 36 hours).
+</Tip>
+
+---
+
+## Choosing a Pattern
+
+<AccordionGroup>
+  <Accordion title="I'm building an interactive chat agent">
+    Use **Long-Polling** with the `/api/v1/reviews/{id}/wait` endpoint. It's the simplest to implement and works from any environment. Send a message, poll for the response, then continue your logic.
+  </Accordion>
+
+<Accordion title="I'm running background automations (CI/CD, cron)">
+  Use **Webhooks**. Set a `webhookUrl` on each message and let Placet push responses to your server.
+  This way your automation doesn't block while waiting.
+</Accordion>
+
+<Accordion title="I'm building a web dashboard that shows live updates">
+  Use **WebSocket**. Connect via Socket.IO and subscribe to real-time events. This is how the Placet
+  frontend itself works.
+</Accordion>
+
+  <Accordion title="I just want to send notifications without waiting">
+    Use **fire-and-forget**: simply `POST /api/v1/messages` without a `review` field. No need for any response mechanism. Users still receive push notifications and see the message in real-time.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Push Notifications
+
+In addition to the three agent-facing delivery patterns above, Placet sends **browser push notifications** to users when new messages arrive. This works independently of which pattern the agent uses: users receive a notification even when the browser tab is in the background or closed.
+
+Push notifications are powered by the Web Push API (VAPID) and can be enabled per user in **Settings > Appearance**.

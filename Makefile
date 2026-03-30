@@ -9,12 +9,14 @@
 #   make validate  — Run lint + format check + build across all packages
 #   make test      — Run unit + e2e tests
 #   make lint      — Run lint only
+#   make export-openapi — Export OpenAPI spec from backend to docs/
+#   make docs-dev  — Start Mintlify docs dev server
 #   make logs      — Tail backend logs
 #   make clean     — Remove volumes + containers + node_modules
 # ─────────────────────────────────────────────────────────────────────────────
 
 .PHONY: setup start stop update validate validate-plugin test lint test-unit test-e2e \
-        build logs clean reset db-push db-migrate help
+        build logs clean reset db-push db-migrate export-openapi docs-dev help
 
 SHELL := /bin/bash
 
@@ -113,6 +115,19 @@ db-push: ## Push Prisma schema to database (dev/setup)
 
 db-migrate: ## Run Prisma migrations (production)
 	docker compose run --rm -T backend npx prisma migrate deploy
+
+# ── Docs ───────────────────────────────────────────────────────────────────
+
+BACKEND_URL ?= http://localhost:3001
+
+export-openapi: ## Export OpenAPI spec from running backend to docs/openapi.json
+	@echo "══ Fetching OpenAPI spec from $(BACKEND_URL)/api/docs-json ══"
+	@curl -sf "$(BACKEND_URL)/api/docs-json" | python3 -m json.tool > docs/openapi.json \
+		|| (echo "❌ Backend not reachable at $(BACKEND_URL). Run 'make start' first." && exit 1)
+	@python3 scripts/prepare-openapi-for-mintlify.py docs/openapi.json
+
+docs-dev: ## Start Mintlify docs dev server (run export-openapi first)
+	cd docs && npx mintlify dev
 
 # ── Utilities ──────────────────────────────────────────────────────────────
 

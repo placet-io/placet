@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/Real--Time-10B981?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Real-Time" />
   <img src="https://img.shields.io/badge/REST%20API-F97316?style=for-the-badge&logo=swagger&logoColor=white" alt="REST API" />
   <img src="https://img.shields.io/badge/Human--in--the--Loop-3B82F6?style=for-the-badge&logo=users&logoColor=white" alt="Human-in-the-Loop" />
+  <a href="https://docs.placet.io"><img src="https://img.shields.io/badge/Docs-docs.placet.io-6366F1?style=for-the-badge" alt="Documentation" /></a>
 </p>
 
 <p align="center">
@@ -278,6 +279,7 @@ placet/
 ├── apps/
 │   ├── backend/          ← NestJS + Fastify + Prisma
 │   └── frontend/         ← Next.js 16 + TailwindCSS v4 + shadcn/ui
+├── examples/             ← Integration examples (Python, TypeScript, WebSocket, LangChain)
 ├── packages/
 │   ├── shared/           ← Zod schemas + TypeScript types
 │   └── plugins/          ← Plugin directory (auto-discovered)
@@ -329,13 +331,16 @@ See [`.env.example`](.env.example) for all available variables including databas
 
 ---
 
-## API Documentation
+## Documentation
 
-Interactive Swagger docs are available at **`/api/docs`** when the backend is running.
+The full documentation is available at **[docs.placet.io](https://docs.placet.io)**.
 
-For the Agent API reference, see the [Swagger docs](http://localhost:3001/api/docs).
-For the Plugin development guide, see [docs/plugins.md](docs/plugins.md).
-For the Plugin architecture overview, see [docs/plugin-architecture.md](docs/plugin-architecture.md).
+- [Quickstart](https://docs.placet.io/quickstart)
+- [Agent API Reference](https://docs.placet.io/api-reference)
+- [Integration Examples](https://docs.placet.io/integrations/overview) — Python, TypeScript, WebSocket, LangChain
+- [Plugin Development](https://docs.placet.io/plugins/overview)
+
+Interactive Swagger docs are also available locally at **`/api/docs`** when the backend is running.
 
 ---
 

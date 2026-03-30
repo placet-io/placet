@@ -67,7 +67,7 @@ export const AgentStatusRow = memo(function AgentStatusRow({ agent }: AgentStatu
   const toggle = useCallback(() => setOpen((v) => !v), []);
 
   const status = (agent.status ?? 'offline') as AgentStatus;
-  const cfg = STATUS_CONFIG[status];
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.offline;
 
   // Fetch stats when row is first expanded
   useEffect(() => {

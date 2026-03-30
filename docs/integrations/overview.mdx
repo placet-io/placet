@@ -1,0 +1,42 @@
+---
+title: Integrations
+description: Connect your AI agents and automations to Placet.
+---
+
+Placet provides a simple REST API that any HTTP client can use. Connect AI agents, automation workflows, CI/CD pipelines, or no-code tools. Below are examples for popular frameworks and libraries.
+
+<CardGroup cols={2}>
+  <Card title="Python" icon="python" href="/integrations/python">
+    Direct integration using `requests` or `httpx`
+  </Card>
+  <Card title="LangChain" icon="link-horizontal" href="/integrations/langchain">
+    Use Placet as a human-in-the-loop tool in LangChain agents
+  </Card>
+  <Card title="TypeScript / Node.js" icon="js" href="/integrations/typescript">
+    Integrate with any Node.js runtime or framework
+  </Card>
+  <Card title="cURL / Shell" icon="terminal" href="/integrations/curl">
+    Quick integration for shell scripts and cron jobs
+  </Card>
+</CardGroup>
+
+## Authentication
+
+All integrations use the same authentication method: an **API key** passed as a Bearer token.
+
+```bash
+Authorization: Bearer hp_your-api-key
+```
+
+Create API keys in **Settings → API Keys** in the Placet web UI.
+
+## Base URL
+
+All agent-facing endpoints live under `/api/v1/`:
+
+```
+https://your-placet-instance.com/api/v1/messages
+https://your-placet-instance.com/api/v1/reviews
+https://your-placet-instance.com/api/v1/files
+https://your-placet-instance.com/api/v1/status
+```

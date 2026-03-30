@@ -1,0 +1,6 @@
+requests>=2.31
+python-dotenv>=1.0
+python-socketio[client]>=5.11
+langchain-core>=0.3
+langchain-openai>=0.3
+langchain>=0.3

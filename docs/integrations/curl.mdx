@@ -1,0 +1,91 @@
+---
+title: cURL
+description: Quick Placet integration for shell scripts and cron jobs.
+---
+
+## Setup
+
+```bash
+export PLACET_URL="https://your-placet-instance.com"
+export PLACET_API_KEY="hp_your-api-key"
+export PLACET_CHANNEL="your-agent-id"
+```
+
+## Send a Message
+
+```bash
+curl -X POST "$PLACET_URL/api/v1/messages" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channelId": "'"$PLACET_CHANNEL"'",
+    "text": "Backup completed at '"$(date)"'",
+    "status": "success"
+  }'
+```
+
+## Upload a File
+
+```bash
+curl -X POST "$PLACET_URL/api/v1/files/store" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -F "file=@report.pdf" \
+  -F "channelId=$PLACET_CHANNEL"
+```
+
+## Report Agent Status
+
+```bash
+curl -X POST "$PLACET_URL/api/v1/status/ping" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"agentId": "'"$PLACET_CHANNEL"'", "status": "active"}'
+```
+
+## Request Approval and Wait
+
+```bash
+# Send approval request
+RESPONSE=$(curl -s -X POST "$PLACET_URL/api/v1/messages" \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channelId": "'"$PLACET_CHANNEL"'",
+    "text": "Run database migration?",
+    "status": "warning",
+    "review": {
+      "type": "approval",
+      "payload": {
+        "options": [
+          {"id": "approve", "label": "Approve", "style": "primary"},
+          {"id": "reject", "label": "Reject", "style": "danger"}
+        ]
+      }
+    }
+  }')
+
+MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.id')
+
+# Wait for human response (long-poll, 30s timeout)
+RESULT=$(curl -s "$PLACET_URL/api/v1/reviews/$MESSAGE_ID/wait?channel=$PLACET_CHANNEL&timeout=30000" \
+  -H "Authorization: Bearer $PLACET_API_KEY")
+
+STATUS=$(echo "$RESULT" | jq -r '.status')
+SELECTED=$(echo "$RESULT" | jq -r '.message.review.response.selectedOption')
+
+if [ "$STATUS" = "completed" ] && [ "$SELECTED" = "approve" ]; then
+  echo "Approved, running migration..."
+else
+  echo "Rejected or timed out, aborting."
+  exit 1
+fi
+```
+
+## Download a File
+
+```bash
+ATTACHMENT_ID="your-attachment-id"
+curl -o downloaded.pdf \
+  -H "Authorization: Bearer $PLACET_API_KEY" \
+  "$PLACET_URL/api/v1/files/$ATTACHMENT_ID/download"
+```
