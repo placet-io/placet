@@ -58,6 +58,7 @@ sequenceDiagram
 | `message:created`  | Server → Client | New message in a subscribed channel |
 | `review:responded` | Server → Client | Human completed a review            |
 | `review:expired`   | Server → Client | Review expired (default: 24h)       |
+| `message:delivery` | Server → Client | Delivery status changed             |
 | `agent:status`     | Server → Client | Agent ping status changed           |
 
 ### Connection Example
@@ -145,7 +146,7 @@ curl -X POST "$PLACET_URL/api/v1/messages" \
 
 - **SSRF protection**: Placet validates webhook URLs against an allowlist and blocks private/internal IPs
 - **Timeout**: Webhook requests have a 10-second timeout
-- **Retries**: Failed deliveries are not retried (design your agent to handle missed webhooks)
+- **Retries**: Failed deliveries can be retried via the UI retry button or the `POST /api/messages/{id}/retry` endpoint
 
 <Warning>
   Your webhook endpoint must be publicly accessible. Placet blocks requests to private IP ranges
@@ -211,8 +212,8 @@ curl -s "$PLACET_URL/api/v1/reviews/$MESSAGE_ID/wait?channel=your-agent-id&timeo
 
 ### Response States
 
-| `status`    | Meaning                                                |
-| ----------- | ------------------------------------------------------ |
+| `status`    | Meaning                                               |
+| ----------- | ----------------------------------------------------- |
 | `completed` | Human responded, `response` field contains the answer |
 | `pending`   | Timeout reached, no response yet, retry the poll      |
 | `expired`   | Review expired (default 24h), no response will come   |
@@ -221,6 +222,54 @@ curl -s "$PLACET_URL/api/v1/reviews/$MESSAGE_ID/wait?channel=your-agent-id&timeo
   If the first poll returns `pending`, simply call the endpoint again. The review stays active until
   a human responds or it expires (default 24 hours, max 36 hours).
 </Tip>
+
+---
+
+## Delivery Status
+
+Placet tracks whether webhooks were delivered successfully and whether the agent acknowledged receipt. This provides WhatsApp-style delivery checkmarks in the UI.
+
+### Status Values
+
+| Status              | Icon      | Meaning                               |
+| ------------------- | --------- | ------------------------------------- |
+| `sent`              | ✓         | Message stored, webhook not yet sent  |
+| `webhook_delivered` | ✓✓        | Webhook received 2xx response         |
+| `webhook_failed`    | ✓ ❌      | Webhook delivery failed               |
+| `agent_received`    | ✓✓ (blue) | Agent explicitly acknowledged receipt |
+
+### Agent Acknowledgment
+
+Agents can explicitly confirm they received and processed a message using the ACK endpoint:
+
+```bash
+curl -X POST "$PLACET_URL/api/v1/messages/$MESSAGE_ID/ack?channel=$AGENT_ID" \
+  -H "Authorization: Bearer $PLACET_API_KEY"
+```
+
+This updates the delivery status to `agent_received` and notifies the frontend in real-time.
+
+### Retry Failed Deliveries
+
+When a webhook delivery fails, users see a retry button in the chat UI. This can also be triggered via API:
+
+```bash
+curl -X POST "$PLACET_URL/api/messages/$MESSAGE_ID/retry" \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+The retry re-sends the original webhook payload (either a `message:created` or `review:responded` event).
+
+### WebSocket Events
+
+The `message:delivery` event is emitted whenever delivery status changes:
+
+```json
+{
+  "messageId": "msg_abc123",
+  "deliveryStatus": "webhook_delivered"
+}
+```
 
 ---
 

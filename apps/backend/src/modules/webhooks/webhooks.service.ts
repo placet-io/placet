@@ -153,7 +153,7 @@ export class WebhooksService {
     callback: WebhookCallback,
     payload: Record<string, unknown>,
     logContext?: WebhookLogContext,
-  ) {
+  ): Promise<{ success: boolean; statusCode: number }> {
     await this.validateUrl(callback.url);
 
     const startTime = Date.now();
@@ -196,6 +196,8 @@ export class WebhooksService {
             this.logger.error('Failed to write outbound API log', err);
           });
       }
+
+      return { success: response.ok, statusCode: response.status };
     } catch (error) {
       const durationMs = Date.now() - startTime;
 
@@ -222,6 +224,8 @@ export class WebhooksService {
             this.logger.error('Failed to write outbound API log', err);
           });
       }
+
+      return { success: false, statusCode: 0 };
     }
   }
 }

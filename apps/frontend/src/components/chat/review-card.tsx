@@ -11,6 +11,7 @@ import {
   List,
   Loader2,
   MessageSquare,
+  RefreshCw,
   Type,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -523,16 +524,21 @@ function CompletedResponse({ review }: { review: Review }) {
 interface ReviewCardProps {
   review: Review;
   messageId: string;
+  deliveryStatus?: string | null;
   onRespond: (messageId: string, response: Record<string, unknown>) => Promise<void>;
+  onRetryDelivery?: (messageId: string) => Promise<void>;
 }
 
 export const ReviewCard = memo(function ReviewCard({
   review,
   messageId,
+  deliveryStatus,
   onRespond,
+  onRetryDelivery,
 }: ReviewCardProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const handleRespond = useCallback(
     async (response: Record<string, unknown>) => {
@@ -549,6 +555,18 @@ export const ReviewCard = memo(function ReviewCard({
     },
     [messageId, onRespond, review.status],
   );
+
+  const handleRetry = useCallback(async () => {
+    if (!onRetryDelivery) return;
+    try {
+      setRetrying(true);
+      await onRetryDelivery(messageId);
+    } catch {
+      // delivery event via socket will update status
+    } finally {
+      setRetrying(false);
+    }
+  }, [messageId, onRetryDelivery]);
 
   const isPending = review.status === 'pending';
   const statusCfg = STATUS_CONFIG[review.status] ?? STATUS_CONFIG.pending;
@@ -596,6 +614,30 @@ export const ReviewCard = memo(function ReviewCard({
       )}
 
       {submitError && <p className="text-xs text-destructive">{submitError}</p>}
+
+      {review.status === 'completed' && deliveryStatus === 'webhook_failed' && onRetryDelivery && (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <span>Webhook delivery failed</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs gap-1"
+            disabled={retrying}
+            onClick={handleRetry}
+          >
+            {retrying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {review.status === 'completed' && deliveryStatus === 'webhook_delivered' && (
+        <p className="text-xs text-muted-foreground">✓✓ Delivered to agent</p>
+      )}
+
+      {review.status === 'completed' && deliveryStatus === 'agent_received' && (
+        <p className="text-xs text-blue-500">✓✓ Acknowledged by agent</p>
+      )}
 
       {review.expiresAt && isPending && (
         <p className="text-xs text-muted-foreground">

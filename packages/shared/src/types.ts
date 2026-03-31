@@ -34,6 +34,14 @@ export type HttpMethod = z.infer<typeof HttpMethodSchema>;
 export const AgentStatusSchema = z.enum(['active', 'busy', 'error', 'offline']);
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 
+export const DeliveryStatusSchema = z.enum([
+  'sent',
+  'webhook_delivered',
+  'webhook_failed',
+  'agent_received',
+]);
+export type DeliveryStatus = z.infer<typeof DeliveryStatusSchema>;
+
 // ── Core Entity Schemas ─────────────────────────────────────────────────────
 
 export const ReviewCallbackSchema = z.object({
@@ -127,6 +135,7 @@ export const MessageSchema = z.object({
   status: MessageStatusSchema.nullish(),
   review: ReviewSchema.nullish(),
   metadata: z.record(z.string(), z.unknown()).nullish(),
+  deliveryStatus: DeliveryStatusSchema.optional(),
   createdAt: z.string(),
   attachments: z.array(AttachmentSchema).optional(),
 });

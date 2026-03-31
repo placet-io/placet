@@ -79,15 +79,16 @@ model ApiKey {
 }
 
 model Message {
-  id         String   @id @default(cuid())
-  channelId  String   @map("channel_id") // = agent_id
-  senderType String   @map("sender_type") // 'agent' | 'user'
-  senderId   String   @map("sender_id")
-  text       String? // markdown content, nullable for pure attachments
-  status     String? // 'info' | 'success' | 'warning' | 'error'
-  review     Json? // Review object (see plan)
-  metadata   Json? // free-form additional data
-  createdAt  DateTime @default(now()) @map("created_at")
+  id             String   @id @default(cuid())
+  channelId      String   @map("channel_id") // = agent_id
+  senderType     String   @map("sender_type") // 'agent' | 'user'
+  senderId       String   @map("sender_id")
+  text           String? // markdown content, nullable for pure attachments
+  status         String? // 'info' | 'success' | 'warning' | 'error'
+  review         Json? // Review object (see plan)
+  metadata       Json? // free-form additional data
+  deliveryStatus String   @default("sent") @map("delivery_status") // 'sent' | 'webhook_delivered' | 'webhook_failed' | 'agent_received'
+  createdAt      DateTime @default(now()) @map("created_at")
 
   agent       Agent        @relation(fields: [channelId], references: [id], onDelete: Cascade)
   attachments Attachment[]

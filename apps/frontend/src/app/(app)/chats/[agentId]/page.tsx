@@ -39,6 +39,7 @@ export default function ChatThreadPage() {
     loadOlder,
     respondToReview,
     sendAsMessage,
+    retryDelivery,
   } = useMessages(agentId);
 
   // Clear unread badge and mark as read on server when entering chat
@@ -110,6 +111,7 @@ export default function ChatThreadPage() {
             onReviewRespond={respondToReview}
             onReply={handleReply}
             onSendAsMessage={sendAsMessage}
+            onRetryDelivery={retryDelivery}
           />
           <MessageInput
             onSend={handleSend}

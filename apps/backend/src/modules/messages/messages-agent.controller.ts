@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -154,5 +155,37 @@ export class MessagesAgentController {
     @Query('channel') channel: string,
   ) {
     return this.messagesService.deleteByAgent(req.user.id, id, channel);
+  }
+
+  @Post(':id/ack')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Acknowledge receipt of a message' })
+  @ApiOkResponse({
+    description: 'Message acknowledged',
+    schema: {
+      type: 'object',
+      properties: { acknowledged: { type: 'boolean', example: true } },
+    },
+  })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
+  })
+  acknowledge(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Query('channel') channel: string,
+  ) {
+    return this.messagesService.acknowledgeMessage(req.user.id, id, channel);
   }
 }
