@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-03-31
+
+### Added
+
+- **Inbox view** — centralized review inbox across all agents with real-time updates, detail panel, and auto-navigation after response
+- **Delivery status tracking** — WhatsApp-style checkmarks for message delivery (✓ sent, ✓✓ webhook delivered, ✓✓ blue agent acknowledged)
+- `POST /api/v1/messages/:id/ack` — agent endpoint to explicitly acknowledge message receipt
+- `POST /api/messages/:id/retry` — retry failed webhook deliveries from the UI
+- `message:delivery` WebSocket event — real-time delivery status updates to the frontend
+- `delivery_status` column on messages (schema: `sent` → `webhook_delivered` / `webhook_failed` → `agent_received`)
+- Webhook notification on review expiry — agents now receive a `review:expired` webhook callback
+- Retry button on review cards when webhook delivery fails
+- Delivery status section in connection-types documentation
+
+### Fixed
+
+- Webhook `headers` and `auth` from agent settings were never passed to `dispatch()` — now correctly applied via `buildAgentWebhook()` helper
+- Webhook auth object was created with empty values when `username`/`password` were missing — now guards against incomplete auth
+- `dispatch()` was fire-and-forget (void) — now returns `{ success, statusCode }` for delivery tracking
+
 ## [0.2.0] — 2026-03-30
 
 ### Added
