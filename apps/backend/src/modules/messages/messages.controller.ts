@@ -76,17 +76,23 @@ export class MessagesController {
   }
 
   @Get('reviews')
-  @ApiOperation({ summary: 'Get all pending reviews across agents' })
+  @ApiOperation({ summary: 'Get reviews across agents' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['pending', 'completed', 'expired', 'all'],
+    description: 'Filter by review status (default: pending)',
+  })
   @ApiOkResponse({
-    description: 'List of messages with pending reviews',
+    description: 'List of messages with reviews',
     type: [MessageItemResponse],
   })
   @ApiUnauthorizedResponse({
     description: 'Not authenticated',
     type: ErrorResponse,
   })
-  getPendingReviews(@Req() req: RequestWithUser) {
-    return this.messagesService.getPendingReviews(req.user.id);
+  getReviews(@Req() req: RequestWithUser, @Query('status') status?: string) {
+    return this.messagesService.getReviews(req.user.id, status);
   }
 
   @Post()

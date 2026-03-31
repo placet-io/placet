@@ -192,7 +192,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <>
-      <div className="overflow-x-clip">
+      <div className="overflow-x-clip" data-message-id={messageId}>
         <div
           ref={swipeRef}
           className={cn(
