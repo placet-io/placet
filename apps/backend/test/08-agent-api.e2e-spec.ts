@@ -179,6 +179,41 @@ describe('Agent API (/api/v1/)', () => {
       expect(body.status).toBe('timeout');
     });
 
+    it('should acknowledge a message via agent API', async () => {
+      // Send a fresh message to ACK (agentMessageId will be deleted later)
+      const createRes = await request(httpServer)
+        .post('/api/v1/messages')
+        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .send({ channelId: state.agentId, text: 'Message to acknowledge' })
+        .expect(201);
+
+      const msgId = (createRes.body as MessageResponse).id;
+
+      const res = await request(httpServer)
+        .post(`/api/v1/messages/${msgId}/ack?channel=${state.agentId}`)
+        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .expect(200);
+
+      const body = res.body as { acknowledged: boolean };
+      expect(body.acknowledged).toBe(true);
+
+      // Verify the delivery status was updated
+      const getRes = await request(httpServer)
+        .get(`/api/v1/messages/${msgId}?channel=${state.agentId}`)
+        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .expect(200);
+
+      const msg = getRes.body as MessageResponse;
+      expect(msg.deliveryStatus).toBe('agent_received');
+    });
+
+    it('should return 404 when acknowledging non-existent message', () => {
+      return request(httpServer)
+        .post(`/api/v1/messages/nonexistent/ack?channel=${state.agentId}`)
+        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .expect(404);
+    });
+
     it('should delete a message via agent API', async () => {
       const res = await request(httpServer)
         .delete(

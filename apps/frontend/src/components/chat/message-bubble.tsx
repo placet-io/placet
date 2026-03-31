@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize2, Reply } from 'lucide-react';
+import { Maximize2, Reply, Check, CheckCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
@@ -12,7 +12,7 @@ import { MessageAttachments } from './message-attachments';
 import { FilePreviewModal } from './file-preview-modal';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format-date';
-import type { Attachment, Review } from '@placet/shared';
+import type { Attachment, DeliveryStatus, Review } from '@placet/shared';
 import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
 
 interface MessageBubbleProps {
@@ -27,6 +27,7 @@ interface MessageBubbleProps {
   review?: Review | null;
   metadata?: Record<string, unknown> | null;
   attachments?: Attachment[];
+  deliveryStatus?: DeliveryStatus | null;
   onReviewRespond?: (
     messageId: string,
     response: Record<string, unknown>,
@@ -34,6 +35,7 @@ interface MessageBubbleProps {
   ) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
+  onRetryDelivery?: (messageId: string) => Promise<void>;
 }
 
 const STATUS_VARIANT = {
@@ -57,9 +59,11 @@ export const MessageBubble = memo(function MessageBubble({
   review,
   metadata,
   attachments = [],
+  deliveryStatus,
   onReviewRespond,
   onReply,
   onSendAsMessage,
+  onRetryDelivery,
 }: MessageBubbleProps) {
   const isUser = senderType === 'user';
   const time = formatTime(createdAt);
@@ -312,7 +316,13 @@ export const MessageBubble = memo(function MessageBubble({
                 )}
 
                 {review && onReviewRespond && !pluginName && (
-                  <ReviewCard review={review} messageId={messageId} onRespond={onReviewRespond} />
+                  <ReviewCard
+                    review={review}
+                    messageId={messageId}
+                    deliveryStatus={deliveryStatus}
+                    onRespond={onReviewRespond}
+                    onRetryDelivery={onRetryDelivery}
+                  />
                 )}
               </div>
               {!isUser && onReply && (
@@ -327,8 +337,34 @@ export const MessageBubble = memo(function MessageBubble({
               )}
             </div>
 
-            <div className={cn('flex items-center gap-2 mt-1', isUser ? 'mr-1' : 'ml-1')}>
+            <div className={cn('flex items-center gap-1 mt-1', isUser ? 'mr-1' : 'ml-1')}>
               <span className="text-xs text-muted-foreground">{time}</span>
+              {isUser && deliveryStatus && (
+                <span
+                  className={cn(
+                    'inline-flex',
+                    deliveryStatus === 'agent_received'
+                      ? 'text-blue-500'
+                      : deliveryStatus === 'webhook_failed'
+                        ? 'text-destructive'
+                        : 'text-muted-foreground',
+                  )}
+                  title={
+                    deliveryStatus === 'sent'
+                      ? 'Sent'
+                      : deliveryStatus === 'webhook_delivered'
+                        ? 'Delivered to agent'
+                        : deliveryStatus === 'agent_received'
+                          ? 'Acknowledged by agent'
+                          : 'Delivery failed'
+                  }
+                >
+                  {deliveryStatus === 'sent' && <Check size={12} />}
+                  {deliveryStatus === 'webhook_delivered' && <CheckCheck size={12} />}
+                  {deliveryStatus === 'agent_received' && <CheckCheck size={12} />}
+                  {deliveryStatus === 'webhook_failed' && <Check size={12} />}
+                </span>
+              )}
               {isUser && status && (
                 <Badge variant={STATUS_VARIANT[status]} className="text-xs h-4 px-1.5">
                   {status}

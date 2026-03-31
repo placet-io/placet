@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -139,5 +140,31 @@ export class MessagesController {
     @Body() dto: RespondReviewDto,
   ) {
     return this.messagesService.respondToReview(id, req.user.id, dto);
+  }
+
+  @Post(':id/retry')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Retry failed webhook delivery for a message' })
+  @ApiOkResponse({
+    description: 'Webhook delivery retried',
+    schema: {
+      type: 'object',
+      properties: { retried: { type: 'boolean', example: true } },
+    },
+  })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({
+    description: 'Not your agent / Cannot retry',
+    type: ErrorResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  retryDelivery(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.messagesService.retryWebhookDelivery(id, req.user.id);
   }
 }

@@ -19,4 +19,5 @@ export interface MessageResponse {
   text?: string;
   status?: string;
   review?: unknown;
+  deliveryStatus?: string;
 }

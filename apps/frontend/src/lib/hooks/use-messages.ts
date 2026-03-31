@@ -87,12 +87,24 @@ export function useMessages(channelId: string | null) {
       setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
     };
 
+    const handleDelivery = (event: { messageId: string; deliveryStatus: string }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === event.messageId
+            ? { ...m, deliveryStatus: event.deliveryStatus as Message['deliveryStatus'] }
+            : m,
+        ),
+      );
+    };
+
     socket.on('message:created', handleMessageCreated);
     socket.on('review:responded', handleReviewResponded);
+    socket.on('message:delivery', handleDelivery);
 
     return () => {
       socket.off('message:created', handleMessageCreated);
       socket.off('review:responded', handleReviewResponded);
+      socket.off('message:delivery', handleDelivery);
       unsubscribe(channelId);
     };
   }, [channelId, socket, connected, subscribe, unsubscribe, markRead]);
@@ -156,6 +168,12 @@ export function useMessages(channelId: string | null) {
     [channelId],
   );
 
+  const retryDelivery = useCallback(async (messageId: string) => {
+    await api<{ retried: boolean }>(`/api/messages/${messageId}/retry`, {
+      method: 'POST',
+    });
+  }, []);
+
   return {
     messages,
     loading,
@@ -168,5 +186,6 @@ export function useMessages(channelId: string | null) {
     loadOlder,
     respondToReview,
     sendAsMessage,
+    retryDelivery,
   };
 }

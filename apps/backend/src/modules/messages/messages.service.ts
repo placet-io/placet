@@ -13,7 +13,10 @@ import {
 } from '@placet/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
-import { WebhooksService } from '../webhooks/webhooks.service';
+import {
+  WebhooksService,
+  type WebhookCallback,
+} from '../webhooks/webhooks.service';
 import { PushService } from '../push/push.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { RespondReviewDto } from './dto/respond-review.dto';
@@ -80,6 +83,67 @@ export class MessagesService {
       include: { attachments: true },
     });
     return msg!;
+  }
+
+  /** Build a WebhookCallback with the agent's configured auth/headers. */
+  private buildAgentWebhook(
+    agent: {
+      webhookUrl?: string | null;
+      webhookHeaders?: unknown;
+      webhookAuth?: unknown;
+    },
+    urlOverride?: string,
+  ): WebhookCallback | null {
+    const url = urlOverride ?? agent.webhookUrl;
+    if (!url) return null;
+    const headers = (agent.webhookHeaders ?? undefined) as
+      | Record<string, string>
+      | undefined;
+    const rawAuth = agent.webhookAuth as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    const auth =
+      rawAuth && rawAuth.username && rawAuth.password
+        ? {
+            type: 'basic' as const,
+            username: rawAuth.username as string,
+            password: rawAuth.password as string,
+          }
+        : undefined;
+    return {
+      url,
+      method: 'POST',
+      ...(headers ? { headers } : {}),
+      ...(auth ? { auth } : {}),
+    };
+  }
+
+  /**
+   * Dispatch webhook and update the message's deliveryStatus accordingly.
+   * Emits a `message:delivery` WS event so the frontend can show checkmarks.
+   */
+  private async dispatchAndTrackDelivery(
+    messageId: string,
+    channelId: string,
+    callback: WebhookCallback,
+    payload: Record<string, unknown>,
+    logCtx: { userId: string },
+  ) {
+    const result = await this.webhooks.dispatch(callback, payload, logCtx);
+    const deliveryStatus = result.success
+      ? 'webhook_delivered'
+      : 'webhook_failed';
+
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: { deliveryStatus },
+    });
+
+    this.events.emitToChannel(channelId, 'message:delivery', {
+      messageId,
+      deliveryStatus,
+    });
   }
 
   // ── Agent API ──────────────────────────────────────────────
@@ -208,10 +272,13 @@ export class MessagesService {
     this.events.emitToChannel(channelId, 'message:created', final);
     this.events.emitToUser(userId, 'message:created', final);
 
-    // Chat-level default webhook
-    if (agent.webhookUrl) {
-      void this.webhooks.dispatch(
-        { url: agent.webhookUrl, method: 'POST' },
+    // Chat-level webhook with auth/headers
+    const callback = this.buildAgentWebhook(agent);
+    if (callback) {
+      void this.dispatchAndTrackDelivery(
+        final.id,
+        channelId,
+        callback,
         { event: 'message:created', channelId, message: final },
         { userId },
       );
@@ -412,30 +479,112 @@ export class MessagesService {
 
     const logCtx = { userId };
 
-    if (messageWebhookUrl) {
-      // Tier 2: Message-level webhook override
-      void this.webhooks.dispatch(
-        { url: messageWebhookUrl, method: 'POST' },
-        reviewPayload,
-        logCtx,
-      );
-    } else if (message.agent.webhookUrl) {
-      // Tier 1: Chat-level default webhook
-      void this.webhooks.dispatch(
-        { url: message.agent.webhookUrl, method: 'POST' },
-        reviewPayload,
-        logCtx,
-      );
-    } else if (review.callback) {
-      // Legacy: inline review callback
-      void this.webhooks.dispatch(
-        review.callback as { url: string; method: string },
+    // Resolve callback: message-level override → agent-level → legacy inline
+    const callback = messageWebhookUrl
+      ? (this.buildAgentWebhook(message.agent, messageWebhookUrl) ??
+        ({ url: messageWebhookUrl, method: 'POST' } as WebhookCallback))
+      : (this.buildAgentWebhook(message.agent) ??
+        (review.callback ? (review.callback as WebhookCallback) : null));
+
+    if (callback) {
+      void this.dispatchAndTrackDelivery(
+        messageId,
+        message.channelId,
+        callback,
         reviewPayload,
         logCtx,
       );
     }
 
     return updated;
+  }
+
+  /** Retry webhook delivery for a message whose webhook previously failed. */
+  async retryWebhookDelivery(messageId: string, userId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: { agent: true },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+    if (message.agent.ownerId !== userId) {
+      throw new ForbiddenException('Not your agent');
+    }
+
+    const meta = (message.metadata ?? {}) as Record<string, unknown>;
+    const messageWebhookUrl = meta.webhookUrl as string | undefined;
+    const review = message.review as Record<string, unknown> | null;
+
+    // For review messages → re-send the review:responded payload
+    if (review && review.status === 'completed') {
+      const reviewPayload = {
+        event: 'review:responded',
+        channelId: message.channelId,
+        message_id: messageId,
+        review_type: review.type as string,
+        response: review.response,
+        responded_at: review.completed_at,
+      };
+
+      const callback = messageWebhookUrl
+        ? (this.buildAgentWebhook(message.agent, messageWebhookUrl) ??
+          ({ url: messageWebhookUrl, method: 'POST' } as WebhookCallback))
+        : (this.buildAgentWebhook(message.agent) ??
+          (review.callback ? (review.callback as WebhookCallback) : null));
+
+      if (!callback) {
+        throw new BadRequestException('No webhook configured for this message');
+      }
+
+      await this.dispatchAndTrackDelivery(
+        messageId,
+        message.channelId,
+        callback,
+        reviewPayload,
+        { userId },
+      );
+      return { retried: true };
+    }
+
+    // For user messages → re-send message:created payload
+    if (message.senderType === 'user') {
+      const callback = this.buildAgentWebhook(message.agent);
+      if (!callback) {
+        throw new BadRequestException('No webhook configured for this agent');
+      }
+
+      await this.dispatchAndTrackDelivery(
+        messageId,
+        message.channelId,
+        callback,
+        { event: 'message:created', channelId: message.channelId, message },
+        { userId },
+      );
+      return { retried: true };
+    }
+
+    throw new BadRequestException('Cannot retry delivery for this message');
+  }
+
+  /** Agent acknowledges receipt of a message via API. */
+  async acknowledgeMessage(userId: string, messageId: string, agentId: string) {
+    await this.assertOwnership(agentId, userId);
+
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, channelId: agentId },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: { deliveryStatus: 'agent_received' },
+    });
+
+    this.events.emitToChannel(agentId, 'message:delivery', {
+      messageId,
+      deliveryStatus: 'agent_received',
+    });
+
+    return { acknowledged: true };
   }
 
   // ── Review Expiry ─────────────────────────────────────────
@@ -518,7 +667,15 @@ export class MessagesService {
         review: { not: Prisma.JsonNull },
         AND: { review: { path: ['status'], equals: 'pending' } },
       },
-      select: { id: true, channelId: true, review: true },
+      select: {
+        id: true,
+        channelId: true,
+        review: true,
+        metadata: true,
+        agent: {
+          select: { webhookUrl: true, webhookHeaders: true, webhookAuth: true },
+        },
+      },
     });
 
     const now = new Date();
@@ -535,6 +692,29 @@ export class MessagesService {
       this.events.emitToChannel(msg.channelId, 'review:expired', {
         messageId: msg.id,
       });
+
+      // Notify via webhook that review expired
+      const meta = (msg.metadata ?? {}) as Record<string, unknown>;
+      const messageWebhookUrl = meta.webhookUrl as string | undefined;
+
+      const callback = messageWebhookUrl
+        ? (this.buildAgentWebhook(msg.agent, messageWebhookUrl) ??
+          ({ url: messageWebhookUrl, method: 'POST' } as WebhookCallback))
+        : (this.buildAgentWebhook(msg.agent) ??
+          (review.callback ? (review.callback as WebhookCallback) : null));
+
+      if (callback) {
+        void this.webhooks
+          .dispatch(callback, {
+            event: 'review:expired',
+            channelId: msg.channelId,
+            message_id: msg.id,
+            review_type: review.type as string,
+            expired_at: now.toISOString(),
+          })
+          .catch(() => {}); // best-effort
+      }
+
       expired++;
     }
 

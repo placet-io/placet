@@ -24,6 +24,7 @@ interface MessageListProps {
   ) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
+  onRetryDelivery?: (messageId: string) => Promise<void>;
 }
 
 export const MessageList = memo(function MessageList({
@@ -40,6 +41,7 @@ export const MessageList = memo(function MessageList({
   onReviewRespond,
   onReply,
   onSendAsMessage,
+  onRetryDelivery,
 }: MessageListProps) {
   const [copied, setCopied] = useState(false);
 
@@ -235,9 +237,11 @@ export const MessageList = memo(function MessageList({
             review={msg.review}
             metadata={msg.metadata}
             attachments={msg.attachments}
+            deliveryStatus={msg.deliveryStatus}
             onReviewRespond={onReviewRespond}
             onReply={onReply}
             onSendAsMessage={onSendAsMessage}
+            onRetryDelivery={onRetryDelivery}
           />
         ))}
         <div ref={bottomRef} />
