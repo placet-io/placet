@@ -192,4 +192,18 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .animate-highlight {
+    animation: msg-highlight 2s ease-out;
+  }
+}
+
+@keyframes msg-highlight {
+  0%, 15% {
+    background-color: hsl(var(--primary) / 0.1);
+    border-radius: 1rem;
+  }
+  100% {
+    background-color: transparent;
+  }
 }

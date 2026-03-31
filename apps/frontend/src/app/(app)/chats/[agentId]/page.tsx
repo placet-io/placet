@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatHeader } from '@/components/chat/chat-header';
 import type { ChatHeaderHandle } from '@/components/chat/chat-header';
@@ -15,6 +15,8 @@ import { useSocket } from '@/lib/contexts/socket-context';
 export default function ChatThreadPage() {
   const params = useParams<{ agentId: string }>();
   const agentId = params.agentId;
+  const searchParams = useSearchParams();
+  const highlightMessageId = searchParams.get('messageId');
   const headerRef = useRef<ChatHeaderHandle>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null);
@@ -102,6 +104,7 @@ export default function ChatThreadPage() {
             loading={messagesLoading}
             loadingOlder={loadingOlder}
             hasMore={hasMore}
+            highlightMessageId={highlightMessageId}
             onLoadOlder={handleLoadOlder}
             onSetupWebhook={handleSetupWebhook}
             onReviewRespond={respondToReview}

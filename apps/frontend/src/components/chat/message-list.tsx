@@ -14,6 +14,7 @@ interface MessageListProps {
   loading?: boolean;
   loadingOlder?: boolean;
   hasMore?: boolean;
+  highlightMessageId?: string | null;
   onLoadOlder?: () => void;
   onSetupWebhook?: () => void;
   onReviewRespond?: (
@@ -33,6 +34,7 @@ export const MessageList = memo(function MessageList({
   loading = false,
   loadingOlder = false,
   hasMore = false,
+  highlightMessageId,
   onLoadOlder,
   onSetupWebhook,
   onReviewRespond,
@@ -98,8 +100,9 @@ export const MessageList = memo(function MessageList({
 
   // Initial scroll to bottom — keeps scrolling while content is still rendering
   // (iframes, images, markdown expand after the first paint).
+  // Skipped when a highlight target is set (inbox → chat deep-link).
   useEffect(() => {
-    if (loading) return;
+    if (loading || highlightMessageId) return;
 
     const container = scrollContainerRef.current;
     const bottom = bottomRef.current;
@@ -136,7 +139,26 @@ export const MessageList = memo(function MessageList({
       clearTimeout(timeout);
       observer.disconnect();
     };
-  }, [loading]);
+  }, [loading, highlightMessageId]);
+
+  // Scroll to and highlight a specific message (e.g. from inbox "Open in Chat")
+  useEffect(() => {
+    if (loading || !highlightMessageId) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Small delay to let content render
+    const timeout = setTimeout(() => {
+      const el = container.querySelector(`[data-message-id="${CSS.escape(highlightMessageId)}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('animate-highlight');
+      const cleanup = setTimeout(() => el.classList.remove('animate-highlight'), 2000);
+      return () => clearTimeout(cleanup);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [loading, highlightMessageId]);
 
   if (loading) {
     return (

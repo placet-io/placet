@@ -3,11 +3,12 @@
 import { memo } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, Folder, Terminal, Activity, Settings } from 'lucide-react';
+import { MessageSquare, Inbox, Folder, Terminal, Activity, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 const NAV_ITEMS = [
   { href: '/chats', icon: MessageSquare, label: 'Agents' },
+  { href: '/inbox', icon: Inbox, label: 'Inbox' },
   { href: '/files', icon: Folder, label: 'Files' },
   { href: '/logs', icon: Terminal, label: 'Logs' },
   { href: '/status', icon: Activity, label: 'Status' },

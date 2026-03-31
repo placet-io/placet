@@ -220,25 +220,32 @@ export class MessagesService {
     return final;
   }
 
-  async getPendingReviews(userId: string) {
+  async getReviews(userId: string, status?: string) {
     const agents = await this.prisma.agent.findMany({
       where: { ownerId: userId },
       select: { id: true },
     });
     const agentIds = agents.map((a) => a.id);
 
+    const where: Record<string, unknown> = {
+      channelId: { in: agentIds },
+      review: { not: Prisma.JsonNull },
+    };
+
+    if (status && status !== 'all') {
+      where.AND = { review: { path: ['status'], equals: status } };
+    }
+
     return this.prisma.message.findMany({
-      where: {
-        channelId: { in: agentIds },
-        review: { not: Prisma.JsonNull },
-        // Prisma JSON filter: review.status = 'pending'
-        AND: {
-          review: { path: ['status'], equals: 'pending' },
-        },
-      },
+      where,
       include: { attachments: true },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** @deprecated Use getReviews instead */
+  async getPendingReviews(userId: string) {
+    return this.getReviews(userId, 'pending');
   }
 
   // ── Agent Review API ──────────────────────────────────────
