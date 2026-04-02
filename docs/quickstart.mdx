@@ -6,21 +6,20 @@ description: Get Placet running locally in under 5 minutes.
 ## Prerequisites
 
 - **Git**
-- **Node.js 22+**
 - **Docker & Docker Compose**
 
 ## Setup
 
 <Steps>
   <Step title="Clone the repository">
-    ```bash git clone https://github.com/placet-io/placet.git && cd placet ```
+    ``` git clone https://github.com/placet-io/placet.git && cd placet ```
   </Step>
   <Step title="Configure environment">
-    ```bash cp .env.example .env ``` Edit `.env` to set your desired admin email, password, and
-    other settings.
+    ``` cp .env.example .env ``` Edit `.env` to set your desired admin email, password, and other
+    settings.
   </Step>
   <Step title="Start everything">
-    ```bash make setup ``` This installs dependencies, builds packages, starts all Docker services
+    ``` make setup ``` This installs dependencies, builds packages, starts all Docker services
     (Postgres, MinIO, Backend, Frontend), runs migrations, and creates the initial user.
   </Step>
 </Steps>

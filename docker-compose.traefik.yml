@@ -48,7 +48,7 @@ services:
       - '443:443'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - letsencrypt:/letsencrypt
+      - ./volumes/letsencrypt:/letsencrypt
 
   frontend:
     labels:
@@ -80,5 +80,4 @@ services:
       traefik.http.routers.mcp.tls.certresolver: letsencrypt
       traefik.http.services.mcp.loadbalancer.server.port: ${MCP_PORT:-3002}
 
-volumes:
-  letsencrypt:
+volumes: {}
