@@ -20,8 +20,6 @@ config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "..", ".env") })
 const BASE_URL = (process.env.PLACET_URL ?? "http://localhost:3001").replace(/\/$/, "");
 const API_KEY = process.env.PLACET_API_KEY ?? "";
 const CHANNEL = process.env.PLACET_CHANNEL ?? "";
-const USER_EMAIL = process.env.PLACET_USER_EMAIL ?? "admin@placet.local";
-const USER_PASSWORD = process.env.PLACET_USER_PASSWORD ?? "changeme";
 
 if (!API_KEY || !CHANNEL) {
   console.error("Set PLACET_API_KEY and PLACET_CHANNEL in ../.env");
@@ -60,7 +58,7 @@ function ts() {
 }
 
 const authHeaders = {
-  Authorization: `Bearer ${API_KEY}`,
+  "x-api-key": API_KEY,
   "Content-Type": "application/json",
 };
 
@@ -97,38 +95,10 @@ async function sendApproval(text: string) {
   return resp;
 }
 
-async function login(): Promise<string> {
-  const resp = await fetch(`${BASE_URL}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: USER_EMAIL, password: USER_PASSWORD }),
-  });
-  if (!resp.ok) throw new Error(`Login failed: ${resp.status} ${await resp.text()}`);
-
-  // JWT is returned as an HTTP-only Set-Cookie header
-  const cookie = resp.headers.getSetCookie?.().find((c) => c.startsWith("access_token="));
-  if (!cookie) throw new Error("No access_token cookie in login response");
-  return cookie.split("=")[1].split(";")[0];
-}
-
-async function getWsTicket(jwt: string): Promise<string> {
-  const resp = await fetch(`${BASE_URL}/api/auth/ws-ticket`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${jwt}` },
-  });
-  if (!resp.ok) throw new Error(`WS ticket failed: ${resp.status} ${await resp.text()}`);
-  return (await resp.json()).ticket;
-}
-
 async function main() {
-  console.log(`Logging in as ${USER_EMAIL}...`);
-  const jwt = await login();
-  const ticket = await getWsTicket(jwt);
-  console.log("Got WS ticket.");
-
   console.log(`Connecting to ${BASE_URL}/ws...`);
   const socket = io(`${BASE_URL}/ws`, {
-    auth: { token: ticket },
+    auth: { apiKey: API_KEY },
     transports: ["websocket"],
     reconnection: false,
   });

@@ -64,7 +64,20 @@ async function bootstrap() {
     .setTitle('Placet API')
     .setDescription('Chat-based agent inbox for AI-human interaction')
     .setVersion('0.1.0')
+    .addServer(
+      `http://localhost:${process.env.BACKEND_PORT ?? 3001}`,
+      'Local development',
+    )
     .addBearerAuth()
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-api-key',
+        in: 'header',
+        description: 'Placet API key (hp_...)',
+      },
+      'api-key',
+    )
     .addCookieAuth('access_token')
     .build();
 

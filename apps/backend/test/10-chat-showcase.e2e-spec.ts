@@ -16,7 +16,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a plain agent message', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: "Hey! I finished crawling the sitemap. Found **247 pages** across 12 sub-domains.\n\nHere's a quick breakdown:\n- Marketing: 89 pages\n- Docs: 104 pages\n- Blog: 54 pages\n\nNo broken links detected.",
@@ -41,7 +41,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send an info status message', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Scan started — checking docs section for pages last updated more than 6 months ago.',
@@ -53,7 +53,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a warning status message', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Found **18 pages** with outdated content (last edit > 6 months). 3 pages reference deprecated API endpoints.',
@@ -65,7 +65,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send an error status message', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Failed to reach `docs.example.com/api/v1` — DNS resolution timed out after 30 s.',
@@ -77,7 +77,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a success status message', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Recovery complete — the endpoint is reachable again. All 247 pages re-validated.',
@@ -90,7 +90,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send an approval review', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: "I'd like to auto-redirect 12 old blog URLs to their updated equivalents. This will set up 301 redirects in the CDN config.\n\nShould I proceed?",
@@ -116,7 +116,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a single-selection review', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Which deployment strategy should I use for the next release?',
@@ -151,7 +151,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a multi-selection review', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Select the notification channels for critical alerts:',
@@ -187,7 +187,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a form review', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'I need a few details to configure the new staging environment:',
@@ -231,7 +231,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a form review with date/time/datetime fields', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Please provide the deployment schedule:',
@@ -270,7 +270,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a form review with range (slider) field', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Configure the auto-scaling parameters:',
@@ -320,7 +320,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a form review with password field', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'I need database credentials for the new environment:',
@@ -359,7 +359,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a form review combining all field types', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Complete project setup — all field types:',
@@ -428,7 +428,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a text-input review', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'The release notes draft is ready. Please review and provide your edits:',
@@ -448,7 +448,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a freeform review', async () => {
     await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Please provide the CDN purge configuration as JSON:',
@@ -475,7 +475,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should send a review and immediately respond to it', async () => {
     const createRes = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: 'Shall I enable gzip compression on the CDN?',
@@ -655,7 +655,7 @@ describe('Chat showcase (diverse messages for frontend)', () => {
   it('should create a message with rich markdown content', async () => {
     const res = await request(httpServer)
       .post('/api/v1/messages')
-      .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+      .set('x-api-key', state.apiKeyRaw)
       .send({
         channelId: state.agentId,
         text: [

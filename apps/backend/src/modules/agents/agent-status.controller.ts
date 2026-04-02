@@ -1,8 +1,8 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
+  ApiSecurity,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -13,8 +13,8 @@ import { AgentsService } from './agents.service';
 import { EventsGateway } from '../events/events.gateway';
 import { PingStatusDto } from './dto/ping-status.dto';
 
-@ApiTags('Agent API')
-@ApiBearerAuth()
+@ApiTags('Status')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @Controller('api/v1/status')
 export class AgentStatusController {

@@ -1,0 +1,216 @@
+---
+title: WebSocket
+description: Real-time events via Socket.IO for agent integrations.
+---
+
+Placet exposes a [Socket.IO](https://socket.io/) WebSocket gateway on the `/ws` namespace. Agents can connect to receive real-time events such as new messages, review responses, and status changes.
+
+## Authentication
+
+Agents authenticate by passing their API key in the Socket.IO `auth` object:
+
+```typescript
+import { io } from 'socket.io-client';
+
+const socket = io('https://your-placet-instance.com/ws', {
+  auth: { apiKey: 'hp_your-api-key' },
+  transports: ['websocket'],
+});
+```
+
+```python
+import socketio
+
+sio = socketio.Client()
+sio.connect(
+    "https://your-placet-instance.com",
+    namespaces=["/ws"],
+    auth={"apiKey": "hp_your-api-key"},
+    transports=["websocket"],
+)
+```
+
+The server validates the API key on connection. If the key is invalid or missing, the connection is immediately closed.
+
+## Channel Subscription
+
+After connecting, subscribe to a channel to receive its events:
+
+```typescript
+socket.on('connect', () => {
+  socket.emit('subscribe:channel', 'your-agent-id');
+});
+```
+
+You can subscribe to multiple channels on the same connection. To unsubscribe:
+
+```typescript
+socket.emit('unsubscribe:channel', 'your-agent-id');
+```
+
+<Note>
+  The server verifies that the API key owner also owns the channel. Subscribing to a channel you
+  don't own silently fails.
+</Note>
+
+## Events
+
+All events are received on the `/ws` namespace.
+
+### `message:created`
+
+Emitted when a new message is posted in a subscribed channel (by a user or another agent).
+
+```json
+{
+  "id": "clxyz111",
+  "channelId": "clxyz456",
+  "senderType": "user",
+  "senderId": "user_abc",
+  "text": "Looks good, ship it!",
+  "status": null,
+  "review": null,
+  "metadata": null,
+  "createdAt": "2025-06-15T14:30:00.000Z",
+  "attachments": []
+}
+```
+
+### `review:responded`
+
+Emitted when a human completes a review (approval, selection, form, etc.). The full message record is emitted, including attachments.
+
+```json
+{
+  "id": "clxyz111",
+  "channelId": "clxyz456",
+  "senderType": "agent",
+  "senderId": "clxyz456",
+  "text": "Deploy to production?",
+  "status": null,
+  "review": {
+    "type": "approval",
+    "status": "completed",
+    "payload": {
+      "options": [
+        { "id": "approve", "label": "Approve", "style": "primary" },
+        { "id": "reject", "label": "Reject", "style": "danger" }
+      ]
+    },
+    "response": {
+      "selectedOption": "approve",
+      "comment": "Go ahead"
+    },
+    "completed_at": "2025-06-15T14:32:00.000Z"
+  },
+  "metadata": null,
+  "createdAt": "2025-06-15T14:30:00.000Z",
+  "attachments": []
+}
+```
+
+Use the `review.response` field to determine what the human chose:
+
+- **Approval**: `response.selectedOption` (`"approve"` or `"reject"`) + optional `response.comment`
+- **Selection**: `response.selectedIds` (array of selected item IDs)
+- **Form**: `response.{fieldName}` (key-value pairs for each form field)
+
+### `review:expired`
+
+Emitted when a review expires without a response (default: 24 hours).
+
+```json
+{
+  "messageId": "clxyz111"
+}
+```
+
+### `message:delivery`
+
+Emitted when a message's delivery status changes (webhook delivered, agent acknowledged, etc.).
+
+```json
+{
+  "messageId": "clxyz111",
+  "deliveryStatus": "webhook_delivered"
+}
+```
+
+| Status              | Meaning                               |
+| ------------------- | ------------------------------------- |
+| `sent`              | Message stored, webhook not yet sent  |
+| `webhook_delivered` | Webhook received 2xx response         |
+| `webhook_failed`    | Webhook delivery failed               |
+| `agent_received`    | Agent explicitly acknowledged receipt |
+
+### `agent:status`
+
+Emitted when an agent's ping status changes.
+
+```json
+{
+  "agentId": "clxyz456",
+  "status": "active",
+  "statusMessage": null,
+  "statusSince": "2025-06-15T14:00:00.000Z"
+}
+```
+
+### `ping` / `pong`
+
+Send a `ping` event to check the connection is alive. The server responds with `pong`.
+
+```typescript
+socket.emit('ping');
+socket.on('pong', () => console.log('Connection alive'));
+```
+
+## Full Example
+
+A complete agent that listens for user messages and review responses:
+
+```typescript
+import { io } from 'socket.io-client';
+
+const BASE_URL = 'https://your-placet-instance.com';
+const API_KEY = 'hp_your-api-key';
+const CHANNEL = 'your-agent-id';
+
+const socket = io(`${BASE_URL}/ws`, {
+  auth: { apiKey: API_KEY },
+  transports: ['websocket'],
+});
+
+socket.on('connect', () => {
+  console.log('Connected');
+  socket.emit('subscribe:channel', CHANNEL);
+});
+
+socket.on('message:created', (data) => {
+  if (data.senderType === 'user') {
+    console.log(`User said: ${data.text}`);
+    // Process the message and respond via REST API
+  }
+});
+
+socket.on('review:responded', (data) => {
+  const response = data.review?.response;
+  if (response?.selectedOption) {
+    console.log(`Review decision: ${response.selectedOption}`);
+  }
+});
+
+socket.on('review:expired', (data) => {
+  console.log(`Review ${data.messageId} expired`);
+});
+
+socket.on('disconnect', () => {
+  console.log('Disconnected');
+});
+```
+
+<Tip>
+  WebSocket is best for **interactive agents** that need to react to user input immediately. For
+  background automations, consider [Webhooks](/connections/connection-types#webhooks) or
+  [Long-Polling](/connections/connection-types#long-polling) instead.
+</Tip>

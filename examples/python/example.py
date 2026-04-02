@@ -23,7 +23,7 @@ if not API_KEY or not CHANNEL:
     sys.exit(1)
 
 session = requests.Session()
-session.headers["Authorization"] = f"Bearer {API_KEY}"
+session.headers["x-api-key"] = API_KEY
 
 
 # ── Step 1: Upload a file ────────────────────────────────────────

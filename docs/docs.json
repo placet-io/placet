@@ -23,15 +23,20 @@
           },
           {
             "group": "Core Concepts",
+            "pages": ["concepts/how-it-works", "concepts/agents", "concepts/channels"]
+          },
+          {
+            "group": "Connections",
             "pages": [
-              "concepts/how-it-works",
-              "concepts/agents",
-              "concepts/channels",
-              "concepts/connection-types"
+              "concepts/connection-types",
+              "connections/mcp",
+              "connections/rest-api",
+              "connections/websocket",
+              "connections/webhooks"
             ]
           },
           {
-            "group": "Integrations",
+            "group": "Examples",
             "pages": [
               "integrations/overview",
               "integrations/python",
@@ -48,14 +53,23 @@
       },
       {
         "tab": "API Reference",
-        "openapi": "/openapi.json"
+        "groups": [
+          {
+            "group": "REST API",
+            "openapi": "/openapi.json"
+          },
+          {
+            "group": "WebSocket",
+            "pages": ["api-reference/websocket"]
+          }
+        ]
       }
     ],
     "global": {
       "anchors": [
         {
           "anchor": "GitHub",
-          "href": "https://github.com/centerbitco/placet",
+          "href": "https://github.com/placet-io/placet",
           "icon": "github"
         }
       ]
@@ -65,13 +79,13 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/centerbitco/placet"
+        "href": "https://github.com/placet-io/placet"
       }
     ]
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/centerbitco/placet"
+      "github": "https://github.com/placet-io/placet"
     }
   },
   "background": {

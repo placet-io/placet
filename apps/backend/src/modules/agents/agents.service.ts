@@ -55,6 +55,14 @@ export class AgentsService {
     private readonly s3: S3Service,
   ) {}
 
+  async findAllByOwnerSimple(ownerId: string) {
+    return this.prisma.agent.findMany({
+      where: { ownerId },
+      select: AGENT_SELECT,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findAllByOwner(ownerId: string) {
     const agents = await this.prisma.agent.findMany({
       where: { ownerId },

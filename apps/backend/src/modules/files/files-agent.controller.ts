@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -20,6 +19,7 @@ import {
   ApiOperation,
   ApiProduces,
   ApiQuery,
+  ApiSecurity,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -33,8 +33,8 @@ import type { RequestWithUser } from '../../common/types';
 import { FilesService } from './files.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
-@ApiTags('Agent API')
-@ApiBearerAuth()
+@ApiTags('Files')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @Controller('api/v1/files')
 export class FilesAgentController {

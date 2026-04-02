@@ -1,11 +1,11 @@
 import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
+  ApiSecurity,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -18,8 +18,8 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import type { RequestWithUser } from '../../common/types';
 import { MessagesService } from './messages.service';
 
-@ApiTags('Agent API')
-@ApiBearerAuth()
+@ApiTags('Reviews')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @Controller('api/v1/reviews')
 export class ReviewsAgentController {

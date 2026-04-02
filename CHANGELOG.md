@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-04-02
+
+### Added
+
+- **MCP server** (`@placet/mcp`) — Model Context Protocol server for AI coding agents (Claude Code, Copilot, Cursor, Windsurf) with StreamableHTTP and stdio transports, 13 tools (send_message, get_messages, get_message, delete_message, send_review_message, wait_for_review, get_pending_reviews, list_channels, create_channel, ping_status, list_plugins + dynamic plugin tools)
+- Individual docs pages for each connection type (MCP, WebSocket, REST API, Webhooks)
+- n8n community nodes package (`n8n-nodes-placet`)
+
+### Changed
+
+- **API authentication switched to `x-api-key` header** — all agent endpoints now use `x-api-key: hp_...` instead of `Authorization: Bearer`
+- WebSocket gateway supports both `auth.apiKey` (agents) and `auth.token` (frontend JWT)
+- OpenAPI spec auto-generated with `api-key` security scheme and 6 logical endpoint groups (Agents, Messages, Reviews, Files, Status, Plugins)
+- Documentation restructured — API Reference with grouped REST endpoints + WebSocket page, Connection Types as own category, Integrations renamed to Examples
+- All examples, integration docs, and curl snippets updated for `x-api-key`
+- E2e tests updated to use `x-api-key` header
+
 ## [0.3.0] — 2026-03-31
 
 ### Added

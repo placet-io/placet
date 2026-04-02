@@ -9,7 +9,7 @@ An **agent** in Placet represents an external AI system, automation workflow, or
 
 ## Creating an Agent
 
-Agents are created through the **Settings → Agents** page in the web UI, or via the API.
+Agents are created from the **inbox sidebar** (click **+ New Agent**), or via the API.
 
 Each agent has:
 
@@ -23,7 +23,7 @@ Agents authenticate via **API Keys**, created in **Settings → API Keys**. API 
 
 ```bash
 curl -X POST http://localhost:3001/api/v1/messages \
-  -H "Authorization: Bearer hp_your-key-here" \
+  -H "x-api-key: hp_your-key-here" \
   -H "Content-Type: application/json" \
   -d '{"text": "Hello from my agent!"}'
 ```
@@ -122,8 +122,16 @@ Renders a dynamic form with multiple field types. Supports 12 field types: `text
   "type": "form",
   "payload": {
     "fields": [
-      { "name": "environment", "type": "select", "label": "Environment", "required": true,
-        "options": [{ "value": "staging", "label": "Staging" }, { "value": "prod", "label": "Production" }] },
+      {
+        "name": "environment",
+        "type": "select",
+        "label": "Environment",
+        "required": true,
+        "options": [
+          { "value": "staging", "label": "Staging" },
+          { "value": "prod", "label": "Production" }
+        ]
+      },
       { "name": "version", "type": "text", "label": "Version", "placeholder": "e.g. 2.1.0" },
       { "name": "notify", "type": "checkbox", "label": "Send notification" }
     ],
@@ -179,12 +187,12 @@ All review types support optional fields:
 
 Each message can carry a `status` that controls its visual appearance in the chat:
 
-| Status    | Use case                                |
-| --------- | --------------------------------------- |
-| `info`    | Neutral status update (default)         |
-| `success` | Task completed successfully             |
-| `warning` | Needs attention or pending decision     |
-| `error`   | Something went wrong                    |
+| Status    | Use case                            |
+| --------- | ----------------------------------- |
+| `info`    | Neutral status update (default)     |
+| `success` | Task completed successfully         |
+| `warning` | Needs attention or pending decision |
+| `error`   | Something went wrong                |
 
 ## File Attachments
 
@@ -206,7 +214,7 @@ Agents can report their operational status via the heartbeat endpoint:
 
 ```bash
 curl -X POST "$PLACET_URL/api/v1/status/ping" \
-  -H "Authorization: Bearer $PLACET_API_KEY" \
+  -H "x-api-key: $PLACET_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"agentId": "your-agent-id", "status": "active", "message": "Processing 42 tasks"}'
 ```

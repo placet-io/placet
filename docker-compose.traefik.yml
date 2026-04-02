@@ -72,5 +72,13 @@ services:
       traefik.http.routers.backend-ws.tls.certresolver: letsencrypt
       traefik.http.services.backend-ws.loadbalancer.server.port: ${BACKEND_PORT:-3001}
 
+  mcp-server:
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.mcp.rule: Host(`${DOMAIN}`) && PathPrefix(`/mcp`)
+      traefik.http.routers.mcp.entrypoints: websecure
+      traefik.http.routers.mcp.tls.certresolver: letsencrypt
+      traefik.http.services.mcp.loadbalancer.server.port: ${MCP_PORT:-3002}
+
 volumes:
   letsencrypt:

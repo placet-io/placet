@@ -40,7 +40,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should send a message via agent API', async () => {
       const res = await request(httpServer)
         .post('/api/v1/messages')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ channelId: state.agentId, text: 'Hello from E2E agent test' })
         .expect(201);
 
@@ -58,7 +58,7 @@ describe('Agent API (/api/v1/)', () => {
         .get(
           `/api/v1/messages/${state.agentMessageId}?channel=${state.agentId}`,
         )
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const body = res.body as MessageResponse;
@@ -69,14 +69,14 @@ describe('Agent API (/api/v1/)', () => {
     it('should return 404 for non-existent message', () => {
       return request(httpServer)
         .get(`/api/v1/messages/nonexistent?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(404);
     });
 
     it('should list messages via agent API', async () => {
       const res = await request(httpServer)
         .get(`/api/v1/messages?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const body = res.body as { data: MessageResponse[] };
@@ -87,7 +87,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should list files via agent API', async () => {
       const res = await request(httpServer)
         .get(`/api/v1/files?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const body = res.body as unknown[];
@@ -98,7 +98,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should list pending reviews via agent API', async () => {
       const res = await request(httpServer)
         .get(`/api/v1/reviews/pending?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -107,14 +107,14 @@ describe('Agent API (/api/v1/)', () => {
     it('should return 404 for non-existent review', () => {
       return request(httpServer)
         .get(`/api/v1/reviews/nonexistent?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(404);
     });
 
     it('should send a message with status', async () => {
       const res = await request(httpServer)
         .post('/api/v1/messages')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({
           channelId: state.agentId,
           text: 'Deployment finished successfully',
@@ -129,7 +129,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should reject message to non-owned agent', () => {
       return request(httpServer)
         .post('/api/v1/messages')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ channelId: 'nonexistent-agent', text: 'test' })
         .expect(403);
     });
@@ -137,7 +137,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should send a review message and store its ID', async () => {
       const res = await request(httpServer)
         .post('/api/v1/messages')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({
           channelId: state.agentId,
           text: 'Approve this deployment?',
@@ -158,7 +158,7 @@ describe('Agent API (/api/v1/)', () => {
         .get(
           `/api/v1/reviews/${state.reviewMessageId}?channel=${state.agentId}`,
         )
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const body = res.body as MessageResponse;
@@ -171,7 +171,7 @@ describe('Agent API (/api/v1/)', () => {
         .get(
           `/api/v1/reviews/${state.reviewMessageId}/wait?channel=${state.agentId}&timeout=1000`,
         )
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       // Should time out since no one responded
@@ -183,7 +183,7 @@ describe('Agent API (/api/v1/)', () => {
       // Send a fresh message to ACK (agentMessageId will be deleted later)
       const createRes = await request(httpServer)
         .post('/api/v1/messages')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ channelId: state.agentId, text: 'Message to acknowledge' })
         .expect(201);
 
@@ -191,7 +191,7 @@ describe('Agent API (/api/v1/)', () => {
 
       const res = await request(httpServer)
         .post(`/api/v1/messages/${msgId}/ack?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const body = res.body as { acknowledged: boolean };
@@ -200,7 +200,7 @@ describe('Agent API (/api/v1/)', () => {
       // Verify the delivery status was updated
       const getRes = await request(httpServer)
         .get(`/api/v1/messages/${msgId}?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const msg = getRes.body as MessageResponse;
@@ -210,7 +210,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should return 404 when acknowledging non-existent message', () => {
       return request(httpServer)
         .post(`/api/v1/messages/nonexistent/ack?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(404);
     });
 
@@ -219,7 +219,7 @@ describe('Agent API (/api/v1/)', () => {
         .delete(
           `/api/v1/messages/${state.agentMessageId}?channel=${state.agentId}`,
         )
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200);
 
       const body = res.body as { deleted: boolean };
@@ -229,7 +229,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should return 404 when deleting non-existent message', () => {
       return request(httpServer)
         .delete(`/api/v1/messages/nonexistent?channel=${state.agentId}`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(404);
     });
   });
@@ -241,7 +241,7 @@ describe('Agent API (/api/v1/)', () => {
       const filePath = path.join(__dirname, 'input-files', 'csv_example.csv');
       const res = await request(httpServer)
         .post('/api/v1/files/upload')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .field('channelId', state.agentId)
         .attach('file', filePath)
         .expect(201);
@@ -256,7 +256,7 @@ describe('Agent API (/api/v1/)', () => {
       const filePath = path.join(__dirname, 'input-files', 'html_example.html');
       const res = await request(httpServer)
         .post('/api/v1/files/store')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .field('channelId', state.agentId)
         .attach('file', filePath)
         .expect(201);
@@ -269,7 +269,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should download a file via agent API', async () => {
       const res = await request(httpServer)
         .get(`/api/v1/files/${agentFileId}/download`)
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(200)
         .buffer(true)
         .parse((res, cb) => {
@@ -284,7 +284,7 @@ describe('Agent API (/api/v1/)', () => {
     it('should return 404 for non-existent file download', () => {
       return request(httpServer)
         .get('/api/v1/files/nonexistent/download')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .expect(404);
     });
   });

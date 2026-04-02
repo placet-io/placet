@@ -19,13 +19,12 @@ export class ApiKeyGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
-    const authHeader = request.headers['authorization'] ?? '';
+    const rawKey = (request.headers['x-api-key'] as string) ?? '';
 
-    if (!authHeader.startsWith('Bearer hp_')) {
+    if (!rawKey.startsWith('hp_')) {
       throw new UnauthorizedException('Missing or invalid API key');
     }
 
-    const rawKey = authHeader.slice(7); // Remove "Bearer "
     const keyHash = createHash('sha256').update(rawKey).digest('hex');
 
     const apiKey = await this.prisma.apiKey.findUnique({

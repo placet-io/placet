@@ -102,6 +102,22 @@ services:
     ports:
       - '3000:3000'
 
+  mcp-server:
+    container_name: placet-mcp-server
+    build:
+      context: .
+      dockerfile: packages/mcp-server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      PLACET_API_URL: http://backend:${BACKEND_PORT:-3001}
+      PLACET_DEFAULT_CHANNEL: ${PLACET_DEFAULT_CHANNEL:-}
+      MCP_PORT: ${MCP_PORT:-3002}
+      MCP_CONNECTION_TIMEOUT_MS: ${MCP_CONNECTION_TIMEOUT_MS:-300000}
+    ports:
+      - '${MCP_PORT:-3002}:${MCP_PORT:-3002}'
+
 volumes:
   pgdata:
   miniodata:

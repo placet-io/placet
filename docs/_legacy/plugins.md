@@ -266,7 +266,7 @@ An agent sends a plugin message by including `metadata.plugin`:
 
 ```bash
 curl -X POST https://placet.example.com/api/v1/messages \
-  -H "Authorization: Bearer hp_..." \
+  -H "x-api-key: hp_..." \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Here is the result:",
