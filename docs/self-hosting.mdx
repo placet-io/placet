@@ -7,7 +7,6 @@ description: Deploy Placet on your own infrastructure with Docker Compose.
 
 - Docker & Docker Compose v2
 - At least 2 GB RAM
-- PostgreSQL 15+ (included in Docker Compose)
 
 ## Docker Compose Deployment
 
@@ -15,16 +14,14 @@ Placet ships with a production-ready `docker-compose.yml` that includes all requ
 
 <Steps>
   <Step title="Clone and configure">
-    ```bash git clone https://github.com/placet-io/placet.git && cd placet && cp .env.example .env
-    ``` Edit `.env` with your production settings: - Set strong passwords for `POSTGRES_PASSWORD`,
+    ``` git clone https://github.com/placet-io/placet.git && cd placet && cp .env.example .env ```
+    Edit `.env` with your production settings: - Set strong passwords for `POSTGRES_PASSWORD`,
     `MINIO_ROOT_PASSWORD` - Set `JWT_SECRET` to a secure random string - Configure
     `INITIAL_USER_EMAIL` and `INITIAL_USER_PASSWORD` - Set `NEXT_PUBLIC_WS_URL` and
     `NEXT_PUBLIC_APP_URL` to your domain
   </Step>
-  <Step title="Start services">```bash docker compose up -d ```</Step>
-  <Step title="Run migrations">
-    ```bash docker compose exec backend npx prisma migrate deploy ```
-  </Step>
+  <Step title="Start services">``` docker compose up -d ```</Step>
+  <Step title="Run migrations">``` docker compose exec backend npx prisma migrate deploy ```</Step>
 </Steps>
 
 ## Services
@@ -40,7 +37,7 @@ Placet ships with a production-ready `docker-compose.yml` that includes all requ
 
 A Traefik configuration is included in `docker-compose.traefik.yml` for production deployments with TLS/SSL.
 
-```bash
+```
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 ```
 

@@ -40,7 +40,7 @@ WORKDIR /app/apps/backend
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3001/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "const h=require('http');h.get('http://127.0.0.1:'+(process.env.BACKEND_PORT||3001)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 CMD ["sh", "docker-entrypoint.sh"]
