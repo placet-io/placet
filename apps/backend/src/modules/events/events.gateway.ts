@@ -7,6 +7,7 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { JwtService } from '@nestjs/jwt';
+import { createHash } from 'crypto';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -40,6 +41,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleConnection(client: Socket) {
     // Auth exclusively via handshake auth object — never from URL query params
     const token = client.handshake.auth?.token as string | undefined;
+    const apiKey = client.handshake.auth?.apiKey as string | undefined;
+
+    if (apiKey) {
+      // Agent API key auth — resolve owner from hashed key
+      void this.authenticateWithApiKey(client, apiKey);
+      return;
+    }
 
     if (!token) {
       this.logger.warn(`WS connection rejected: no token (${client.id})`);
@@ -59,6 +67,36 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.warn(`WS connection rejected: invalid token (${client.id})`);
       client.disconnect(true);
     }
+  }
+
+  private async authenticateWithApiKey(client: Socket, rawKey: string) {
+    if (!rawKey.startsWith('hp_')) {
+      this.logger.warn(
+        `WS connection rejected: invalid API key format (${client.id})`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
+    const keyHash = createHash('sha256').update(rawKey).digest('hex');
+    const apiKey = await this.prisma.apiKey.findUnique({
+      where: { keyHash },
+      select: { userId: true },
+    });
+
+    if (!apiKey) {
+      this.logger.warn(
+        `WS connection rejected: unknown API key (${client.id})`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
+    (client.data as Record<string, unknown>).userId = apiKey.userId;
+    void client.join(`user:${apiKey.userId}`);
+    this.logger.log(
+      `Client connected via API key: ${client.id} (user: ${apiKey.userId})`,
+    );
   }
 
   handleDisconnect(client: Socket) {

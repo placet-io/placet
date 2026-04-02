@@ -16,7 +16,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should set agent status to active', async () => {
       const res = await request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ agentId: state.agentId, status: 'active' })
         .expect(201);
 
@@ -34,7 +34,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should set agent status to busy with message', async () => {
       const res = await request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({
           agentId: state.agentId,
           status: 'busy',
@@ -53,7 +53,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should set agent status to error with message', async () => {
       const res = await request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({
           agentId: state.agentId,
           status: 'error',
@@ -72,7 +72,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should set agent status back to active', async () => {
       const res = await request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ agentId: state.agentId, status: 'active' })
         .expect(201);
 
@@ -83,7 +83,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should reject invalid status value', () => {
       return request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ agentId: state.agentId, status: 'invalid' })
         .expect(400);
     });
@@ -91,7 +91,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should reject missing agentId', () => {
       return request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ status: 'active' })
         .expect(400);
     });
@@ -99,7 +99,7 @@ describe('Agent Status (/api/v1/status)', () => {
     it('should reject non-owned agent', () => {
       return request(httpServer)
         .post('/api/v1/status/ping')
-        .set('Authorization', `Bearer ${state.apiKeyRaw}`)
+        .set('x-api-key', state.apiKeyRaw)
         .send({ agentId: 'nonexistent', status: 'active' })
         .expect(404);
     });

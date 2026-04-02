@@ -33,7 +33,7 @@ import { AgentsService } from './agents.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 
-@ApiTags('Agents')
+@ApiTags('Agents', 'Frontend')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('api/agents')

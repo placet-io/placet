@@ -58,7 +58,7 @@ AI agents are getting more capable every day, but they still need humans in the 
 > **Prerequisites:** Git, Node.js 22+, Docker & Docker Compose
 
 ```bash
-git clone https://github.com/centerbitco/placet.git
+git clone https://github.com/placet-io/placet.git
 cd placet
 cp .env.example .env
 make setup
@@ -83,7 +83,7 @@ That's it. `make setup` installs dependencies, builds packages, starts all Docke
 
 ```bash
 curl -X POST http://localhost:3001/api/v1/messages \
-  -H "Authorization: Bearer hp_your-key-here" \
+  -H "x-api-key: hp_your-key-here" \
   -H "Content-Type: application/json" \
   -d '{"text": "Hello from my agent!", "status": "success"}'
 ```
@@ -94,7 +94,7 @@ curl -X POST http://localhost:3001/api/v1/messages \
 
 ```bash
 curl -X POST http://localhost:3001/api/v1/messages \
-  -H "Authorization: Bearer hp_your-key-here" \
+  -H "x-api-key: hp_your-key-here" \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Deploy v2.1 to production?",

@@ -27,15 +27,13 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 BASE_URL = os.environ.get("PLACET_URL", "http://localhost:3001").rstrip("/")
 API_KEY = os.environ.get("PLACET_API_KEY", "")
 CHANNEL = os.environ.get("PLACET_CHANNEL", "")
-USER_EMAIL = os.environ.get("PLACET_USER_EMAIL", "admin@placet.local")
-USER_PASSWORD = os.environ.get("PLACET_USER_PASSWORD", "changeme")
 
 if not API_KEY or not CHANNEL:
     sys.exit("Set PLACET_API_KEY and PLACET_CHANNEL in ../.env")
 if not os.environ.get("OPENAI_API_KEY"):
     sys.exit("Set OPENAI_API_KEY in ../.env")
 
-_api = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+_api = {"x-api-key": API_KEY, "Content-Type": "application/json"}
 
 # ── Review response store (filled by WebSocket) ──────────────────
 
@@ -209,27 +207,7 @@ def handle_user_message(text):
 # ── WebSocket connection ─────────────────────────────────────────
 
 
-def get_ws_ticket():
-    """Login → extract JWT from cookie → get short-lived WS ticket."""
-    resp = requests.post(
-        f"{BASE_URL}/api/auth/login",
-        json={"email": USER_EMAIL, "password": USER_PASSWORD},
-    )
-    resp.raise_for_status()
-    cookie = next(
-        (c for c in resp.headers.get("Set-Cookie", "").split(",") if "access_token=" in c), None
-    )
-    if not cookie:
-        raise RuntimeError("No access_token cookie in login response")
-    jwt = cookie.split("access_token=")[1].split(";")[0]
-
-    resp = requests.post(f"{BASE_URL}/api/auth/ws-ticket", headers={"Authorization": f"Bearer {jwt}"})
-    resp.raise_for_status()
-    return resp.json()["ticket"]
-
-
 def main():
-    ticket = get_ws_ticket()
     sio = socketio.Client(reconnection=False)
     seen = set()
 
@@ -261,7 +239,7 @@ def main():
         print("Disconnected.")
 
     print("LangChain Chat Agent (WebSocket)")
-    sio.connect(BASE_URL, namespaces=["/ws"], auth={"token": ticket}, transports=["websocket"])
+    sio.connect(BASE_URL, namespaces=["/ws"], auth={"apiKey": API_KEY}, transports=["websocket"])
 
     try:
         sio.wait()

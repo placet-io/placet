@@ -5,8 +5,8 @@ description: Integrate Placet from TypeScript or Node.js applications.
 
 <Info>
   Runnable example in
-  [`examples/typescript/`](https://github.com/centerbitco/placet/tree/main/examples/typescript)
-  covers upload, messaging, approval, and download in a single script.
+  [`examples/typescript/`](https://github.com/placet-io/placet/tree/main/examples/typescript) covers
+  upload, messaging, approval, and download in a single script.
 </Info>
 
 ## Send a Message
@@ -19,7 +19,7 @@ const API_KEY = 'hp_your-api-key';
 const CHANNEL_ID = 'your-agent-id';
 
 const headers = {
-  Authorization: `Bearer ${API_KEY}`,
+  'x-api-key': API_KEY,
   'Content-Type': 'application/json',
 };
 
@@ -48,7 +48,7 @@ form.append('channelId', CHANNEL_ID);
 
 const uploadResp = await fetch(`${PLACET_URL}/api/v1/files/store`, {
   method: 'POST',
-  headers: { Authorization: `Bearer ${API_KEY}` },
+  headers: { 'x-api-key': API_KEY },
   body: form,
 });
 
@@ -99,7 +99,7 @@ if (review.status === 'completed') {
 
 ```typescript
 const dlResp = await fetch(`${PLACET_URL}/api/v1/files/${attachment.id}/download`, {
-  headers: { Authorization: `Bearer ${API_KEY}` },
+  headers: { 'x-api-key': API_KEY },
 });
 
 const buffer = await dlResp.arrayBuffer();

@@ -5,7 +5,7 @@ description: Build an AI chat agent with human-in-the-loop using LangChain and P
 
 <Info>
   Runnable example in
-  [`examples/langchain/`](https://github.com/centerbitco/placet/tree/main/examples/langchain), a
+  [`examples/langchain/`](https://github.com/placet-io/placet/tree/main/examples/langchain), a
   GPT-powered chat agent with approvals, selections, and forms via WebSocket.
 </Info>
 
@@ -40,7 +40,7 @@ API_KEY = "hp_your-api-key"
 CHANNEL_ID = "your-agent-id"
 
 headers = {
-    "Authorization": f"Bearer {API_KEY}",
+    "x-api-key": API_KEY,
     "Content-Type": "application/json",
 }
 
@@ -276,35 +276,12 @@ def on_message(data):
 
 ### WebSocket Authentication
 
-Placet WebSocket requires a short-lived ticket (not the API key). Login to get a JWT,
-then exchange it for a ticket:
+Placet WebSocket supports API key authentication for agents. Pass your API key
+directly in the connection's `auth` object:
 
 ```python
-def get_ws_ticket():
-    """Login → extract JWT from cookie → get short-lived WS ticket."""
-    resp = requests.post(
-        f"{PLACET_URL}/api/auth/login",
-        json={"email": "admin@placet.local", "password": "changeme"},
-    )
-    resp.raise_for_status()
-    cookie = next(
-        (c for c in resp.headers.get("Set-Cookie", "").split(",")
-         if "access_token=" in c), None
-    )
-    if not cookie:
-        raise RuntimeError("No access_token cookie in login response")
-    jwt = cookie.split("access_token=")[1].split(";")[0]
-
-    resp = requests.post(
-        f"{PLACET_URL}/api/auth/ws-ticket",
-        headers={"Authorization": f"Bearer {jwt}"},
-    )
-    resp.raise_for_status()
-    return resp.json()["ticket"]
-
-
-ticket = get_ws_ticket()
+sio = socketio.Client(reconnection=False)
 sio.connect(PLACET_URL, namespaces=["/ws"],
-            auth={"token": ticket}, transports=["websocket"])
+            auth={"apiKey": API_KEY}, transports=["websocket"])
 sio.wait()
 ```

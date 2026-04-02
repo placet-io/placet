@@ -11,13 +11,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
+  ApiSecurity,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -32,8 +32,8 @@ import type { RequestWithUser } from '../../common/types';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 
-@ApiTags('Agent API')
-@ApiBearerAuth()
+@ApiTags('Messages')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @Controller('api/v1/messages')
 export class MessagesAgentController {

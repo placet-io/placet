@@ -28,7 +28,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdatePluginConfigDto } from './dto/update-plugin-config.dto';
 import { PluginsService } from './plugins.service';
 
-@ApiTags('Plugins')
+@ApiTags('Plugins', 'Frontend')
 @Controller('api/plugins')
 export class PluginsController {
   private readonly allowLocalFetch: boolean;

@@ -35,7 +35,7 @@ import type { RequestWithUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from './files.service';
 
-@ApiTags('Files')
+@ApiTags('Files', 'Frontend')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('api/files')

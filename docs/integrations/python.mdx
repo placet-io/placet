@@ -5,8 +5,8 @@ description: Integrate Placet with Python using requests.
 
 <Info>
   Runnable example in
-  [`examples/python/`](https://github.com/centerbitco/placet/tree/main/examples/python) covers
-  upload, messaging, approval, and download in a single script.
+  [`examples/python/`](https://github.com/placet-io/placet/tree/main/examples/python) covers upload,
+  messaging, approval, and download in a single script.
 </Info>
 
 ## Send a Message
@@ -19,7 +19,7 @@ API_KEY = "hp_your-api-key"
 CHANNEL_ID = "your-agent-id"
 
 headers = {
-    "Authorization": f"Bearer {API_KEY}",
+    "x-api-key": API_KEY,
     "Content-Type": "application/json",
 }
 
@@ -44,7 +44,7 @@ Upload a file without creating a message (can be attached later):
 with open("report.pdf", "rb") as f:
     resp = requests.post(
         f"{PLACET_URL}/api/v1/files/store",
-        headers={"Authorization": f"Bearer {API_KEY}"},
+        headers={"x-api-key": API_KEY},
         files={"file": ("report.pdf", f, "application/pdf")},
         data={"channelId": CHANNEL_ID},
     )
@@ -96,7 +96,7 @@ if review["status"] == "completed":
 ```python
 resp = requests.get(
     f"{PLACET_URL}/api/v1/files/{attachment['id']}/download",
-    headers={"Authorization": f"Bearer {API_KEY}"},
+    headers={"x-api-key": API_KEY},
 )
 with open("downloaded.pdf", "wb") as f:
     f.write(resp.content)

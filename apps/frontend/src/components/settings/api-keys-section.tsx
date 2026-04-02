@@ -100,9 +100,9 @@ export const ApiKeysSection = memo(function ApiKeysSection() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        API keys authenticate your agents. Use{' '}
-        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">Bearer hp_...</code> in the
-        Authorization header.
+        API keys authenticate your agents. Use the{' '}
+        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">x-api-key</code> header with your
+        key (starts with <code className="text-xs bg-muted px-1.5 py-0.5 rounded">hp_</code>).
       </p>
 
       {error && (

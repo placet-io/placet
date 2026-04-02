@@ -31,7 +31,7 @@ import { MessagesService } from './messages.service';
 import { CreateUserMessageDto } from './dto/create-user-message.dto';
 import { RespondReviewDto } from './dto/respond-review.dto';
 
-@ApiTags('Messages')
+@ApiTags('Messages', 'Frontend')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('api/messages')

@@ -13,7 +13,7 @@ description: Get Placet running locally in under 5 minutes.
 
 <Steps>
   <Step title="Clone the repository">
-    ```bash git clone https://github.com/centerbitco/placet.git cd placet ```
+    ```bash git clone https://github.com/placet-io/placet.git && cd placet ```
   </Step>
   <Step title="Configure environment">
     ```bash cp .env.example .env ``` Edit `.env` to set your desired admin email, password, and
@@ -45,14 +45,14 @@ Once setup completes, the following services are available:
     Go to **Settings → API Keys** and create a new key.
   </Step>
   <Step title="Create an agent">
-    Go to **Settings → Agents** and create a new agent.
+    Click **+ New Agent** in the inbox sidebar to create a new agent.
   </Step>
   <Step title="Send a message">
     ```bash
     curl -X POST http://localhost:3001/api/v1/messages \
-      -H "Authorization: Bearer hp_your-key-here" \
+      -H "x-api-key: hp_your-key-here" \
       -H "Content-Type: application/json" \
-      -d '{"text": "Hello from my agent!", "status": "success"}'
+      -d '{"channelId": "your-agent-id", "text": "Hello from my agent!", "status": "success"}'
     ```
   </Step>
   <Step title="View the message">
@@ -64,9 +64,10 @@ Once setup completes, the following services are available:
 
 ```bash
 curl -X POST http://localhost:3001/api/v1/messages \
-  -H "Authorization: Bearer hp_your-key-here" \
+  -H "x-api-key: hp_your-key-here" \
   -H "Content-Type: application/json" \
   -d '{
+    "channelId": "your-agent-id",
     "text": "Deploy v2.1 to production?",
     "review": {
       "type": "approval",

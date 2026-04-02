@@ -17,7 +17,8 @@ import json
 import sys
 
 
-KEEP_TAGS = {"Agent API"}
+KEEP_TAGS = {"Agents", "Messages", "Reviews", "Files", "Status", "Plugins"}
+EXCLUDE_TAGS = {"Frontend"}
 
 
 def fix_spec(spec: dict) -> dict:
@@ -35,7 +36,8 @@ def fix_spec(spec: dict) -> dict:
 
 
 def _filter_paths(paths: dict) -> dict:
-    """Keep only operations whose tags intersect with KEEP_TAGS."""
+    """Keep only operations whose tags intersect with KEEP_TAGS and don't
+    contain any EXCLUDE_TAGS."""
     filtered: dict = {}
     for path, methods in paths.items():
         kept_methods: dict = {}
@@ -44,7 +46,9 @@ def _filter_paths(paths: dict) -> dict:
                 kept_methods[method] = operation
                 continue
             tags = set(operation.get("tags", []))
-            if tags & KEEP_TAGS:
+            if (tags & KEEP_TAGS) and not (tags & EXCLUDE_TAGS):
+                # Remove the Frontend tag from the output if present
+                operation["tags"] = [t for t in operation["tags"] if t not in EXCLUDE_TAGS]
                 kept_methods[method] = operation
         if kept_methods:
             filtered[path] = kept_methods

@@ -9,6 +9,7 @@
 #   make validate  — Run lint + format check + build across all packages
 #   make test      — Run unit + e2e tests
 #   make lint      — Run lint only
+#   make inspect-mcp — Launch MCP Inspector to debug the MCP server
 #   make export-openapi — Export OpenAPI spec from backend to docs/
 #   make docs-dev  — Start Mintlify docs dev server
 #   make logs      — Tail backend logs
@@ -16,7 +17,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 .PHONY: setup start stop update validate validate-plugin test lint test-unit test-e2e \
-        build logs clean reset db-push db-migrate export-openapi docs-dev help
+        build logs clean reset db-push db-migrate export-openapi docs-dev inspect-mcp help
 
 SHELL := /bin/bash
 
@@ -101,12 +102,33 @@ lint: ## Run lint across all packages
 test: test-unit test-e2e ## Run all tests (unit + e2e)
 
 test-unit: ## Run unit tests
-	@echo "══ Unit tests ══"
+	@echo "══ Backend unit tests ══"
 	npm test --workspace=@placet/backend
+	@echo "══ MCP server unit tests ══"
+	npm test --workspace=@placet/mcp
 
 test-e2e: ## Run e2e tests
 	@echo "══ E2E tests ══"
 	npm run test:e2e --workspace=@placet/backend
+
+# ── MCP ────────────────────────────────────────────────────────────────────
+
+inspect-mcp: ## Launch MCP Inspector UI to debug the Placet MCP server (stdio)
+	@if [ -z "$$PLACET_API_URL" ] || [ -z "$$PLACET_API_KEY" ]; then \
+		echo "Usage: PLACET_API_URL=http://localhost:3001 PLACET_API_KEY=hp_... make inspect-mcp"; \
+		echo ""; \
+		echo "  Required env vars:"; \
+		echo "    PLACET_API_URL   — Backend URL (e.g. http://localhost:3001)"; \
+		echo "    PLACET_API_KEY   — API key starting with hp_"; \
+		echo "  Optional env vars:"; \
+		echo "    PLACET_DEFAULT_CHANNEL — Default channel/agent ID"; \
+		exit 1; \
+	fi
+	npx @modelcontextprotocol/inspector \
+		-e PLACET_API_URL=$$PLACET_API_URL \
+		-e PLACET_API_KEY=$$PLACET_API_KEY \
+		$$([ -n "$$PLACET_DEFAULT_CHANNEL" ] && echo "-e PLACET_DEFAULT_CHANNEL=$$PLACET_DEFAULT_CHANNEL") \
+		node packages/mcp-server/dist/index.js --stdio
 
 # ── Database ───────────────────────────────────────────────────────────────
 

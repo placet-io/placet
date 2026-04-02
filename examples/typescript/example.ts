@@ -25,7 +25,7 @@ if (!API_KEY || !CHANNEL) {
 }
 
 const headers = {
-  Authorization: `Bearer ${API_KEY}`,
+  "x-api-key": API_KEY,
   "Content-Type": "application/json",
 };
 
@@ -42,7 +42,7 @@ form.append("channelId", CHANNEL);
 
 const uploadResp = await fetch(`${BASE_URL}/api/v1/files/store`, {
   method: "POST",
-  headers: { Authorization: `Bearer ${API_KEY}` },
+  headers: { "x-api-key": API_KEY },
   body: form,
 });
 if (!uploadResp.ok) throw new Error(`Upload failed: ${uploadResp.status} ${await uploadResp.text()}`);
@@ -119,7 +119,7 @@ if (review.status === "completed") {
 console.log(`\n4) Downloading file ${attachmentId}...`);
 
 const dlResp = await fetch(`${BASE_URL}/api/v1/files/${attachmentId}/download`, {
-  headers: { Authorization: `Bearer ${API_KEY}` },
+  headers: { "x-api-key": API_KEY },
 });
 if (!dlResp.ok) throw new Error(`Download failed: ${dlResp.status}`);
 
