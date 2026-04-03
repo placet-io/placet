@@ -196,7 +196,7 @@ export const MessageInput = memo(function MessageInput({
             variant="ghost"
             size="icon"
             disabled={disabled || uploading || !!quotedMessage}
-            className="shrink-0 self-end rounded-full text-muted-foreground hover:text-foreground mb-0.5"
+            className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             onClick={handleFileSelect}
           >
             <Paperclip size={20} />
@@ -210,14 +210,14 @@ export const MessageInput = memo(function MessageInput({
             placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
             disabled={disabled}
             rows={1}
-            className="flex-1 min-h-[40px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground text-foreground resize-none py-2.5 scrollbar-hide"
+            className="flex-1 min-h-[40px] bg-transparent border-none outline-none text-base sm:text-sm placeholder:text-muted-foreground text-foreground resize-none py-2.5 scrollbar-hide"
           />
 
           <Button
             type="submit"
             size="icon"
             disabled={disabled || !canSend}
-            className="shrink-0 self-end rounded-full mb-0.5"
+            className="shrink-0 rounded-full"
           >
             {uploading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />

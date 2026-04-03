@@ -59,7 +59,7 @@ export const ChatList = memo(function ChatList({
   return (
     <div
       className={cn(
-        'flex h-full w-full lg:w-[320px] xl:w-[380px] shrink-0 flex-col bg-card rounded-3xl overflow-hidden shadow-sm border border-border/50',
+        'flex h-full w-full lg:w-[320px] xl:w-[380px] shrink-0 flex-col bg-card rounded-t-3xl lg:rounded-b-3xl overflow-hidden shadow-sm border border-border/50 border-b-0 lg:border-b',
         className,
       )}
     >

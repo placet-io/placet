@@ -201,6 +201,9 @@ export type PreviewType =
   | 'fallback';
 
 export function getPreviewType(mimeType: string, filename: string): PreviewType {
+  // SVG files should render as images, not code
+  if (mimeType === 'image/svg+xml' || /\.svg$/i.test(filename)) return 'image';
+
   // Check code files FIRST — e.g. .ts files have MIME video/mp2t
   if (isCodeFile(filename) || isCodeMime(mimeType)) return 'code';
 

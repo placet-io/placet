@@ -89,6 +89,49 @@ export const MessageBubble = memo(function MessageBubble({
     setPreviewAttachment(att);
   }, []);
 
+  /** Preview handler for inline storage media in markdown (images/videos by file ID) */
+  const handleFilePreview = useCallback(
+    (fileId: string) => {
+      // Fetch HEAD to get content-type and filename for the preview modal
+      fetch(`/api/files/${fileId}/download`, { method: 'HEAD', credentials: 'include' })
+        .then((res) => {
+          const ct = res.headers.get('content-type') ?? 'application/octet-stream';
+          const disp = res.headers.get('content-disposition') ?? '';
+          const fnMatch = disp.match(/filename="?(.+?)"?(?:;|$)/);
+          const filename = fnMatch?.[1] ?? fileId;
+          const cl = res.headers.get('content-length');
+          const att: Attachment = {
+            id: fileId,
+            messageId: messageId,
+            channelId: channelId ?? '',
+            pluginType: '',
+            filename,
+            mimeType: ct,
+            size: cl ? parseInt(cl, 10) : 0,
+            storageKey: '',
+            createdAt: createdAt,
+          };
+          setPreviewAttachment(att);
+        })
+        .catch(() => {
+          // Fallback: open as image
+          const att: Attachment = {
+            id: fileId,
+            messageId: messageId,
+            channelId: channelId ?? '',
+            pluginType: '',
+            filename: fileId,
+            mimeType: 'image/png',
+            size: 0,
+            storageKey: '',
+            createdAt: createdAt,
+          };
+          setPreviewAttachment(att);
+        });
+    },
+    [messageId, channelId, createdAt],
+  );
+
   const handleClosePreview = useCallback((open: boolean) => {
     if (!open) setPreviewAttachment(null);
   }, []);
@@ -281,7 +324,9 @@ export const MessageBubble = memo(function MessageBubble({
                     </p>
                   </div>
                 )}
-                {hasText && <MarkdownContent content={bodyText} />}
+                {hasText && (
+                  <MarkdownContent content={bodyText} onFilePreview={handleFilePreview} />
+                )}
 
                 {hasAttachments && (
                   <MessageAttachments attachments={attachments} onPreview={handlePreview} />
@@ -376,12 +421,16 @@ export const MessageBubble = memo(function MessageBubble({
       </div>
 
       {/* File Preview Modal */}
-      {hasAttachments && (
+      {(hasAttachments || previewAttachment !== null) && (
         <FilePreviewModal
           open={previewAttachment !== null}
           onOpenChange={handleClosePreview}
           attachment={previewAttachment}
-          attachments={attachments}
+          attachments={
+            previewAttachment
+              ? [previewAttachment, ...attachments.filter((a) => a.id !== previewAttachment.id)]
+              : attachments
+          }
           channelId={channelId}
           messageText={text}
           review={review}

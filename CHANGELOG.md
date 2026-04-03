@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-04-03
+
+### Added
+
+- **Webhook management API** — `POST /api/v1/agents/setWebhook` and `POST /api/v1/agents/deleteWebhook` endpoints (Telegram-style) for registering webhook URLs with custom headers and basic auth per channel
+- **Inline media in markdown** — images and videos referenced by storage file ID (`![alt](/fileId)`) render inline in chat messages with expand-to-preview support
+- E2E tests for webhook management endpoints (set, update, delete, validation, auth)
+
+### Fixed
+
+- **Light mode code blocks** — code blocks were barely visible in light mode; switched to theme-aware background and explicit border
+- **SVG file preview** — SVG files were incorrectly routed to the code viewer instead of rendering as images
+- **Service worker icon path** — push notification icon referenced non-existent `/icon-192.png`; corrected to `/favicons/android-chrome-192x192.png`
+- **Mobile layout** — improved responsive layout across chat, inbox, files, logs, settings, and status views
+
 ## [0.4.1] — 2026-04-03
 
 ### Fixed
