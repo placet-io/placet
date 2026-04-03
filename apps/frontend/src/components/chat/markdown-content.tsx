@@ -1,19 +1,26 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import { Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/** Matches a storage file path: /&lt;cuid&gt; */
+const STORAGE_FILE_RE = /^\/([a-z0-9]{20,})$/i;
 
 interface MarkdownContentProps {
   content: string;
   className?: string;
+  /** Called when user clicks expand on an inline storage media element */
+  onFilePreview?: (fileId: string) => void;
 }
 
 export const MarkdownContent = memo(function MarkdownContent({
   content,
   className,
+  onFilePreview,
 }: MarkdownContentProps) {
   // If content has no markdown indicators, render as plain text for perf
   if (!hasMarkdown(content)) {
@@ -37,27 +44,53 @@ export const MarkdownContent = memo(function MarkdownContent({
               {children}
             </a>
           ),
+          // Inline images — detect storage file IDs (/<cuid>) and render with preview
+          img: ({ node: _node, ...props }) => {
+            const src = typeof props.src === 'string' ? props.src : undefined;
+            const match = src?.match(STORAGE_FILE_RE);
+            if (match) {
+              return (
+                <InlineStorageMedia fileId={match[1]} alt={props.alt} onExpand={onFilePreview} />
+              );
+            }
+            // Regular external image
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                {...props}
+                src={src}
+                className="max-w-full max-h-64 object-contain rounded-lg my-2"
+                loading="lazy"
+              />
+            );
+          },
           // Code: inline only gets background, block code inside <pre> gets none
           code: ({ children, className: codeClassName, node: _n, ...props }) => {
             // Block code (inside <pre>) — check if content ends with newline (react-markdown adds trailing \n for blocks)
             const str = String(children);
             if (str.endsWith('\n') || codeClassName) {
               return (
-                <code className={cn('text-xs font-mono', codeClassName)} {...props}>
+                <code className={cn('text-xs font-mono text-foreground', codeClassName)} {...props}>
                   {children}
                 </code>
               );
             }
             // Inline code
             return (
-              <code className="bg-current/10 rounded px-1 py-0.5 text-xs font-mono" {...props}>
+              <code
+                className="bg-foreground/[0.07] border border-border/70 rounded px-1.5 py-0.5 text-xs font-mono"
+                {...props}
+              >
                 {children}
               </code>
             );
           },
           // Pre block wrapper
           pre: ({ children, node: _node, ...props }) => (
-            <pre className="bg-current/10 rounded-lg p-3 overflow-x-auto text-xs my-2" {...props}>
+            <pre
+              className="bg-foreground/[0.07] border border-border rounded-lg p-3 overflow-x-auto text-xs my-2"
+              {...props}
+            >
               {children}
             </pre>
           ),
@@ -120,5 +153,90 @@ export const MarkdownContent = memo(function MarkdownContent({
 
 /** Quick heuristic to detect markdown syntax in text */
 function hasMarkdown(text: string): boolean {
-  return /[*_`~\[#>|\n]|-{3,}|\d+\.\s/.test(text);
+  return /[!*_`~\[#>|\n]|-{3,}|\d+\.\s/.test(text);
+}
+
+// ---------------------------------------------------------------------------
+// Inline storage media component — resolves file type via HEAD request
+// ---------------------------------------------------------------------------
+
+function InlineStorageMedia({
+  fileId,
+  alt,
+  onExpand,
+}: {
+  fileId: string;
+  alt?: string;
+  onExpand?: (fileId: string) => void;
+}) {
+  const src = `/api/files/${fileId}/download`;
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+
+  useEffect(() => {
+    // Determine media type from the content-type header
+    fetch(src, { method: 'HEAD', credentials: 'include' })
+      .then((res) => {
+        const ct = res.headers.get('content-type') ?? '';
+        if (ct.startsWith('video/')) setMediaType('video');
+        else setMediaType('image'); // default to image
+      })
+      .catch(() => setMediaType('image'));
+  }, [src]);
+
+  const handleExpand = useCallback(() => {
+    onExpand?.(fileId);
+  }, [fileId, onExpand]);
+
+  if (!mediaType) {
+    // Loading placeholder
+    return <span className="inline-block my-2 w-48 h-32 rounded-xl bg-muted animate-pulse" />;
+  }
+
+  if (mediaType === 'video') {
+    return (
+      <span className="block my-2 rounded-xl overflow-hidden relative group not-prose">
+        <video src={src} controls preload="metadata" className="max-w-full max-h-64 rounded-xl">
+          <track kind="captions" />
+        </video>
+        {onExpand && (
+          <button
+            type="button"
+            onClick={handleExpand}
+            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/80"
+          >
+            <Maximize2 size={14} />
+          </button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <span className="block my-2 relative group not-prose">
+      <button
+        type="button"
+        onClick={onExpand ? handleExpand : undefined}
+        className={cn(
+          'block rounded-xl overflow-hidden',
+          onExpand && 'cursor-pointer hover:opacity-90 transition-opacity',
+        )}
+      >
+        <img
+          src={src}
+          alt={alt ?? 'image'}
+          className="max-w-full max-h-64 object-contain rounded-xl"
+          loading="lazy"
+        />
+      </button>
+      {onExpand && (
+        <button
+          type="button"
+          onClick={handleExpand}
+          className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/80"
+        >
+          <Maximize2 size={14} />
+        </button>
+      )}
+    </span>
+  );
 }

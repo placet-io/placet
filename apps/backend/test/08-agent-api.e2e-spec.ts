@@ -234,6 +234,125 @@ describe('Agent API (/api/v1/)', () => {
     });
   });
 
+  describe('Webhook management (/api/v1/agents)', () => {
+    it('should set a webhook for a channel', async () => {
+      const res = await request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({
+          channelId: state.agentId,
+          url: 'https://example.com/webhook',
+          headers: { 'X-Custom': 'test-header' },
+          auth: { username: 'user', password: 'secret' },
+        })
+        .expect(200);
+
+      const body = res.body as Record<string, unknown>;
+      expect(body.id).toBe(state.agentId);
+      expect(body.webhookUrl).toBe('https://example.com/webhook');
+      expect(body.webhookHeaders).toEqual({ 'X-Custom': 'test-header' });
+      // Password should be masked in response
+      expect(body.webhookAuth).toEqual({
+        username: 'user',
+        password: '***',
+      });
+    });
+
+    it('should update an existing webhook', async () => {
+      const res = await request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({
+          channelId: state.agentId,
+          url: 'https://example.com/webhook-v2',
+        })
+        .expect(200);
+
+      const body = res.body as Record<string, unknown>;
+      expect(body.webhookUrl).toBe('https://example.com/webhook-v2');
+      // Headers and auth should be cleared when not provided
+      expect(body.webhookHeaders).toBeNull();
+      expect(body.webhookAuth).toBeNull();
+    });
+
+    it('should reject setWebhook with invalid URL', () => {
+      return request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({ channelId: state.agentId, url: 'not-a-url' })
+        .expect(400);
+    });
+
+    it('should reject setWebhook without channelId', () => {
+      return request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({ url: 'https://example.com/webhook' })
+        .expect(400);
+    });
+
+    it('should reject setWebhook for non-owned channel', () => {
+      return request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({ channelId: 'nonexistent', url: 'https://example.com/webhook' })
+        .expect(404);
+    });
+
+    it('should delete a webhook from a channel', async () => {
+      // First set a webhook
+      await request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({
+          channelId: state.agentId,
+          url: 'https://example.com/to-delete',
+        })
+        .expect(200);
+
+      // Then delete it
+      const res = await request(httpServer)
+        .post('/api/v1/agents/deleteWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({ channelId: state.agentId })
+        .expect(200);
+
+      const body = res.body as Record<string, unknown>;
+      expect(body.id).toBe(state.agentId);
+      expect(body.webhookUrl).toBeNull();
+      expect(body.webhookHeaders).toBeNull();
+      expect(body.webhookAuth).toBeNull();
+    });
+
+    it('should reject deleteWebhook without channelId', () => {
+      return request(httpServer)
+        .post('/api/v1/agents/deleteWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({})
+        .expect(400);
+    });
+
+    it('should reject deleteWebhook for non-owned channel', () => {
+      return request(httpServer)
+        .post('/api/v1/agents/deleteWebhook')
+        .set('x-api-key', state.apiKeyRaw)
+        .send({ channelId: 'nonexistent' })
+        .expect(404);
+    });
+
+    it('should reject webhook endpoints without API key', async () => {
+      await request(httpServer)
+        .post('/api/v1/agents/setWebhook')
+        .send({ channelId: 'fake', url: 'https://example.com' })
+        .expect(401);
+
+      await request(httpServer)
+        .post('/api/v1/agents/deleteWebhook')
+        .send({ channelId: 'fake' })
+        .expect(401);
+    });
+  });
+
   describe('Agent file operations (/api/v1/files)', () => {
     let agentFileId: string;
 

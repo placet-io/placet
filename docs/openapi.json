@@ -86,6 +86,102 @@
                 ]
             }
         },
+        "/api/v1/agents/setWebhook": {
+            "post": {
+                "description": "Register a webhook URL that will receive events (message:created, review:responded) for the given channel. Replaces any previously configured webhook.",
+                "operationId": "AgentsAgentController_setWebhook",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetWebhookDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Webhook configured",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid API key",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api-key": []
+                    }
+                ],
+                "summary": "Set webhook URL for a channel",
+                "tags": [
+                    "Agents"
+                ]
+            }
+        },
+        "/api/v1/agents/deleteWebhook": {
+            "post": {
+                "description": "Removes the currently configured webhook so no more events are delivered via HTTP callback.",
+                "operationId": "AgentsAgentController_deleteWebhook",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DeleteWebhookDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Webhook removed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid API key",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api-key": []
+                    }
+                ],
+                "summary": "Remove webhook URL from a channel",
+                "tags": [
+                    "Agents"
+                ]
+            }
+        },
         "/api/v1/status/ping": {
             "post": {
                 "operationId": "AgentStatusController_ping",
@@ -1159,6 +1255,44 @@
                     "name"
                 ]
             },
+            "SetWebhookDto": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "channelId": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "headers": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "auth": {
+                        "$ref": "#/components/schemas/SetWebhookDtoAuth"
+                    }
+                },
+                "required": [
+                    "url",
+                    "channelId"
+                ]
+            },
+            "DeleteWebhookDto": {
+                "type": "object",
+                "properties": {
+                    "channelId": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "channelId"
+                ]
+            },
             "PingStatusDto": {
                 "type": "object",
                 "properties": {
@@ -1382,6 +1516,21 @@
                 },
                 "required": [
                     "status"
+                ]
+            },
+            "SetWebhookDtoAuth": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string"
+                    },
+                    "password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "username",
+                    "password"
                 ]
             },
             "CreateMessageDtoReviewCallback": {

@@ -39,7 +39,7 @@ export const InboxDetail = memo(function InboxDetail({
   );
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-card rounded-3xl overflow-hidden shadow-sm border border-border/50">
+    <div className="flex h-full flex-1 flex-col bg-card rounded-t-3xl lg:rounded-b-3xl overflow-hidden shadow-sm border border-border/50 border-b-0 lg:border-b">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
         <Button

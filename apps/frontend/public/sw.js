@@ -17,8 +17,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: '/favicons/android-chrome-192x192.png',
+      badge: '/favicons/android-chrome-192x192.png',
       tag: `hp-push-${channelId}`,
       renotify: true,
       data: { channelId },

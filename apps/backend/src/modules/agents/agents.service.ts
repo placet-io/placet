@@ -3,11 +3,11 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
-import { UpdateAgentDto } from './dto/update-agent.dto';
 import type {
   AgentStatsResponse,
   AgentStatus,
   GlobalStatsResponse,
+  UpdateAgentRequest,
 } from '@placet/shared';
 
 /** Prisma requires DbNull for nullable JSON columns instead of plain null */
@@ -159,7 +159,7 @@ export class AgentsService {
     return maskWebhookAuth(agent);
   }
 
-  async update(id: string, ownerId: string, dto: UpdateAgentDto) {
+  async update(id: string, ownerId: string, dto: UpdateAgentRequest) {
     await this.findById(id, ownerId);
     const updated = await this.prisma.agent.update({
       where: { id },

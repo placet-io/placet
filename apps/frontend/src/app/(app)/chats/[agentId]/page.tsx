@@ -76,7 +76,7 @@ export default function ChatThreadPage() {
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col bg-card sm:rounded-3xl overflow-hidden shadow-sm relative h-full sm:border sm:border-border/50">
+    <div className="flex flex-1 flex-col bg-card lg:rounded-3xl overflow-hidden lg:shadow-sm relative h-full lg:border lg:border-border/50">
       <ChatHeader
         ref={headerRef}
         agentId={agentId}

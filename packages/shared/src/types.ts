@@ -218,6 +218,19 @@ export const UpdateAgentSchema = z.object({
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
 
+export const SetWebhookSchema = z.object({
+  url: z.string().url(),
+  channelId: z.string().min(1),
+  headers: z.record(z.string(), z.string()).optional(),
+  auth: WebhookAuthSchema.optional(),
+});
+export type SetWebhookRequest = z.infer<typeof SetWebhookSchema>;
+
+export const DeleteWebhookSchema = z.object({
+  channelId: z.string().min(1),
+});
+export type DeleteWebhookRequest = z.infer<typeof DeleteWebhookSchema>;
+
 export const CreateApiKeySchema = z.object({
   label: z.string().min(1).max(64).optional(),
 });
