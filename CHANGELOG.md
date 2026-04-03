@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-04-03
+
+### Fixed
+
+- **Form review select crash** — select fields with `{label, value}` object options caused React error #31; now supports both string and object option formats
+- **Completed form reviews** — submitted forms now display the same form UI in read-only mode with filled values instead of raw JSON
+
 ## [0.4.0] — 2026-04-02
 
 ### Added

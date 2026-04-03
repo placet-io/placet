@@ -178,7 +178,7 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
           type: string;
           label: string;
           required?: boolean;
-          options?: string[];
+          options?: (string | { label: string; value: string })[];
           min?: number;
           max?: number;
           step?: number;
@@ -230,11 +230,15 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
                 <SelectValue placeholder="Select…" />
               </SelectTrigger>
               <SelectContent>
-                {field.options.map((opt) => (
-                  <SelectItem key={opt} value={opt}>
-                    {opt}
-                  </SelectItem>
-                ))}
+                {field.options.map((opt) => {
+                  const optValue = typeof opt === 'string' ? opt : opt.value;
+                  const optLabel = typeof opt === 'string' ? opt : opt.label;
+                  return (
+                    <SelectItem key={optValue} value={optValue}>
+                      {optLabel}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           ) : field.type === 'textarea' ? (
@@ -475,6 +479,131 @@ const TYPE_ICON = {
   freeform: MessageSquare,
 } as const;
 
+// ── CompletedFormResponse ──────────────────────────────────────
+
+type FormField = {
+  name: string;
+  type: string;
+  label: string;
+  required?: boolean;
+  options?: (string | { label: string; value: string })[];
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+};
+
+function CompletedFormResponse({ review }: { review: Review }) {
+  const payload = review.payload as { fields?: FormField[]; submitLabel?: string } | undefined;
+  const fields = payload?.fields ?? [];
+  const response = review.response as Record<string, unknown> | undefined;
+  if (!response) return null;
+
+  return (
+    <div className="space-y-2">
+      {fields.map((field) => {
+        const val = response[field.name];
+        return (
+          <div key={field.name}>
+            <label className="block text-xs font-medium text-muted-foreground mb-0.5">
+              {field.label}
+            </label>
+            {field.type === 'select' && field.options ? (
+              <Select value={String(val ?? '')} disabled>
+                <SelectTrigger className="w-full text-sm opacity-70">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.options.map((opt) => {
+                    const optValue = typeof opt === 'string' ? opt : opt.value;
+                    const optLabel = typeof opt === 'string' ? opt : opt.label;
+                    return (
+                      <SelectItem key={optValue} value={optValue}>
+                        {optLabel}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            ) : field.type === 'textarea' ? (
+              <Textarea
+                value={String(val ?? '')}
+                readOnly
+                rows={2}
+                className="text-sm min-h-0 opacity-70"
+              />
+            ) : field.type === 'checkbox' ? (
+              <Checkbox checked={!!val} disabled />
+            ) : field.type === 'range' ? (
+              <div className="flex items-center gap-3">
+                <Slider
+                  min={field.min ?? 0}
+                  max={field.max ?? 100}
+                  step={field.step ?? 1}
+                  value={[Number(val ?? field.min ?? 0)]}
+                  disabled
+                  className="flex-1 opacity-70"
+                />
+                <span className="text-sm font-medium tabular-nums min-w-[3ch] text-right">
+                  {String(val ?? field.min ?? 0)}
+                  {field.unit ? ` ${field.unit}` : ''}
+                </span>
+              </div>
+            ) : field.type === 'date' ? (
+              <Button
+                variant="outline"
+                disabled
+                className="w-full justify-start text-left text-sm font-normal h-8 opacity-70"
+              >
+                <CalendarIcon className="size-3.5" />
+                {val ? format(new Date(String(val) + 'T00:00:00'), 'PPP') : '—'}
+              </Button>
+            ) : field.type === 'time' ? (
+              <Input
+                type="time"
+                value={String(val ?? '')}
+                readOnly
+                className="text-sm h-8 opacity-70 [&::-webkit-calendar-picker-indicator]:hidden"
+              />
+            ) : field.type === 'datetime' ? (
+              (() => {
+                const dtVal = String(val ?? '');
+                const [datePart = '', timePart = ''] = dtVal.split('T');
+                const dateObj = datePart ? new Date(datePart + 'T00:00:00') : undefined;
+                return (
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant="outline"
+                      disabled
+                      className="flex-1 justify-start text-left text-sm font-normal h-8 opacity-70"
+                    >
+                      <CalendarIcon className="size-3.5" />
+                      {dateObj ? format(dateObj, 'PP') : '—'}
+                    </Button>
+                    <Input
+                      type="time"
+                      value={timePart}
+                      readOnly
+                      className="w-auto text-sm h-8 opacity-70 [&::-webkit-calendar-picker-indicator]:hidden"
+                    />
+                  </div>
+                );
+              })()
+            ) : (
+              <Input
+                type="text"
+                value={String(val ?? '')}
+                readOnly
+                className="text-sm h-8 opacity-70"
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── CompletedResponse ──────────────────────────────────────────
 
 function CompletedResponse({ review }: { review: Review }) {
@@ -511,7 +640,11 @@ function CompletedResponse({ review }: { review: Review }) {
     );
   }
 
-  // form / freeform — render as formatted JSON
+  if (review.type === 'form') {
+    return <CompletedFormResponse review={review} />;
+  }
+
+  // freeform — render as formatted JSON
   return (
     <pre className="text-xs bg-muted/50 rounded-lg p-2 overflow-x-auto max-h-40 font-mono">
       {JSON.stringify(response, null, 2)}
