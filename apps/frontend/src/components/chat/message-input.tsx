@@ -87,14 +87,18 @@ export const MessageInput = memo(function MessageInput({
     [text, onSend, quotedMessage, onClearQuote, pendingFile, onUploadFile],
   );
 
+  const isMobile = useCallback(() => {
+    return 'ontouchstart' in window && window.innerWidth < 768;
+  }, []);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isMobile()) {
         e.preventDefault();
         void handleSubmit(e);
       }
     },
-    [handleSubmit],
+    [handleSubmit, isMobile],
   );
 
   const handleFileSelect = useCallback(() => {
@@ -185,10 +189,10 @@ export const MessageInput = memo(function MessageInput({
         </div>
       )}
 
-      <div className="p-4">
+      <div className="p-2 sm:p-4">
         <form
           onSubmit={handleSubmit}
-          className="flex items-center gap-2 bg-muted/50 rounded-3xl p-2 border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all"
+          className="flex items-center gap-2 bg-muted/50 rounded-3xl p-1.5 sm:p-2 border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all"
         >
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
           <Button
@@ -210,7 +214,7 @@ export const MessageInput = memo(function MessageInput({
             placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
             disabled={disabled}
             rows={1}
-            className="flex-1 min-h-[40px] bg-transparent border-none outline-none text-base sm:text-sm placeholder:text-muted-foreground text-foreground resize-none py-2.5 scrollbar-hide"
+            className="flex-1 min-h-[32px] sm:min-h-[40px] bg-transparent border-none outline-none text-base sm:text-sm placeholder:text-muted-foreground text-foreground resize-none py-1.5 sm:py-2.5 scrollbar-hide"
           />
 
           <Button

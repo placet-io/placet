@@ -162,6 +162,17 @@ export class MessagesService {
       ...(dto.webhookUrl ? { webhookUrl: dto.webhookUrl } : {}),
     };
 
+    // Auto-set metadata.plugin from review.payload.plugin so the frontend
+    // renders via PluginRenderer instead of the generic ReviewCard fallback
+    if (
+      review &&
+      review.type === 'freeform' &&
+      typeof (review.payload as Record<string, unknown>)?.plugin === 'string' &&
+      !metadata.plugin
+    ) {
+      metadata.plugin = (review.payload as Record<string, unknown>).plugin;
+    }
+
     const message = await this.prisma.message.create({
       data: {
         channelId: dto.channelId,

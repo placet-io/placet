@@ -236,22 +236,31 @@ export const CreateApiKeySchema = z.object({
 });
 export type CreateApiKeyRequest = z.infer<typeof CreateApiKeySchema>;
 
-export const CreateAgentMessageSchema = z.object({
-  channelId: z.string().min(1),
-  text: z.string().optional(),
-  status: MessageStatusSchema.optional(),
-  review: ReviewSchema.omit({ status: true, response: true, completedAt: true }).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  webhookUrl: z.string().url().optional(),
-  attachmentIds: z.array(z.string()).optional(),
-});
+export const CreateAgentMessageSchema = z
+  .object({
+    channelId: z.string().min(1),
+    text: z.string().optional(),
+    status: MessageStatusSchema.optional(),
+    review: ReviewSchema.omit({ status: true, response: true, completedAt: true }).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    webhookUrl: z.string().url().optional(),
+    attachmentIds: z.array(z.string()).optional(),
+  })
+  .refine(
+    (d) => d.text || d.review || d.status || (d.attachmentIds && d.attachmentIds.length > 0),
+    { message: 'Message must contain at least one of: text, review, status, or attachmentIds' },
+  );
 export type CreateAgentMessageRequest = z.infer<typeof CreateAgentMessageSchema>;
 
-export const CreateUserMessageSchema = z.object({
-  channelId: z.string().min(1),
-  text: z.string().optional(),
-  attachmentIds: z.array(z.string()).optional(),
-});
+export const CreateUserMessageSchema = z
+  .object({
+    channelId: z.string().min(1),
+    text: z.string().optional(),
+    attachmentIds: z.array(z.string()).optional(),
+  })
+  .refine((d) => d.text || (d.attachmentIds && d.attachmentIds.length > 0), {
+    message: 'Message must contain at least text or attachmentIds',
+  });
 export type CreateUserMessageRequest = z.infer<typeof CreateUserMessageSchema>;
 
 export const RespondReviewSchema = z.object({
