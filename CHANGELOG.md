@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-04-05
+
+### Fixed
+
+- **Empty message validation** — reject messages with no content (no text, review, status, or attachments) at the schema level for both agent and user APIs
+- **Plugin message rendering** — backend now auto-sets `metadata.plugin` from `review.payload.plugin` on freeform reviews, so plugin UIs render correctly without callers needing to duplicate data
+- **Mobile message input** — compact padding on small screens, prevent Enter-to-send on mobile touch devices
+
 ## [0.5.0] — 2026-04-03
 
 ### Added
