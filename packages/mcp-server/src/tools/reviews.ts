@@ -40,7 +40,8 @@ export function registerReviewTools(server: McpServer, api: PlacetApiClient, con
 • freeform — Pass-through for plugin UIs. Payload: { plugin: "plugin-name", ...pluginData }.
 
 By default returns immediately with the pending review. Set waitInline=true to wait for the response in the same call.
-For long reviews, call wait_for_review separately after this tool returns.`,
+For long reviews, call wait_for_review separately after this tool returns.
+Use iterationOf to create an iteration chain — link this review to a previous message that was reviewed (the target must have a completed or changes_requested review).`,
     {
       channelId: channelParam,
       text: z
@@ -71,9 +72,24 @@ For long reviews, call wait_for_review separately after this tool returns.`,
         .describe(
           'If true, wait for the review response before returning (max connection timeout). Default: false.',
         ),
+      iterationOf: z
+        .string()
+        .optional()
+        .describe(
+          'ID of a previous message to iterate on. Creates an iteration chain. The target message must have a completed or changes_requested review.',
+        ),
     },
     async (
-      { channelId, text, reviewType, reviewPayload, expiresInSeconds, webhookUrl, waitInline },
+      {
+        channelId,
+        text,
+        reviewType,
+        reviewPayload,
+        expiresInSeconds,
+        webhookUrl,
+        waitInline,
+        iterationOf,
+      },
       { sendNotification, _meta },
     ) => {
       const channel = resolveChannel(channelId);
@@ -88,6 +104,7 @@ For long reviews, call wait_for_review separately after this tool returns.`,
           ...(expiresInSeconds ? { expiresInSeconds } : {}),
         },
         ...(webhookUrl ? { webhookUrl } : {}),
+        ...(iterationOf ? { iterationOf } : {}),
       });
 
       const msgId = (message as { id: string }).id;
@@ -136,6 +153,7 @@ For long reviews, call wait_for_review separately after this tool returns.`,
     'wait_for_review',
     `Wait for a human to respond to a pending review. Holds the connection open (default 5 minutes) polling the backend every 30 seconds.
 If the review is not completed within the connection timeout, returns status "timeout" — call this tool again to continue waiting.
+Returns immediately if the review was completed, expired, or if changes were requested.
 Works for reviews of any duration (minutes, hours, or days).`,
     {
       messageId: z.string().describe('The message ID containing the review.'),
@@ -157,7 +175,11 @@ Works for reviews of any duration (minutes, hours, or days).`,
       const review = (current as { review?: { expiresAt?: string; status?: string } }).review;
 
       // Fast path: already resolved
-      if (review?.status === 'completed' || review?.status === 'expired') {
+      if (
+        review?.status === 'completed' ||
+        review?.status === 'expired' ||
+        review?.status === 'changes_requested'
+      ) {
         return {
           content: [
             {
@@ -222,7 +244,11 @@ async function doWaitLoop(
 
     const result: WaitResult = await api.waitForReview(messageId, channel, pollTimeout);
 
-    if (result.status === 'completed' || result.status === 'expired') {
+    if (
+      result.status === 'completed' ||
+      result.status === 'expired' ||
+      result.status === 'changes_requested'
+    ) {
       // Send final progress
       if (progressToken !== undefined) {
         await sendNotification({

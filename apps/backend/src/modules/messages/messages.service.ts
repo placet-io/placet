@@ -18,6 +18,7 @@ import {
   type WebhookCallback,
 } from '../webhooks/webhooks.service';
 import { PushService } from '../push/push.service';
+import { FilesService } from '../files/files.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { RespondReviewDto } from './dto/respond-review.dto';
 
@@ -30,9 +31,52 @@ export class MessagesService {
     private readonly events: EventsGateway,
     private readonly webhooks: WebhooksService,
     private readonly push: PushService,
+    private readonly files: FilesService,
   ) {}
 
   // ── Private helpers ────────────────────────────────────────
+
+  /** Max size for inline text content (64 KB). Larger files require download. */
+  private static readonly MAX_INLINE_TEXT_SIZE = 64 * 1024;
+
+  /** MIME types whose content is returned inline in API responses. */
+  private static isInlineTextMime(mimeType: string): boolean {
+    return (
+      mimeType === 'text/markdown' ||
+      mimeType === 'text/plain' ||
+      mimeType === 'text/html' ||
+      mimeType === 'text/csv'
+    );
+  }
+
+  /**
+   * Enriches text-based attachments with inline `textContent` so agents
+   * don't need a separate download call for small text files.
+   */
+  private async enrichTextAttachments<
+    T extends {
+      attachments?: Array<{
+        mimeType: string;
+        size: bigint | number;
+        storageKey: string;
+      }>;
+    },
+  >(message: T): Promise<T> {
+    if (!message.attachments?.length) return message;
+    const enriched = await Promise.all(
+      message.attachments.map(async (att) => {
+        if (
+          MessagesService.isInlineTextMime(att.mimeType) &&
+          Number(att.size) <= MessagesService.MAX_INLINE_TEXT_SIZE
+        ) {
+          const textContent = await this.files.getTextContent(att.storageKey);
+          return { ...att, textContent };
+        }
+        return att;
+      }),
+    );
+    return { ...message, attachments: enriched };
+  }
 
   private async assertOwnership(agentId: string, userId: string) {
     const agent = await this.prisma.agent.findFirst({
@@ -151,6 +195,39 @@ export class MessagesService {
   async createFromAgent(userId: string, dto: CreateMessageDto) {
     const agent = await this.assertOwnership(dto.channelId, userId);
 
+    // ── Iteration chain handling ──
+    let iterationGroupId: string | undefined;
+    let iteration: number | undefined;
+    let iterationTarget:
+      | { id: string; iterationGroupId: string | null }
+      | undefined;
+
+    if (dto.iterationOf) {
+      const target = await this.prisma.message.findFirst({
+        where: { id: dto.iterationOf, channelId: dto.channelId },
+      });
+      if (!target) {
+        throw new BadRequestException(
+          'iterationOf target does not exist in this channel',
+        );
+      }
+      const targetReview = target.review as Record<string, unknown> | null;
+      if (
+        !targetReview ||
+        (targetReview.status !== 'completed' &&
+          targetReview.status !== 'changes_requested')
+      ) {
+        throw new BadRequestException(
+          'iterationOf target must have a completed or changes_requested review',
+        );
+      }
+
+      iterationTarget = {
+        id: target.id,
+        iterationGroupId: target.iterationGroupId,
+      };
+    }
+
     // Normalise & cap review expiration
     const review = dto.review
       ? this.normaliseReviewExpiry(dto.review as Record<string, unknown>)
@@ -173,24 +250,63 @@ export class MessagesService {
       metadata.plugin = (review.payload as Record<string, unknown>).plugin;
     }
 
-    const message = await this.prisma.message.create({
-      data: {
-        channelId: dto.channelId,
-        senderType: 'agent',
-        senderId: dto.channelId,
-        text: dto.text,
-        status: dto.status,
-        review: review as Prisma.InputJsonValue | undefined,
-        metadata: Object.keys(metadata).length
-          ? (metadata as Prisma.InputJsonValue)
-          : undefined,
-      },
-      include: { attachments: true },
+    // ── Store inline textAttachments as files and merge into attachmentIds ──
+    const allAttachmentIds = [...(dto.attachmentIds ?? [])];
+    if (dto.textAttachments?.length) {
+      for (const ta of dto.textAttachments) {
+        const att = await this.files.storeText(
+          ta.content,
+          ta.filename ?? 'content.md',
+          ta.mimeType ?? 'text/markdown',
+          dto.channelId,
+        );
+        allAttachmentIds.push(att.id);
+      }
+    }
+
+    // ── Create message (with atomic iteration numbering if part of a chain) ──
+    const message = await this.prisma.$transaction(async (tx) => {
+      if (iterationTarget) {
+        iterationGroupId =
+          (iterationTarget.iterationGroupId as string) ?? iterationTarget.id;
+
+        const maxResult = await tx.message.aggregate({
+          where: { iterationGroupId },
+          _max: { iteration: true },
+        });
+        iteration = (maxResult._max.iteration ?? 1) + 1;
+      }
+
+      const created = await tx.message.create({
+        data: {
+          channelId: dto.channelId,
+          senderType: 'agent',
+          senderId: dto.channelId,
+          text: dto.text,
+          status: dto.status,
+          review: review as Prisma.InputJsonValue | undefined,
+          metadata: Object.keys(metadata).length
+            ? (metadata as Prisma.InputJsonValue)
+            : undefined,
+          ...(iterationGroupId != null ? { iterationGroupId, iteration } : {}),
+        },
+        include: { attachments: true },
+      });
+
+      // Backfill root as iteration 1 when first follow-up is created
+      if (iterationTarget && iteration === 2) {
+        await tx.message.update({
+          where: { id: iterationTarget.id },
+          data: { iterationGroupId: iterationGroupId!, iteration: 1 },
+        });
+      }
+
+      return created;
     });
 
     // Attach orphan files if IDs were provided
-    const final = dto.attachmentIds?.length
-      ? await this.linkAttachments(message.id, dto.attachmentIds, dto.channelId)
+    const final = allAttachmentIds.length
+      ? await this.linkAttachments(message.id, allAttachmentIds, dto.channelId)
       : message;
 
     // Emit events
@@ -202,7 +318,9 @@ export class MessagesService {
       body: final.text ?? 'Sent an attachment',
       channelId: dto.channelId,
     });
-    return final;
+
+    // Enrich text attachments with inline content for agent API responses
+    return this.enrichTextAttachments(final);
   }
 
   async findByAgent(
@@ -240,9 +358,49 @@ export class MessagesService {
   }
 
   async deleteByAgent(userId: string, messageId: string, agentId: string) {
-    await this.findOneByAgent(userId, messageId, agentId);
+    const message = await this.findOneByAgent(userId, messageId, agentId);
+
+    // Prevent deletion of root messages that have follow-up iterations
+    if (message.iterationGroupId || message.iteration) {
+      const groupId = message.iterationGroupId ?? message.id;
+      const hasFollowUps = await this.prisma.message.count({
+        where: { iterationGroupId: groupId, id: { not: messageId } },
+      });
+      if (hasFollowUps > 0) {
+        throw new BadRequestException(
+          'Cannot delete a message that is part of an iteration chain with other messages',
+        );
+      }
+    }
+
     await this.prisma.message.delete({ where: { id: messageId } });
     return { deleted: true };
+  }
+
+  /** Retrieve all messages in an iteration chain, sorted by iteration number. */
+  async getIterationChain(
+    messageId: string,
+    channelId: string,
+    userId: string,
+  ) {
+    await this.assertOwnership(channelId, userId);
+
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, channelId },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+
+    const groupId = message.iterationGroupId ?? message.id;
+
+    const iterations = await this.prisma.message.findMany({
+      where: {
+        OR: [{ iterationGroupId: groupId }, { id: groupId }],
+      },
+      include: { attachments: true },
+      orderBy: { iteration: 'asc' },
+    });
+
+    return { groupId, iterations };
   }
 
   // ── User API ───────────────────────────────────────────────
@@ -298,11 +456,37 @@ export class MessagesService {
     return final;
   }
 
-  async getReviews(userId: string, status?: string) {
-    const agents = await this.prisma.agent.findMany({
-      where: { ownerId: userId },
-      select: { id: true },
+  async findById(messageId: string, userId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: { attachments: true, agent: true },
     });
+    if (!message) throw new NotFoundException('Message not found');
+    if (message.agent.ownerId !== userId) {
+      throw new ForbiddenException('Not your agent');
+    }
+    // Strip sensitive agent credentials before returning to the client
+    const {
+      webhookAuth: _wa,
+      webhookHeaders: _wh,
+      webhookUrl: _wu,
+      ...safeAgent
+    } = message.agent;
+    return { ...message, agent: safeAgent };
+  }
+
+  async getReviews(userId: string, status?: string, channelId?: string) {
+    // If channel specified, verify ownership
+    if (channelId) {
+      await this.assertOwnership(channelId, userId);
+    }
+
+    const agents = channelId
+      ? [{ id: channelId }]
+      : await this.prisma.agent.findMany({
+          where: { ownerId: userId },
+          select: { id: true },
+        });
     const agentIds = agents.map((a) => a.id);
 
     const where: Record<string, unknown> = {
@@ -363,7 +547,7 @@ export class MessagesService {
     agentId: string,
     timeoutMs = 30000,
   ): Promise<{
-    status: 'completed' | 'expired' | 'timeout';
+    status: 'completed' | 'expired' | 'changes_requested' | 'timeout';
     message?: unknown;
   }> {
     const message = await this.getReviewByAgent(userId, messageId, agentId);
@@ -371,12 +555,26 @@ export class MessagesService {
 
     // Already completed — return immediately
     if (review.status === 'completed') {
-      return { status: 'completed', message };
+      return {
+        status: 'completed',
+        message: await this.enrichTextAttachments(message),
+      };
     }
 
     // Already expired — return immediately
     if (review.status === 'expired') {
-      return { status: 'expired', message };
+      return {
+        status: 'expired',
+        message: await this.enrichTextAttachments(message),
+      };
+    }
+
+    // Changes requested — return immediately
+    if (review.status === 'changes_requested') {
+      return {
+        status: 'changes_requested',
+        message: await this.enrichTextAttachments(message),
+      };
     }
 
     // Check if review has expired by date but status wasn't updated yet
@@ -385,7 +583,10 @@ export class MessagesService {
       new Date(review.expiresAt as string) <= new Date()
     ) {
       const updated = await this.expireReview(messageId, review);
-      return { status: 'expired', message: updated };
+      return {
+        status: 'expired',
+        message: await this.enrichTextAttachments(updated),
+      };
     }
 
     // Long-poll: check periodically until timeout
@@ -407,17 +608,33 @@ export class MessagesService {
         if (fresh?.review) {
           const r = fresh.review as Record<string, unknown>;
           if (r.status === 'completed') {
-            resolve({ status: 'completed', message: fresh });
+            resolve({
+              status: 'completed',
+              message: await this.enrichTextAttachments(fresh),
+            });
             return;
           }
           if (r.status === 'expired') {
-            resolve({ status: 'expired', message: fresh });
+            resolve({
+              status: 'expired',
+              message: await this.enrichTextAttachments(fresh),
+            });
+            return;
+          }
+          if (r.status === 'changes_requested') {
+            resolve({
+              status: 'changes_requested',
+              message: await this.enrichTextAttachments(fresh),
+            });
             return;
           }
           // Check if review has expired by date
           if (r.expiresAt && new Date(r.expiresAt as string) <= new Date()) {
             const updated = await this.expireReview(messageId, r);
-            resolve({ status: 'expired', message: updated });
+            resolve({
+              status: 'expired',
+              message: await this.enrichTextAttachments(updated),
+            });
             return;
           }
         }
@@ -436,71 +653,90 @@ export class MessagesService {
     userId: string,
     dto: RespondReviewDto,
   ) {
-    const message = await this.prisma.message.findUnique({
-      where: { id: messageId },
-      include: { agent: true },
+    // Wrap in interactive transaction to prevent race conditions (parallel tabs)
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const message = await tx.message.findUnique({
+        where: { id: messageId },
+        include: { agent: true },
+      });
+      if (!message) throw new NotFoundException('Message not found');
+      if (message.agent.ownerId !== userId) {
+        throw new ForbiddenException('Not your agent');
+      }
+      if (!message.review) {
+        throw new NotFoundException('No review on this message');
+      }
+
+      const review = message.review as Record<string, unknown>;
+      if (review.status !== 'pending') {
+        throw new ForbiddenException('Review already responded');
+      }
+
+      const newStatus = dto.requestChanges ? 'changes_requested' : 'completed';
+      const updatedReview = {
+        ...review,
+        status: newStatus,
+        response: dto.response,
+        ...(dto.modifiedFileIds && Object.keys(dto.modifiedFileIds).length
+          ? { modifiedFileIds: dto.modifiedFileIds }
+          : {}),
+        ...(dto.feedback ? { feedback: dto.feedback } : {}),
+        completedAt: new Date().toISOString(),
+      };
+
+      return tx.message.update({
+        where: { id: messageId },
+        data: { review: updatedReview as Prisma.InputJsonValue },
+        include: { attachments: true, agent: true },
+      });
     });
-    if (!message) throw new NotFoundException('Message not found');
-    if (message.agent.ownerId !== userId) {
-      throw new ForbiddenException('Not your agent');
-    }
-    if (!message.review) {
-      throw new NotFoundException('No review on this message');
-    }
 
-    const review = message.review as Record<string, unknown>;
-    if (review.status !== 'pending') {
-      throw new ForbiddenException('Review already responded');
-    }
-
-    const updatedReview = {
-      ...review,
-      status: 'completed',
-      response: dto.response,
-      ...(dto.annotationFileId
-        ? { annotationFileId: dto.annotationFileId }
-        : {}),
-      completed_at: new Date().toISOString(),
-    };
-
-    const updated = await this.prisma.message.update({
-      where: { id: messageId },
-      data: { review: updatedReview as Prisma.InputJsonValue },
-      include: { attachments: true },
-    });
+    const review = updated.review as Record<string, unknown>;
+    const isChangesRequested = review.status === 'changes_requested';
 
     // Tier 3: WebSocket — always active
-    this.events.emitToChannel(message.channelId, 'review:responded', updated);
+    this.events.emitToChannel(updated.channelId, 'review:responded', updated);
 
     // 3-tier webhook dispatch for review response:
-    const reviewPayload = {
-      event: 'review:responded',
-      channelId: message.channelId,
+    const webhookEvent = isChangesRequested
+      ? 'review:changes_requested'
+      : 'review:responded';
+
+    const reviewPayload: Record<string, unknown> = {
+      event: webhookEvent,
+      channelId: updated.channelId,
       message_id: messageId,
       review_type: review.type as string,
       response: dto.response,
-      ...(dto.annotationFileId
-        ? { annotationFileId: dto.annotationFileId }
+      ...(dto.modifiedFileIds && Object.keys(dto.modifiedFileIds).length
+        ? { modifiedFileIds: dto.modifiedFileIds }
         : {}),
-      responded_at: updatedReview.completed_at,
+      ...(dto.feedback ? { feedback: dto.feedback } : {}),
+      responded_at: review.completedAt,
     };
 
-    const meta = (message.metadata ?? {}) as Record<string, unknown>;
+    // Add iteration context if message is part of a chain
+    if (updated.iterationGroupId) {
+      reviewPayload.iterationGroupId = updated.iterationGroupId;
+      reviewPayload.iteration = updated.iteration;
+    }
+
+    const meta = (updated.metadata ?? {}) as Record<string, unknown>;
     const messageWebhookUrl = meta.webhookUrl as string | undefined;
 
     const logCtx = { userId };
 
     // Resolve callback: message-level override → agent-level → legacy inline
     const callback = messageWebhookUrl
-      ? (this.buildAgentWebhook(message.agent, messageWebhookUrl) ??
+      ? (this.buildAgentWebhook(updated.agent, messageWebhookUrl) ??
         ({ url: messageWebhookUrl, method: 'POST' } as WebhookCallback))
-      : (this.buildAgentWebhook(message.agent) ??
+      : (this.buildAgentWebhook(updated.agent) ??
         (review.callback ? (review.callback as WebhookCallback) : null));
 
     if (callback) {
       void this.dispatchAndTrackDelivery(
         messageId,
-        message.channelId,
+        updated.channelId,
         callback,
         reviewPayload,
         logCtx,
@@ -526,15 +762,30 @@ export class MessagesService {
     const review = message.review as Record<string, unknown> | null;
 
     // For review messages → re-send the review:responded payload
-    if (review && review.status === 'completed') {
-      const reviewPayload = {
-        event: 'review:responded',
+    if (
+      review &&
+      (review.status === 'completed' || review.status === 'changes_requested')
+    ) {
+      const isChangesRequested = review.status === 'changes_requested';
+      const reviewPayload: Record<string, unknown> = {
+        event: isChangesRequested
+          ? 'review:changes_requested'
+          : 'review:responded',
         channelId: message.channelId,
         message_id: messageId,
         review_type: review.type as string,
         response: review.response,
-        responded_at: review.completed_at,
+        responded_at: review.completedAt,
+        ...(review.feedback ? { feedback: review.feedback } : {}),
+        ...(review.modifiedFileIds
+          ? { modifiedFileIds: review.modifiedFileIds }
+          : {}),
       };
+
+      if (message.iterationGroupId) {
+        reviewPayload.iterationGroupId = message.iterationGroupId;
+        reviewPayload.iteration = message.iteration;
+      }
 
       const callback = messageWebhookUrl
         ? (this.buildAgentWebhook(message.agent, messageWebhookUrl) ??

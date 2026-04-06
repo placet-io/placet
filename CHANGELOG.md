@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-04-06
+
+### Added
+
+- **HITL iteration chains** — messages can form revision chains via `iterationOf` parameter; backend tracks `iterationGroupId` + `iteration` number with atomic `@@unique` constraint
+- **Request Changes flow** — reviewers can respond with "Request Changes" (`requestChanges: true`), setting status to `changes_requested` with human `feedback` text; agents receive the new `review:changes_requested` webhook event
+- **Text attachments** — `textAttachments` field on `POST /api/v1/messages` stores inline text content as file attachments in a single request (no separate upload round-trip)
+- **Text enrichment** — GET endpoints automatically inline `textContent` for small text-based attachments (≤ 50 KB), eliminating extra download calls
+- **Iteration chain endpoint** — `GET /api/v1/messages/iterations/:id?channel=` returns all messages in a chain sorted by iteration number
+- **Store text endpoint** — `POST /api/v1/files/store-text` stores text content as file attachments without creating a message
+- **Iteration timeline UI** — file preview modal and inbox detail show a scrollable iteration timeline with numbered badges; mobile uses Shadcn Select dropdown
+- **Inbox redesign** — iteration grouping (shows latest revision only), collapsible message text, file tabs with inline preview, sticky review card, fullscreen file modal trigger
+- **Inbox read tracking** — localStorage-backed unread indicators with colored agent names; badge count highlights when unread items exist
+- **Self-fetching pending reviews bar** — fetches own data via `GET /api/messages/reviews?channel=` instead of relying on lazy-loaded chat messages; shows max 5 entries + "+N more" badge; stays in sync via WebSocket
+- **MCP iteration tools** — `get_iteration_chain` tool, `iterationOf` parameter on `send_message` and `send_review_message`, `changes_requested` handling in `wait_for_review`
+
+### Changed
+
+- **Review response schema** — `annotationFileId` replaced by `modifiedFileIds` (supports multiple edited files) + `requestChanges` + `feedback` fields
+- **Webhook retry payload** — now includes `modifiedFileIds`, `feedback`, `iterationGroupId`, and `iteration` context
+- **`GET /api/messages/reviews`** — accepts optional `channel` query param to filter by agent
+- **Markdown headings** — corrected heading sizes in chat message renderer
+
+### Fixed
+
+- **SQL injection risk** — removed `$queryRawUnsafe` for iteration numbering; `@@unique` constraint handles uniqueness
+- **Feedback field path** — frontend was reading `review.response.feedback` instead of `review.feedback`; fixed in review card, inbox detail, and file preview modal
+- **Iteration API auth bypass** — frontend iteration chain fetches were missing required `?channel=` query param
+- **Credential leak** — `findById` endpoint stripped sensitive agent fields (`webhookAuth`, `webhookHeaders`, `webhookUrl`) before returning to client
+- **Review timestamp field** — `completed_at` renamed to `completedAt` to match shared Zod schema
+- **Inbox localStorage growth** — read tracking now caps at 500 entries to prevent unbounded storage growth
+
 ## [0.5.1] — 2026-04-05
 
 ### Fixed

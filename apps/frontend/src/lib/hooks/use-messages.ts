@@ -146,10 +146,20 @@ export function useMessages(channelId: string | null) {
   );
 
   const respondToReview = useCallback(
-    async (messageId: string, response: Record<string, unknown>, annotationFileId?: string) => {
+    async (
+      messageId: string,
+      response: Record<string, unknown>,
+      modifiedFileIds?: Record<string, string>,
+      options?: { requestChanges?: boolean; feedback?: string },
+    ) => {
       const updated = await api<Message>(`/api/messages/${messageId}/respond`, {
         method: 'POST',
-        body: JSON.stringify({ response, ...(annotationFileId ? { annotationFileId } : {}) }),
+        body: JSON.stringify({
+          response,
+          ...(modifiedFileIds && Object.keys(modifiedFileIds).length ? { modifiedFileIds } : {}),
+          ...(options?.requestChanges ? { requestChanges: true } : {}),
+          ...(options?.feedback ? { feedback: options.feedback } : {}),
+        }),
       });
       setMessages((prev) => prev.map((m) => (m.id === messageId ? updated : m)));
     },

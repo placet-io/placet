@@ -81,6 +81,21 @@ export class FilesService {
   }
 
   /**
+   * Store a text string as an orphan attachment (no message).
+   * Converts the string to a Buffer and stores it in S3.
+   * Used by agents to store reviewable text content (markdown, plain text, etc.)
+   */
+  async storeText(
+    content: string,
+    filename: string,
+    mimeType: string,
+    channelId: string,
+  ) {
+    const buffer = Buffer.from(content, 'utf-8');
+    return this.storeFile(buffer, filename, mimeType, channelId);
+  }
+
+  /**
    * Attach existing orphan attachments to a message.
    */
   async attachToMessage(messageId: string, attachmentIds: string[]) {
@@ -162,6 +177,16 @@ export class FilesService {
 
   async getFileStream(storageKey: string) {
     return this.s3.getStream(storageKey);
+  }
+
+  /** Download text content of a file from S3. Returns null on error. */
+  async getTextContent(storageKey: string): Promise<string | null> {
+    try {
+      const response = await this.s3.getStream(storageKey);
+      return (await response.Body?.transformToString('utf-8')) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Default share-token expiry: 1 hour */

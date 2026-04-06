@@ -6,9 +6,10 @@ import { MessagesService } from './messages.service';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { EventsModule } from '../events/events.module';
 import { PushModule } from '../push/push.module';
+import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [WebhooksModule, EventsModule, PushModule],
+  imports: [WebhooksModule, EventsModule, PushModule, FilesModule],
   controllers: [
     MessagesController,
     MessagesAgentController,

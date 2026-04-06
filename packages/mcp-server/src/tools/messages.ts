@@ -29,7 +29,8 @@ export function registerMessageTools(server: McpServer, api: PlacetApiClient, co
 Use this for status updates, logs, reports, and any content that does not require human interaction.
 The text field supports full markdown (headings, bold, italic, lists, code blocks, links, tables, etc.).
 Use the status field to show a colored indicator: info (blue), success (green), warning (yellow), error (red).
-For messages that require human input (approvals, forms, selections), use send_review_message instead.`,
+For messages that require human input (approvals, forms, selections), use send_review_message instead.
+Use iterationOf to create an iteration chain — link this message to a previous one that was reviewed (the target must have a completed or changes_requested review).`,
     {
       channelId: channelParam,
       text: z
@@ -50,14 +51,21 @@ For messages that require human input (approvals, forms, selections), use send_r
         .describe(
           'Arbitrary key-value metadata attached to the message (not displayed to the user, available via API).',
         ),
+      iterationOf: z
+        .string()
+        .optional()
+        .describe(
+          'ID of a previous message to iterate on. Creates an iteration chain. The target message must have a completed or changes_requested review.',
+        ),
     },
-    async ({ channelId, text, status, metadata }) => {
+    async ({ channelId, text, status, metadata, iterationOf }) => {
       const channel = resolveChannel(channelId);
       const message = await api.sendMessage({
         channelId: channel,
         text,
         status,
         metadata,
+        ...(iterationOf ? { iterationOf } : {}),
       });
 
       // Auto-acknowledge receipt
@@ -131,6 +139,24 @@ For messages that require human input (approvals, forms, selections), use send_r
       const result = await api.deleteMessage(messageId, resolveChannel(channelId));
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    },
+  );
+
+  // ── get_iteration_chain ─────────────────────────────────────
+
+  server.tool(
+    'get_iteration_chain',
+    `Get the full iteration chain for a message. Returns all messages in the same iteration group, ordered by iteration number.
+Use this to see previous versions, review feedback, and the progression of an iterative review workflow.`,
+    {
+      messageId: z.string().describe('ID of any message in the iteration chain.'),
+      channelId: channelParam,
+    },
+    async ({ messageId, channelId }) => {
+      const chain = await api.getIterationChain(messageId, resolveChannel(channelId));
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(chain, null, 2) }],
       };
     },
   );

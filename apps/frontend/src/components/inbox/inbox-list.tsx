@@ -54,11 +54,32 @@ export const InboxList = memo(function InboxList({
   className,
 }: InboxListProps) {
   const [search, setSearch] = useState('');
-  const { statusFilter, sort, setStatusFilter, setSort } = useInboxContext();
+  const { statusFilter, sort, setStatusFilter, setSort, isUnread } = useInboxContext();
 
   const agentMap = new Map(agents.map((a) => [a.id, a]));
 
-  const filtered = reviews.filter((r) => {
+  // Group iterations: keep only the latest message per iterationGroupId
+  const deduped = (() => {
+    const groupLatest = new Map<string, Message>();
+    const standalone: Message[] = [];
+    for (const r of reviews) {
+      if (r.iterationGroupId) {
+        const existing = groupLatest.get(r.iterationGroupId);
+        if (!existing || (r.iteration ?? 0) > (existing.iteration ?? 0)) {
+          groupLatest.set(r.iterationGroupId, r);
+        }
+      } else {
+        standalone.push(r);
+      }
+    }
+    return [...standalone, ...groupLatest.values()].sort((a, b) =>
+      sort === 'newest'
+        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+  })();
+
+  const filtered = deduped.filter((r) => {
     if (!search) return true;
     const agent = agentMap.get(r.channelId);
     const agentName = agent?.name ?? '';
@@ -67,7 +88,12 @@ export const InboxList = memo(function InboxList({
     return agentName.toLowerCase().includes(q) || text.toLowerCase().includes(q);
   });
 
-  const STATUS_LABELS = { pending: 'Pending', completed: 'Completed', all: 'All' } as const;
+  const STATUS_LABELS = {
+    pending: 'Pending',
+    completed: 'Completed',
+    changes_requested: 'Changes Requested',
+    all: 'All',
+  } as const;
   const SORT_LABELS = { newest: 'Newest first', oldest: 'Oldest first' } as const;
 
   return (
@@ -84,7 +110,14 @@ export const InboxList = memo(function InboxList({
             <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
           </div>
           {reviews.length > 0 && (
-            <Badge variant="secondary" className="h-6 min-w-6 px-2 rounded-full text-xs">
+            <Badge
+              variant="secondary"
+              className={cn(
+                'h-6 min-w-6 px-2 rounded-full text-xs',
+                reviews.some((r) => isUnread(r.id)) &&
+                  'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
+              )}
+            >
               {reviews.length}
             </Badge>
           )}
@@ -172,8 +205,10 @@ export const InboxList = memo(function InboxList({
                   text={review.text}
                   reviewType={reviewData?.type}
                   reviewStatus={reviewData?.status}
+                  iteration={review.iteration}
                   createdAt={review.createdAt}
                   isActive={activeReviewId === review.id}
+                  isUnread={isUnread(review.id)}
                 />
               );
             })
@@ -193,8 +228,10 @@ const InboxListItem = memo(function InboxListItem({
   text,
   reviewType,
   reviewStatus,
+  iteration,
   createdAt,
   isActive,
+  isUnread,
 }: {
   messageId: string;
   agentName: string;
@@ -202,10 +239,13 @@ const InboxListItem = memo(function InboxListItem({
   text?: string | null;
   reviewType?: string;
   reviewStatus?: string;
+  iteration?: number | null;
   createdAt: string;
   isActive: boolean;
+  isUnread: boolean;
 }) {
   const isDone = reviewStatus === 'completed' || reviewStatus === 'expired';
+  const isChangesRequested = reviewStatus === 'changes_requested';
 
   return (
     <Link
@@ -220,18 +260,46 @@ const InboxListItem = memo(function InboxListItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2 mb-0.5">
-          <h3 className="truncate text-sm font-medium text-foreground">{agentName}</h3>
+          <h3
+            className={cn(
+              'truncate text-sm font-medium',
+              isUnread ? 'text-primary' : 'text-foreground',
+            )}
+          >
+            {agentName}
+          </h3>
           <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
             {formatRelativeTime(createdAt)}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <p className="truncate text-xs text-muted-foreground flex-1">
+          <p
+            className={cn(
+              'truncate text-xs flex-1',
+              isUnread ? 'text-foreground/80' : 'text-muted-foreground',
+            )}
+          >
             {text ?? 'Review requested'}
           </p>
           {reviewType && (
             <Badge variant="outline" className="shrink-0 text-[10px] h-4 px-1.5 rounded-md">
               {REVIEW_TYPE_LABELS[reviewType] ?? reviewType}
+            </Badge>
+          )}
+          {iteration != null && iteration > 1 && (
+            <Badge
+              variant="outline"
+              className="shrink-0 text-[10px] h-4 px-1.5 rounded-md font-mono"
+            >
+              Rev {iteration}
+            </Badge>
+          )}
+          {isChangesRequested && (
+            <Badge
+              variant="secondary"
+              className="shrink-0 text-[10px] h-4 px-1.5 rounded-md bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+            >
+              Changes
             </Badge>
           )}
           {isDone && (

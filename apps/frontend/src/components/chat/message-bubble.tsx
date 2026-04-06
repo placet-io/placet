@@ -28,10 +28,14 @@ interface MessageBubbleProps {
   metadata?: Record<string, unknown> | null;
   attachments?: Attachment[];
   deliveryStatus?: DeliveryStatus | null;
+  iterationGroupId?: string | null;
+  iteration?: number | null;
+  iterationTotal?: number;
   onReviewRespond?: (
     messageId: string,
     response: Record<string, unknown>,
-    annotationFileId?: string,
+    modifiedFileIds?: Record<string, string>,
+    options?: { requestChanges?: boolean; feedback?: string },
   ) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
@@ -60,6 +64,9 @@ export const MessageBubble = memo(function MessageBubble({
   metadata,
   attachments = [],
   deliveryStatus,
+  iterationGroupId,
+  iteration,
+  iterationTotal,
   onReviewRespond,
   onReply,
   onSendAsMessage,
@@ -274,6 +281,15 @@ export const MessageBubble = memo(function MessageBubble({
                     {status}
                   </Badge>
                 )}
+                {iterationGroupId && iteration != null && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs h-4 px-1.5 font-mono text-muted-foreground"
+                  >
+                    Iteration {iteration}
+                    {iterationTotal ? `/${iterationTotal}` : ''}
+                  </Badge>
+                )}
               </div>
             )}
 
@@ -435,6 +451,8 @@ export const MessageBubble = memo(function MessageBubble({
           messageText={text}
           review={review}
           messageId={messageId}
+          iterationGroupId={iterationGroupId}
+          iteration={iteration}
           onReviewRespond={onReviewRespond}
           onSendAsMessage={onSendAsMessage}
         />
@@ -450,6 +468,8 @@ export const MessageBubble = memo(function MessageBubble({
           messageText={text}
           review={review}
           messageId={messageId}
+          iterationGroupId={iterationGroupId}
+          iteration={iteration}
           onReviewRespond={onReviewRespond}
           plugin={{
             name: pluginName,

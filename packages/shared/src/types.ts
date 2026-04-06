@@ -19,7 +19,7 @@ export type MessageSenderType = z.infer<typeof MessageSenderTypeSchema>;
 export const MessageStatusSchema = z.enum(['info', 'success', 'warning', 'error']);
 export type MessageStatus = z.infer<typeof MessageStatusSchema>;
 
-export const ReviewStatusSchema = z.enum(['pending', 'completed', 'expired']);
+export const ReviewStatusSchema = z.enum(['pending', 'completed', 'expired', 'changes_requested']);
 export type ReviewStatus = z.infer<typeof ReviewStatusSchema>;
 
 export const ThemeSchema = z.enum(['light', 'dark', 'system']);
@@ -136,6 +136,8 @@ export const MessageSchema = z.object({
   review: ReviewSchema.nullish(),
   metadata: z.record(z.string(), z.unknown()).nullish(),
   deliveryStatus: DeliveryStatusSchema.optional(),
+  iterationGroupId: z.string().nullish(),
+  iteration: z.number().int().nullish(),
   createdAt: z.string(),
   attachments: z.array(AttachmentSchema).optional(),
 });
@@ -236,6 +238,16 @@ export const CreateApiKeySchema = z.object({
 });
 export type CreateApiKeyRequest = z.infer<typeof CreateApiKeySchema>;
 
+export const TextAttachmentSchema = z.object({
+  /** The text content to store as a file */
+  content: z.string().min(1),
+  /** Filename for the stored file */
+  filename: z.string().min(1).default('content.md'),
+  /** MIME type of the content */
+  mimeType: z.string().default('text/markdown'),
+});
+export type TextAttachment = z.infer<typeof TextAttachmentSchema>;
+
 export const CreateAgentMessageSchema = z
   .object({
     channelId: z.string().min(1),
@@ -245,10 +257,22 @@ export const CreateAgentMessageSchema = z
     metadata: z.record(z.string(), z.unknown()).optional(),
     webhookUrl: z.string().url().optional(),
     attachmentIds: z.array(z.string()).optional(),
+    /** Inline text content to be stored as file attachments automatically */
+    textAttachments: z.array(TextAttachmentSchema).optional(),
+    /** Message ID of the previous iteration this message follows up on. */
+    iterationOf: z.string().optional(),
   })
   .refine(
-    (d) => d.text || d.review || d.status || (d.attachmentIds && d.attachmentIds.length > 0),
-    { message: 'Message must contain at least one of: text, review, status, or attachmentIds' },
+    (d) =>
+      d.text ||
+      d.review ||
+      d.status ||
+      (d.attachmentIds && d.attachmentIds.length > 0) ||
+      (d.textAttachments && d.textAttachments.length > 0),
+    {
+      message:
+        'Message must contain at least one of: text, review, status, attachmentIds, or textAttachments',
+    },
   );
 export type CreateAgentMessageRequest = z.infer<typeof CreateAgentMessageSchema>;
 
@@ -265,7 +289,12 @@ export type CreateUserMessageRequest = z.infer<typeof CreateUserMessageSchema>;
 
 export const RespondReviewSchema = z.object({
   response: z.record(z.string(), z.unknown()),
-  annotationFileId: z.string().optional(),
+  /** Mapping of original attachment ID → modified file ID for edited/annotated files */
+  modifiedFileIds: z.record(z.string(), z.string()).optional(),
+  /** When true, sets review status to 'changes_requested' instead of 'completed'. */
+  requestChanges: z.boolean().optional(),
+  /** Human feedback text explaining what needs to change. */
+  feedback: z.string().optional(),
 });
 export type RespondReviewRequest = z.infer<typeof RespondReviewSchema>;
 
