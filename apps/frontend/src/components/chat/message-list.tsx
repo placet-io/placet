@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Copy, Check, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './message-bubble';
@@ -20,7 +20,8 @@ interface MessageListProps {
   onReviewRespond?: (
     messageId: string,
     response: Record<string, unknown>,
-    annotationFileId?: string,
+    modifiedFileIds?: Record<string, string>,
+    options?: { requestChanges?: boolean; feedback?: string },
   ) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
@@ -44,6 +45,18 @@ export const MessageList = memo(function MessageList({
   onRetryDelivery,
 }: MessageListProps) {
   const [copied, setCopied] = useState(false);
+
+  // Compute max iteration per group for "Iteration X/Y" display
+  const iterationTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const msg of messages) {
+      const gid = msg.iterationGroupId;
+      if (gid && msg.iteration != null) {
+        totals.set(gid, Math.max(totals.get(gid) ?? 0, msg.iteration));
+      }
+    }
+    return totals;
+  }, [messages]);
 
   const handleCopyId = useCallback(() => {
     if (!channelId) return;
@@ -238,6 +251,11 @@ export const MessageList = memo(function MessageList({
             metadata={msg.metadata}
             attachments={msg.attachments}
             deliveryStatus={msg.deliveryStatus}
+            iterationGroupId={msg.iterationGroupId}
+            iteration={msg.iteration}
+            iterationTotal={
+              msg.iterationGroupId ? iterationTotals.get(msg.iterationGroupId) : undefined
+            }
             onReviewRespond={onReviewRespond}
             onReply={onReply}
             onSendAsMessage={onSendAsMessage}

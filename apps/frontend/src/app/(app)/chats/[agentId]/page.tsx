@@ -8,6 +8,7 @@ import { ChatSettings } from '@/components/chat/chat-settings';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageInput } from '@/components/chat/message-input';
 import type { QuotedMessage } from '@/components/chat/message-input';
+import { PendingReviewsBar } from '@/components/chat/pending-reviews-bar';
 import { useAgentsContext } from '@/lib/contexts/agents-context';
 import { useMessages } from '@/lib/hooks/use-messages';
 import { useSocket } from '@/lib/contexts/socket-context';
@@ -97,6 +98,7 @@ export default function ChatThreadPage() {
         />
       ) : (
         <>
+          <PendingReviewsBar channelId={agentId} />
           <MessageList
             messages={messages}
             agentName={agentName}

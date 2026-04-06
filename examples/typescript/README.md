@@ -12,5 +12,6 @@ cp ../.env.example ../.env   # if not already done
 ## Run
 
 ```bash
-npx tsx example.ts
+npx tsx example.ts              # basic API walkthrough
+npx tsx iteration_example.ts    # iteration / changes-requested workflow
 ```

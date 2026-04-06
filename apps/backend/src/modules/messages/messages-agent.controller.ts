@@ -107,6 +107,35 @@ export class MessagesAgentController {
     });
   }
 
+  @Get('iterations/:id')
+  @ApiOperation({
+    summary: 'Get all messages in an iteration chain',
+  })
+  @ApiOkResponse({
+    description: 'Iteration chain with all messages sorted by iteration',
+  })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
+  })
+  getIterationChain(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Query('channel') channel: string,
+  ) {
+    return this.messagesService.getIterationChain(id, channel, req.user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single message + review status' })
   @ApiOkResponse({ description: 'Message details', type: MessageItemResponse })

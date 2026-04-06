@@ -377,6 +377,74 @@
                 ]
             }
         },
+        "/api/v1/messages/iterations/{id}": {
+            "get": {
+                "operationId": "MessagesAgentController_getIterationChain",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "required": true,
+                        "in": "query",
+                        "description": "Channel (agent) ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Iteration chain with all messages sorted by iteration"
+                    },
+                    "401": {
+                        "description": "Invalid API key",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not your agent",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Message not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api-key": []
+                    }
+                ],
+                "summary": "Get all messages in an iteration chain",
+                "tags": [
+                    "Messages"
+                ]
+            }
+        },
         "/api/v1/messages/{id}": {
             "get": {
                 "operationId": "MessagesAgentController_findOne",
@@ -959,6 +1027,43 @@
                 ]
             }
         },
+        "/api/v1/files/store-text": {
+            "post": {
+                "operationId": "FilesAgentController_storeText",
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "Stored text attachment (orphan)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AttachmentResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid API key",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api-key": []
+                    }
+                ],
+                "summary": "Store text content as a file without creating a message",
+                "tags": [
+                    "Files"
+                ]
+            }
+        },
         "/api/v1/files/{id}/download": {
             "get": {
                 "operationId": "FilesAgentController_download",
@@ -1493,6 +1598,33 @@
                         "items": {
                             "type": "string"
                         }
+                    },
+                    "textAttachments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "filename": {
+                                    "default": "content.md",
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "mimeType": {
+                                    "default": "text/markdown",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "content"
+                            ]
+                        }
+                    },
+                    "iterationOf": {
+                        "type": "string"
                     }
                 },
                 "required": [

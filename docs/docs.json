@@ -23,7 +23,12 @@
           },
           {
             "group": "Core Concepts",
-            "pages": ["concepts/how-it-works", "concepts/agents", "concepts/channels"]
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/agents",
+              "concepts/channels",
+              "concepts/iterations"
+            ]
           },
           {
             "group": "Connections",

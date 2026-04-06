@@ -81,8 +81,13 @@ export class MessagesController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['pending', 'completed', 'expired', 'all'],
+    enum: ['pending', 'completed', 'expired', 'changes_requested', 'all'],
     description: 'Filter by review status (default: pending)',
+  })
+  @ApiQuery({
+    name: 'channel',
+    required: false,
+    description: 'Filter by channel (agent) ID',
   })
   @ApiOkResponse({
     description: 'List of messages with reviews',
@@ -92,8 +97,12 @@ export class MessagesController {
     description: 'Not authenticated',
     type: ErrorResponse,
   })
-  getReviews(@Req() req: RequestWithUser, @Query('status') status?: string) {
-    return this.messagesService.getReviews(req.user.id, status);
+  getReviews(
+    @Req() req: RequestWithUser,
+    @Query('status') status?: string,
+    @Query('channel') channel?: string,
+  ) {
+    return this.messagesService.getReviews(req.user.id, status, channel);
   }
 
   @Post()
@@ -114,6 +123,50 @@ export class MessagesController {
       dto.text,
       dto.attachmentIds,
     );
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a single message by ID' })
+  @ApiOkResponse({
+    description: 'Message found',
+    type: MessageItemResponse,
+  })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  findById(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.messagesService.findById(id, req.user.id);
+  }
+
+  @Get(':id/iterations')
+  @ApiOperation({
+    summary: 'Get all messages in an iteration chain for a message',
+  })
+  @ApiOkResponse({
+    description: 'Iteration chain with all messages sorted by iteration',
+  })
+  @ApiNotFoundResponse({
+    description: 'Message not found',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Not authenticated',
+    type: ErrorResponse,
+  })
+  @ApiQuery({
+    name: 'channel',
+    required: true,
+    description: 'Channel (agent) ID',
+  })
+  getIterationChain(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Query('channel') channel: string,
+  ) {
+    return this.messagesService.getIterationChain(id, channel, req.user.id);
   }
 
   @Post(':id/respond')

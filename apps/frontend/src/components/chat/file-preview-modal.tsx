@@ -1,21 +1,72 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Download, X, ChevronLeft, ChevronRight, Pen, RotateCcw, Send } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Download,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Pen,
+  RotateCcw,
+  Send,
+  ArrowLeftRight,
+  Check,
+  RotateCw,
+  Circle,
+  XCircle,
+} from 'lucide-react';
 import { useAnnotations } from '@/lib/hooks/use-annotations';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Dialog, DialogClose, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ReviewCard } from './review-card';
+import { computeTextDiff, hasChanges, type DiffLine } from '@/lib/diff-utils';
 import { MarkdownContent } from './markdown-content';
 import { FilePreview } from '@/components/files/file-preview';
 import { CanvasOverlay } from './canvas-overlay';
 import { PluginRenderer } from '@/components/plugins/plugin-renderer';
 import { formatFileSize, getFileTypeLabel } from '@/lib/file-utils';
 import { cn } from '@/lib/utils';
-import type { Attachment, Review } from '@placet/shared';
+import { api } from '@/lib/api';
+import type { Attachment, Message, Review } from '@placet/shared';
 import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
 import type { CanvasOverlayHandle } from './canvas-overlay';
+
+/** Check if a MIME type represents diffable text content */
+function isDiffableMime(mimeType: string): boolean {
+  return (
+    mimeType === 'text/markdown' ||
+    mimeType === 'text/plain' ||
+    mimeType === 'text/html' ||
+    mimeType.startsWith('text/')
+  );
+}
+
+/** Hook: fetch text content from a file attachment for diffing */
+function useFileText(fileId: string | null): string | null {
+  const [result, setResult] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!fileId) return;
+    let cancelled = false;
+    fetch(`/api/files/${fileId}/download`, { credentials: 'include' })
+      .then((r) => r.text())
+      .then((t) => {
+        if (!cancelled) setResult({ id: fileId, text: t });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId]);
+  return fileId && result?.id === fileId ? result.text : null;
+}
 
 interface FilePreviewModalProps {
   open: boolean;
@@ -30,10 +81,15 @@ interface FilePreviewModalProps {
   /** Review bound to this message */
   review?: Review | null;
   messageId: string;
+  /** Iteration group ID for fetching the iteration chain */
+  iterationGroupId?: string | null;
+  /** Current iteration number */
+  iteration?: number | null;
   onReviewRespond?: (
     messageId: string,
     response: Record<string, unknown>,
-    annotationFileId?: string,
+    modifiedFileIds?: Record<string, string>,
+    options?: { requestChanges?: boolean; feedback?: string },
   ) => Promise<void>;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
   /** Plugin info for rendering plugin in preview mode */
@@ -56,6 +112,8 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   messageText,
   review,
   messageId,
+  iterationGroupId,
+  iteration,
   onReviewRespond,
   onSendAsMessage,
   plugin,
@@ -70,6 +128,71 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   const [viewingAnnotated, setViewingAnnotated] = useState(false);
   const canvasRef = useRef<CanvasOverlayHandle>(null);
 
+  // Iteration chain state
+  const [iterationChain, setIterationChain] = useState<Message[]>([]);
+  const [activeIteration, setActiveIteration] = useState<number | null>(null);
+
+  // Fetch iteration chain when modal opens and message has iterations
+  useEffect(() => {
+    if (!open || !iterationGroupId || !messageId) {
+      setIterationChain([]);
+      setActiveIteration(null);
+      return;
+    }
+    let cancelled = false;
+    api<{ groupId: string; iterations: Message[] }>(
+      `/api/messages/${messageId}/iterations?channel=${channelId}`,
+    )
+      .then((res) => {
+        if (!cancelled) {
+          setIterationChain(res.iterations);
+          setActiveIteration(iteration ?? null);
+        }
+      })
+      .catch(() => {
+        // Non-critical — iteration breadcrumbs simply won't show
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, iterationGroupId, messageId, iteration, channelId]);
+
+  // The active iteration's message (or the current message if no chain)
+  const activeIterMsg =
+    activeIteration != null
+      ? iterationChain.find((m) => m.iteration === activeIteration)
+      : undefined;
+
+  // Use the active iteration's attachments and text when viewing a different iteration
+  const effectiveAttachments =
+    activeIterMsg && activeIterMsg.id !== messageId
+      ? ((activeIterMsg.attachments ?? []) as Attachment[])
+      : attachments;
+  const effectiveMessageText =
+    activeIterMsg && activeIterMsg.id !== messageId ? (activeIterMsg.text ?? null) : messageText;
+  const effectiveReview =
+    activeIterMsg && activeIterMsg.id !== messageId
+      ? (activeIterMsg.review as Review | null | undefined)
+      : review;
+  const effectiveMessageId =
+    activeIterMsg && activeIterMsg.id !== messageId ? activeIterMsg.id : messageId;
+
+  // The previous iteration message (for diff / feedback)
+  const prevIteration =
+    activeIteration != null && activeIteration > 1
+      ? iterationChain.find((m) => m.iteration === activeIteration - 1)
+      : undefined;
+
+  // ── Compare mode state ──
+  const [compareToIteration, setCompareToIteration] = useState<number | null>(null);
+
+  // Reset currentIndex when active iteration changes
+  useEffect(() => {
+    setCurrentIndex(0);
+    setAnnotating(false);
+    setCompareToIteration(null);
+  }, [activeIteration]);
+
   // Sync currentIndex whenever the attachment prop changes.
   useEffect(() => {
     if (attachment) {
@@ -77,6 +200,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
       setCurrentIndex(idx >= 0 ? idx : 0);
     }
     setAnnotating(false);
+    setCompareToIteration(null);
   }, [attachment, attachments]);
 
   // Auto-show the annotated version when navigating to a file that has one.
@@ -85,16 +209,53 @@ export const FilePreviewModal = memo(function FilePreviewModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, annotations]);
 
-  const current = attachments[currentIndex] ?? attachment;
+  const current = effectiveAttachments[currentIndex] ?? attachment;
   const annotation = current ? annotations[current.id] : undefined;
   const isPluginOnly = !!plugin && !current;
 
   const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex < attachments.length - 1;
+  const hasNext = currentIndex < effectiveAttachments.length - 1;
   const isImage = current?.mimeType.startsWith('image/') ?? false;
   const canAnnotate = isImage;
+  const isDiffable = current ? isDiffableMime(current.mimeType) : false;
   const label = current ? getFileTypeLabel(current.mimeType, current.filename) : '';
   const size = current ? formatFileSize(current.size) : '';
+
+  // ── Compare mode: find the matching file in the comparison iteration ──
+  const compareIterMsg =
+    compareToIteration != null
+      ? iterationChain.find((m) => m.iteration === compareToIteration)
+      : undefined;
+  const compareAttachment = useMemo(() => {
+    if (!compareIterMsg || !current || !isDiffable) return null;
+    const atts = (compareIterMsg.attachments ?? []) as Attachment[];
+    return atts.find((a) => a.filename === current.filename && isDiffableMime(a.mimeType)) ?? null;
+  }, [compareIterMsg, current, isDiffable]);
+
+  const compareOldText = useFileText(compareAttachment?.id ?? null);
+  const compareNewText = useFileText(
+    compareToIteration != null && isDiffable && current ? current.id : null,
+  );
+
+  const compareDiffLines = useMemo<DiffLine[]>(() => {
+    if (!compareOldText || !compareNewText) return [];
+    if (!hasChanges(compareOldText, compareNewText)) return [];
+    return computeTextDiff(compareOldText, compareNewText);
+  }, [compareOldText, compareNewText]);
+
+  const isComparing = compareToIteration != null && compareDiffLines.length > 0;
+  const isCompareLoading =
+    compareToIteration != null &&
+    !isComparing &&
+    (compareOldText == null || compareNewText == null);
+
+  // Iterations available for comparison (all except the active one)
+  const compareOptions = useMemo(() => {
+    if (!isDiffable || iterationChain.length < 2 || activeIteration == null) return [];
+    return iterationChain
+      .filter((m) => m.iteration !== activeIteration)
+      .sort((a, b) => (b.iteration ?? 0) - (a.iteration ?? 0));
+  }, [isDiffable, iterationChain, activeIteration]);
 
   const handlePrev = useCallback(() => {
     if (hasPrev) setCurrentIndex((i) => i - 1);
@@ -183,9 +344,85 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                 <span className="hidden sm:block text-sm font-medium truncate max-w-48 lg:max-w-72">
                   {isPluginOnly ? plugin!.name : current!.filename}
                 </span>
+                {/* Mobile iteration selector — only visible below lg */}
+                {iterationChain.length > 1 && (
+                  <div className="lg:hidden shrink-0">
+                    <Select
+                      value={String(activeIteration ?? '')}
+                      onValueChange={(v) => setActiveIteration(Number(v))}
+                    >
+                      <SelectTrigger size="sm" className="text-xs h-7 gap-1 w-auto">
+                        <SelectValue placeholder="Rev" />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        {iterationChain.map((iter) => {
+                          const rs = (iter.review as Record<string, unknown> | null)?.status as
+                            | string
+                            | undefined;
+                          return (
+                            <SelectItem key={iter.id} value={String(iter.iteration ?? 0)}>
+                              <span className="flex items-center gap-1.5 text-muted-foreground">
+                                <span>Rev {iter.iteration}</span>
+                                {rs === 'completed' && (
+                                  <Check size={10} className="text-muted-foreground" />
+                                )}
+                                {rs === 'changes_requested' && (
+                                  <RotateCw size={10} className="text-muted-foreground" />
+                                )}
+                                {rs === 'expired' && (
+                                  <XCircle size={10} className="text-muted-foreground" />
+                                )}
+                                {rs === 'pending' && (
+                                  <Circle
+                                    size={8}
+                                    className="fill-muted-foreground text-muted-foreground"
+                                  />
+                                )}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               {!isPluginOnly && (
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Compare to previous iteration — only for diffable text files */}
+                  {compareOptions.length > 0 &&
+                    !annotating &&
+                    (compareToIteration != null ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs rounded-lg"
+                        onClick={() => setCompareToIteration(null)}
+                      >
+                        <ArrowLeftRight size={12} />
+                        Exit compare
+                      </Button>
+                    ) : (
+                      <div className="relative">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs rounded-lg peer"
+                          onClick={() => {
+                            // Default: compare to iteration immediately before
+                            const prev = compareOptions.find(
+                              (m) => m.iteration === (activeIteration ?? 0) - 1,
+                            );
+                            setCompareToIteration(
+                              prev?.iteration ?? compareOptions[0]?.iteration ?? null,
+                            );
+                          }}
+                        >
+                          <ArrowLeftRight size={12} />
+                          Compare
+                        </Button>
+                      </div>
+                    ))}
                   {/* Annotation controls */}
                   {canAnnotate && !annotating && (
                     <Button
@@ -253,7 +490,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             <div
               className={cn(
                 'flex-1 flex items-center justify-center relative overflow-auto bg-muted/20',
-                isPluginOnly ? '' : 'p-4',
+                isPluginOnly ? '' : isComparing || isCompareLoading ? '' : 'p-4',
               )}
             >
               {isPluginOnly ? (
@@ -267,6 +504,52 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                   onReviewRespond={plugin!.onReviewRespond}
                   className="w-full h-full"
                 />
+              ) : isComparing ? (
+                /* ── Inline diff view ── */
+                <div className="w-full h-full flex flex-col overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-muted/30 shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      Comparing Iteration {compareToIteration} → {activeIteration}
+                    </span>
+                    {compareOptions.length > 1 && (
+                      <select
+                        value={compareToIteration ?? ''}
+                        onChange={(e) => setCompareToIteration(Number(e.target.value))}
+                        className="text-xs bg-background border border-border rounded px-1.5 py-0.5"
+                      >
+                        {compareOptions.map((m) => (
+                          <option key={m.id} value={m.iteration ?? 0}>
+                            Iteration {m.iteration}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-auto text-xs font-mono">
+                    {compareDiffLines.map((line, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          'px-4 py-0.5 whitespace-pre-wrap wrap-break-word',
+                          line.type === 'added' &&
+                            'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+                          line.type === 'removed' &&
+                            'bg-red-500/10 text-red-700 dark:text-red-400 line-through',
+                        )}
+                      >
+                        <span className="select-none mr-3 text-muted-foreground/60 inline-block w-3">
+                          {line.type === 'added' ? '+' : line.type === 'removed' ? '−' : ' '}
+                        </span>
+                        {line.value || '\u00A0'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : isCompareLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                  Loading comparison…
+                </div>
               ) : annotating && isImage ? (
                 <CanvasOverlay ref={canvasRef} imageSrc={`/api/files/${current!.id}/download`} />
               ) : (
@@ -282,15 +565,15 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             </div>
 
             {/* Bottom bar: file navigation and/or original ↔ annotated toggle */}
-            {!isPluginOnly && (attachments.length > 1 || (annotation && !annotating)) && (
+            {!isPluginOnly && (effectiveAttachments.length > 1 || (annotation && !annotating)) && (
               <div className="flex items-center justify-center gap-3 py-2 border-t border-border/50 flex-wrap">
-                {attachments.length > 1 && (
+                {effectiveAttachments.length > 1 && (
                   <>
                     <Button variant="ghost" size="icon-sm" disabled={!hasPrev} onClick={handlePrev}>
                       <ChevronLeft size={16} />
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      {currentIndex + 1} / {attachments.length}
+                      {currentIndex + 1} / {effectiveAttachments.length}
                     </span>
                     <Button variant="ghost" size="icon-sm" disabled={!hasNext} onClick={handleNext}>
                       <ChevronRight size={16} />
@@ -299,7 +582,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                 )}
                 {annotation && !annotating && (
                   <>
-                    {attachments.length > 1 && (
+                    {effectiveAttachments.length > 1 && (
                       <span className="text-muted-foreground/30 select-none">|</span>
                     )}
                     <div className="flex bg-muted rounded-full p-0.5 text-xs">
@@ -353,40 +636,152 @@ export const FilePreviewModal = memo(function FilePreviewModal({
               )}
             </div>
 
+            {/* Iteration timeline */}
+            {iterationChain.length > 1 && (
+              <div className="px-4 py-3 border-b border-border/50 space-y-2">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Iterations</p>
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <div className="flex items-center gap-0 w-max">
+                    {iterationChain.map((iter, idx) => {
+                      const reviewStatus = (iter.review as Record<string, unknown> | null)
+                        ?.status as string | undefined;
+                      const isActive = iter.iteration === activeIteration;
+                      const isDone = reviewStatus === 'completed' || reviewStatus === 'expired';
+                      const isChanges = reviewStatus === 'changes_requested';
+                      const isPending = reviewStatus === 'pending';
+                      return (
+                        <div key={iter.id} className="flex items-center">
+                          {/* Connector line */}
+                          {idx > 0 && (
+                            <div
+                              className={cn(
+                                'h-px w-4 shrink-0',
+                                isDone || isChanges ? 'bg-border' : 'bg-border',
+                              )}
+                            />
+                          )}
+                          {/* Timeline node */}
+                          <button
+                            type="button"
+                            onClick={() => setActiveIteration(iter.iteration ?? null)}
+                            className={cn('relative flex flex-col items-center gap-1 group')}
+                            title={`Iteration ${iter.iteration}${reviewStatus ? ` — ${reviewStatus}` : ''}`}
+                          >
+                            {/* Badge with number + icon */}
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors border',
+                                isActive &&
+                                  isPending &&
+                                  'bg-yellow-500/15 border-yellow-500/40 text-yellow-700 dark:text-yellow-400',
+                                isActive &&
+                                  isDone &&
+                                  'bg-muted border-border text-muted-foreground',
+                                isActive &&
+                                  isChanges &&
+                                  'bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-400',
+                                isActive &&
+                                  !reviewStatus &&
+                                  'bg-primary/10 border-primary/30 text-primary',
+                                !isActive &&
+                                  'border-border/60 text-muted-foreground hover:bg-muted hover:border-border',
+                              )}
+                            >
+                              <span className="font-mono">{iter.iteration}</span>
+                              {reviewStatus === 'completed' && (
+                                <Check size={11} className="text-muted-foreground" />
+                              )}
+                              {reviewStatus === 'changes_requested' && (
+                                <RotateCw
+                                  size={11}
+                                  className={
+                                    isActive
+                                      ? 'text-orange-600 dark:text-orange-400'
+                                      : 'text-muted-foreground'
+                                  }
+                                />
+                              )}
+                              {reviewStatus === 'expired' && (
+                                <XCircle size={11} className="text-muted-foreground" />
+                              )}
+                              {reviewStatus === 'pending' && (
+                                <Circle
+                                  size={9}
+                                  className={cn(
+                                    'fill-current',
+                                    isActive ? 'text-yellow-500' : 'text-muted-foreground/50',
+                                  )}
+                                />
+                              )}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Previous iteration feedback */}
+            {prevIteration?.review &&
+              (() => {
+                const prevReview = prevIteration.review as Record<string, unknown>;
+                const feedback =
+                  typeof prevReview.feedback === 'string' ? prevReview.feedback : undefined;
+                return feedback ? (
+                  <div className="px-4 py-3 border-b border-border/50 overflow-auto max-h-28">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Previous Feedback
+                    </p>
+                    <blockquote className="text-xs text-muted-foreground italic border-l-2 border-orange-400 pl-2">
+                      {feedback}
+                    </blockquote>
+                  </div>
+                ) : null;
+              })()}
+
             {/* Message text context */}
-            {messageText && (
+            {effectiveMessageText && (
               <div className="px-4 py-3 border-b border-border/50 overflow-auto max-h-40">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
                   Message
                 </p>
                 <div className="text-xs leading-relaxed">
-                  <MarkdownContent content={messageText} />
+                  <MarkdownContent content={effectiveMessageText} />
                 </div>
               </div>
             )}
 
             {/* Review actions */}
-            {review && onReviewRespond && (
+            {effectiveReview && onReviewRespond && (
               <div className="flex-1 px-4 py-3 overflow-auto">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                   Review
                 </p>
                 <ReviewCard
-                  review={review}
-                  messageId={messageId}
-                  onRespond={async (mid, resp) => {
-                    // Attach annotation file ID if an annotation exists for any attachment
-                    const annoFileId = attachments
-                      .map((a) => annotations[a.id]?.fileId)
-                      .find(Boolean);
-                    await onReviewRespond(mid, resp, annoFileId);
+                  review={effectiveReview}
+                  messageId={effectiveMessageId}
+                  onRespond={async (mid, resp, _modifiedFileIds, options) => {
+                    // Build modifiedFileIds map from all annotated attachments
+                    const modifiedFileIds: Record<string, string> = {};
+                    for (const a of effectiveAttachments) {
+                      const anno = annotations[a.id];
+                      if (anno?.fileId) modifiedFileIds[a.id] = anno.fileId;
+                    }
+                    await onReviewRespond(
+                      mid,
+                      resp,
+                      Object.keys(modifiedFileIds).length ? modifiedFileIds : undefined,
+                      options,
+                    );
                   }}
                 />
               </div>
             )}
 
             {/* Empty state if no review and no text */}
-            {!review && !messageText && (
+            {!effectiveReview && !effectiveMessageText && (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-xs text-muted-foreground">No additional context</p>
               </div>

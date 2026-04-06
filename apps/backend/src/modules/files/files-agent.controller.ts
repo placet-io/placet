@@ -132,6 +132,41 @@ export class FilesAgentController {
     );
   }
 
+  @Post('store-text')
+  @ApiOperation({
+    summary: 'Store text content as a file without creating a message',
+  })
+  @ApiCreatedResponse({
+    description: 'Stored text attachment (orphan)',
+    type: AttachmentResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async storeText(@Req() req: RequestWithUser & FastifyRequest) {
+    const body = req.body as {
+      channelId?: string;
+      content?: string;
+      filename?: string;
+      mimeType?: string;
+    };
+    if (!body.channelId) throw new BadRequestException('channelId is required');
+    if (!body.content) throw new BadRequestException('content is required');
+
+    const filename = body.filename ?? 'content.md';
+    const mimeType = body.mimeType ?? 'text/markdown';
+
+    await this.verifyOwnership(req.user.id, body.channelId);
+
+    return this.filesService.storeText(
+      body.content,
+      filename,
+      mimeType,
+      body.channelId,
+    );
+  }
+
   @Get(':id/download')
   @ApiOperation({ summary: 'Download file directly by attachment ID' })
   @ApiProduces('application/octet-stream')

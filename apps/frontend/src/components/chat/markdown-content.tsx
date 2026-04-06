@@ -55,10 +55,10 @@ export const MarkdownContent = memo(function MarkdownContent({
             }
             // Regular external image
             return (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 {...props}
                 src={src}
+                alt={props.alt ?? ''}
                 className="max-w-full max-h-64 object-contain rounded-lg my-2"
                 loading="lazy"
               />
@@ -140,6 +140,43 @@ export const MarkdownContent = memo(function MarkdownContent({
             <p className="my-1 first:mt-0 last:mb-0" {...props}>
               {children}
             </p>
+          ),
+          // Headings — scaled down to fit chat context
+          h1: ({ children, node: _node, ...props }) => (
+            <h1 className="text-base font-semibold mt-3 mb-1 first:mt-0" {...props}>
+              {children}
+            </h1>
+          ),
+          h2: ({ children, node: _node, ...props }) => (
+            <h2 className="text-sm font-semibold mt-3 mb-1 first:mt-0" {...props}>
+              {children}
+            </h2>
+          ),
+          h3: ({ children, node: _node, ...props }) => (
+            <h3 className="text-sm font-medium mt-2 mb-0.5 first:mt-0" {...props}>
+              {children}
+            </h3>
+          ),
+          h4: ({ children, node: _node, ...props }) => (
+            <h4
+              className="text-xs font-semibold mt-2 mb-0.5 first:mt-0 uppercase tracking-wide"
+              {...props}
+            >
+              {children}
+            </h4>
+          ),
+          h5: ({ children, node: _node, ...props }) => (
+            <h5 className="text-xs font-medium mt-1.5 mb-0.5 first:mt-0" {...props}>
+              {children}
+            </h5>
+          ),
+          h6: ({ children, node: _node, ...props }) => (
+            <h6
+              className="text-xs font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground"
+              {...props}
+            >
+              {children}
+            </h6>
           ),
           // Horizontal rule
           hr: ({ ...props }) => <hr className="my-2 border-border" {...props} />,

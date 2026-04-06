@@ -21,6 +21,8 @@ export interface SendMessageDto {
   metadata?: Record<string, unknown>;
   webhookUrl?: string;
   attachmentIds?: string[];
+  /** ID of a previous message to iterate on (creates an iteration chain). */
+  iterationOf?: string;
 }
 
 export interface PingStatusDto {
@@ -36,7 +38,7 @@ export interface CreateAgentDto {
 }
 
 export interface WaitResult {
-  status: 'completed' | 'expired' | 'timeout';
+  status: 'completed' | 'expired' | 'timeout' | 'changes_requested';
   message?: Record<string, unknown>;
 }
 
@@ -101,6 +103,13 @@ export class PlacetApiClient {
 
   async waitForReview(id: string, channel: string, timeout = 30000): Promise<WaitResult> {
     return this.get(`/api/v1/reviews/${enc(id)}/wait?channel=${enc(channel)}&timeout=${timeout}`);
+  }
+
+  async getIterationChain(
+    messageId: string,
+    channel: string,
+  ): Promise<{ groupId: string; iterations: Record<string, unknown>[] }> {
+    return this.get(`/api/v1/messages/iterations/${enc(messageId)}?channel=${enc(channel)}`);
   }
 
   // ── Agents ──────────────────────────────────────────────────

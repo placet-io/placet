@@ -12,5 +12,6 @@ cp ../.env.example ../.env   # if not already done
 ## Run
 
 ```bash
-python example.py
+python example.py              # basic API walkthrough
+python iteration_example.py    # iteration / changes-requested workflow
 ```

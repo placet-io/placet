@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Maximize2 } from 'lucide-react';
 import { AttachmentCard } from './attachment-card';
+import { MarkdownContent } from './markdown-content';
 import { useChatSettings } from '@/lib/hooks/use-chat-settings';
 import { useAnnotations } from '@/lib/hooks/use-annotations';
 import type { Attachment } from '@placet/shared';
@@ -134,6 +135,73 @@ const InlineHtmlViewer = memo(function InlineHtmlViewer({ att, onPreview }: Inli
   );
 });
 
+// ── Inline Markdown/Text viewer ───────────────────────────────────────────────
+// Fetches a text-based attachment and renders it inline in the chat bubble,
+// following the same pattern as InlineHtmlViewer.
+
+function isInlineTextMime(mimeType: string, filename: string): boolean {
+  if (mimeType === 'text/markdown' || /\.(md|mdx|markdown)$/i.test(filename)) return true;
+  if (
+    mimeType === 'text/plain' &&
+    !/\.(ts|js|py|rb|go|rs|java|c|cpp|h|sh|bash|zsh)$/i.test(filename)
+  )
+    return true;
+  return false;
+}
+
+interface InlineTextViewerProps {
+  att: Attachment;
+  onPreview: () => void;
+}
+
+const InlineTextViewer = memo(function InlineTextViewer({ att, onPreview }: InlineTextViewerProps) {
+  const [content, setContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/files/${att.id}/download`, { credentials: 'include' })
+      .then((r) => r.text())
+      .then((text) => {
+        if (!cancelled) setContent(text);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [att.id]);
+
+  const isMarkdown = att.mimeType === 'text/markdown' || /\.(md|mdx|markdown)$/i.test(att.filename);
+
+  if (content === null) {
+    return (
+      <div className="mt-2 h-24 flex items-center justify-center rounded-xl bg-muted/40 text-xs text-muted-foreground animate-pulse">
+        Loading…
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 relative group rounded-xl overflow-hidden border border-border/40">
+      <div className="max-h-[480px] overflow-auto p-4 text-sm leading-relaxed">
+        {isMarkdown ? (
+          <MarkdownContent content={content} />
+        ) : (
+          <pre className="whitespace-pre-wrap break-words text-xs font-mono">{content}</pre>
+        )}
+      </div>
+      {/* Expand overlay */}
+      <button
+        type="button"
+        onClick={onPreview}
+        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/80"
+        title="Open in preview"
+      >
+        <Maximize2 size={14} />
+      </button>
+    </div>
+  );
+});
+
 interface MessageAttachmentsProps {
   attachments: Attachment[];
   onPreview: (attachment: Attachment) => void;
@@ -152,6 +220,15 @@ export const MessageAttachments = memo(function MessageAttachments({
   if (attachments.length === 1 && attachments[0].mimeType === 'text/html' && settings.inlineHtml) {
     const att = attachments[0];
     return <InlineHtmlViewer att={att} onPreview={() => onPreview(att)} />;
+  }
+
+  // Single markdown/text file → InlineTextViewer (rendered inline like HTML)
+  if (
+    attachments.length === 1 &&
+    isInlineTextMime(attachments[0].mimeType, attachments[0].filename)
+  ) {
+    const att = attachments[0];
+    return <InlineTextViewer att={att} onPreview={() => onPreview(att)} />;
   }
 
   // Single image → inline thumbnail (annotated version if one exists)

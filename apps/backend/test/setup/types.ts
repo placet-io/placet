@@ -20,4 +20,5 @@ export interface MessageResponse {
   status?: string;
   review?: unknown;
   deliveryStatus?: string;
+  attachments?: Array<{ id: string; filename: string }>;
 }

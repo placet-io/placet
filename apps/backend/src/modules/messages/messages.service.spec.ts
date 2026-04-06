@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { PushService } from '../push/push.service';
+import { FilesService } from '../files/files.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -16,12 +17,15 @@ describe('MessagesService', () => {
       findUnique: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
+      aggregate: jest.Mock;
     };
     agent: { findFirst: jest.Mock; findMany: jest.Mock };
+    $transaction: jest.Mock;
   };
   let events: { emitToChannel: jest.Mock; emitToUser: jest.Mock };
   let webhooks: { dispatch: jest.Mock };
   let push: { sendToUser: jest.Mock };
+  let files: { storeText: jest.Mock; getTextContent: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -32,15 +36,19 @@ describe('MessagesService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        aggregate: jest.fn(),
       },
       agent: {
         findFirst: jest.fn(),
         findMany: jest.fn(),
       },
+
+      $transaction: jest.fn((cb: (tx: typeof prisma) => unknown) => cb(prisma)),
     };
     events = { emitToChannel: jest.fn(), emitToUser: jest.fn() };
     webhooks = { dispatch: jest.fn() };
     push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
+    files = { storeText: jest.fn(), getTextContent: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -49,6 +57,7 @@ describe('MessagesService', () => {
         { provide: EventsGateway, useValue: events },
         { provide: WebhooksService, useValue: webhooks },
         { provide: PushService, useValue: push },
+        { provide: FilesService, useValue: files },
       ],
     }).compile();
 
@@ -330,7 +339,10 @@ describe('MessagesService', () => {
       });
       prisma.message.update.mockResolvedValue({
         id: 'm1',
-        review: { status: 'completed' },
+        channelId: 'a1',
+        review: { status: 'completed', type: 'approval' },
+        agent: { ownerId: 'u1' },
+        metadata: null,
       });
 
       await service.respondToReview('m1', 'u1', {
