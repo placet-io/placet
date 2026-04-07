@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Expand,
   FileText,
-  RotateCw,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,7 @@ interface InboxDetailProps {
     messageId: string,
     response: Record<string, unknown>,
     modifiedFileIds?: Record<string, string>,
-    options?: { requestChanges?: boolean; feedback?: string },
+    options?: { feedback?: string },
   ) => Promise<unknown>;
 }
 
@@ -74,7 +73,7 @@ export const InboxDetail = memo(function InboxDetail({
       messageId: string,
       response: Record<string, unknown>,
       modifiedFileIds?: Record<string, string>,
-      options?: { requestChanges?: boolean; feedback?: string },
+      options?: { feedback?: string },
     ) => {
       await onRespond(messageId, response, modifiedFileIds, options);
       setResponded(true);
@@ -145,12 +144,9 @@ export const InboxDetail = memo(function InboxDetail({
                   <div className="overflow-x-auto">
                     <div className="flex items-center gap-0 w-max">
                       {iterationChain.map((iter, idx) => {
-                        const rs = (iter.review as Record<string, unknown> | null)?.status as
-                          | string
-                          | undefined;
+                        const rs = iter.review?.status;
                         const isCurrent = iter.id === message.id;
                         const isDone = rs === 'completed' || rs === 'expired';
-                        const isChanges = rs === 'changes_requested';
                         const isPending = rs === 'pending';
                         return (
                           <div key={iter.id} className="flex items-center">
@@ -165,13 +161,10 @@ export const InboxDetail = memo(function InboxDetail({
                                   'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors border',
                                   isCurrent &&
                                     isPending &&
-                                    'bg-yellow-500/15 border-yellow-500/40 text-yellow-700 dark:text-yellow-400',
+                                    'bg-primary/10 border-primary/30 text-primary',
                                   isCurrent &&
                                     isDone &&
                                     'bg-muted border-border text-muted-foreground',
-                                  isCurrent &&
-                                    isChanges &&
-                                    'bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-400',
                                   isCurrent &&
                                     !rs &&
                                     'bg-primary/10 border-primary/30 text-primary',
@@ -183,16 +176,6 @@ export const InboxDetail = memo(function InboxDetail({
                                 {rs === 'completed' && (
                                   <Check size={11} className="text-muted-foreground" />
                                 )}
-                                {rs === 'changes_requested' && (
-                                  <RotateCw
-                                    size={11}
-                                    className={
-                                      isCurrent
-                                        ? 'text-orange-600 dark:text-orange-400'
-                                        : 'text-muted-foreground'
-                                    }
-                                  />
-                                )}
                                 {rs === 'expired' && (
                                   <XCircle size={11} className="text-muted-foreground" />
                                 )}
@@ -201,7 +184,7 @@ export const InboxDetail = memo(function InboxDetail({
                                     size={9}
                                     className={cn(
                                       'fill-current',
-                                      isCurrent ? 'text-yellow-500' : 'text-muted-foreground/50',
+                                      isCurrent ? 'text-primary' : 'text-muted-foreground/50',
                                     )}
                                   />
                                 )}

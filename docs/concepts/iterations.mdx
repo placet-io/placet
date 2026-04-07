@@ -17,8 +17,9 @@ sequenceDiagram
 
     Agent->>API: Send draft (iteration #1)
     API->>Human: Review request
-    Human->>API: Request changes + feedback
-    API-->>Agent: status: changes_requested
+    Human->>API: Respond with feedback
+    API-->>Agent: status: completed + feedback
+    Note over Agent: Agent decides to revise
     Agent->>API: Send revision (iterationOf: msg1)
     Note over API: Linked as iteration #2
     API->>Human: Re-review with diff
@@ -50,29 +51,29 @@ A unique constraint on `(iterationGroupId, iteration)` prevents race conditions.
 
 ```mermaid
 flowchart LR
-    M1["Message #1<br/>iteration: 1<br/>iterationGroupId: msg1<br/>status: changes_requested"]
-    M2["Message #2<br/>iteration: 2<br/>iterationGroupId: msg1<br/>status: changes_requested"]
+    M1["Message #1<br/>iteration: 1<br/>iterationGroupId: msg1<br/>status: completed"]
+    M2["Message #2<br/>iteration: 2<br/>iterationGroupId: msg1<br/>status: completed"]
     M3["Message #3<br/>iteration: 3<br/>iterationGroupId: msg1<br/>status: completed ✓"]
 
     M1 -->|feedback| M2 -->|feedback| M3
 
-    style M1 fill:#f59e0b,color:#000
-    style M2 fill:#f59e0b,color:#000
+    style M1 fill:#6b7280,color:#fff
+    style M2 fill:#6b7280,color:#fff
     style M3 fill:#22c55e,color:#fff
 ```
 
 ### Review Statuses
 
-| Status              | Meaning                  | Wait endpoint behavior |
-| ------------------- | ------------------------ | ---------------------- |
-| `pending`           | Awaiting human response  | Continues polling      |
-| `completed`         | Human approved/submitted | Returns immediately    |
-| `changes_requested` | Human wants revisions    | Returns immediately    |
-| `expired`           | Timed out (default 24h)  | Returns immediately    |
+| Status      | Meaning                 | Wait endpoint behavior |
+| ----------- | ----------------------- | ---------------------- |
+| `pending`   | Awaiting human response | Continues polling      |
+| `completed` | Human responded         | Returns immediately    |
+| `expired`   | Timed out (default 24h) | Returns immediately    |
 
 <Note>
-  `changes_requested` is a **terminal status** — the review does not expire. The agent must send a
-  new iteration to continue the workflow.
+  Every review response is `completed`. The agent interprets the response content (e.g. selected
+  option, feedback text) and decides whether to send a new iteration. Placet is a transport layer —
+  it does not encode business logic about what constitutes "approval" vs "rejection".
 </Note>
 
 ## Sending Iterations
@@ -108,15 +109,15 @@ Use the wait endpoint to poll for the human's decision:
 GET /api/v1/reviews/{messageId}/wait?channel=agent-123&timeout=120000
 ```
 
-The response includes the new `changes_requested` status:
+The response includes the review status and human feedback:
 
 ```json
 {
-  "status": "changes_requested",
+  "status": "completed",
   "message": {
     "id": "msg-1",
     "review": {
-      "status": "changes_requested",
+      "status": "completed",
       "feedback": "Please add Q2 projections and fix the growth calculation.",
       "response": { "selectedOption": "reject" }
     }
@@ -162,19 +163,19 @@ The response includes the iteration metadata:
 
 ### Step 4: Repeat until approved
 
-Continue the loop — check the wait endpoint, and if `changes_requested`, send another iteration:
+Continue the loop — check the wait endpoint, and based on the response content, decide whether to send another iteration:
 
 ```mermaid
 flowchart TD
     Send["Send message<br/>(with iterationOf if revision)"]
     Wait["Wait for review response"]
-    Check{status?}
+    Check{"Agent interprets<br/>response"}
     Revise["Revise content using<br/>feedback from response"]
     Done["✅ Workflow complete"]
 
     Send --> Wait --> Check
-    Check -->|completed| Done
-    Check -->|changes_requested| Revise
+    Check -->|needs revision| Revise
+    Check -->|approved| Done
     Revise --> Send
     Check -->|expired| Done
 
@@ -182,37 +183,21 @@ flowchart TD
     style Revise fill:#f59e0b,color:#000
 ```
 
-## Requesting Changes (Human Side)
+## Interpreting Responses (Agent Side)
 
-When reviewing a message, humans have three options:
+Placet delivers the human's response as-is. The agent (or workflow) decides what constitutes "approval" vs "rejection":
 
-1. **Approve** — completes the review (`status: completed`)
-2. **Request Changes** — sends feedback to the agent (`status: changes_requested`)
-3. **Reject** — completes the review with rejection (`status: completed`)
+- **Approval reviews** — check `response.selectedOption` (e.g. `"approve"` vs `"reject"`)
+- **Form reviews** — inspect submitted field values
+- **Text input** — read the text response and optionally the `feedback` field
+- **Selection** — check `response.selectedItems`
 
-The "Request Changes" action opens a feedback text field. The feedback is stored in the review and delivered to the agent via webhook, WebSocket, or the wait endpoint.
-
-```mermaid
-flowchart LR
-    Review["Review Message"]
-    Approve["✓ Approve"]
-    Changes["↻ Request Changes"]
-    Reject["✗ Reject"]
-    Feedback["Enter feedback text"]
-    Agent["Agent receives status"]
-
-    Review --> Approve --> Agent
-    Review --> Changes --> Feedback --> Agent
-    Review --> Reject --> Agent
-
-    style Changes fill:#f59e0b,color:#000
-    style Approve fill:#22c55e,color:#fff
-    style Reject fill:#ef4444,color:#fff
-```
+The `feedback` field on the review response contains optional human-provided text explaining their decision. Use it to guide the next iteration.
 
 <Tip>
-  The "Request Changes" button appears on all review types. Feedback text is optional but
-  recommended — it gives the agent context for the revision.
+  Define your review options to make agent-side interpretation simple. For example, use
+  `{ id: "approve", label: "Approve" }` and `{ id: "revise", label: "Request Changes" }` —
+  then check `response.selectedOption === "revise"` in your agent loop.
 </Tip>
 
 ## Retrieving Iteration Chains
@@ -233,7 +218,11 @@ GET /api/v1/messages/iterations/{messageId}?channel={channelId}
       "id": "msg-1",
       "iteration": 1,
       "text": "Draft report v1...",
-      "review": { "status": "changes_requested", "feedback": "Add Q2 data" }
+      "review": {
+        "status": "completed",
+        "feedback": "Add Q2 data",
+        "response": { "selectedOption": "reject" }
+      }
     },
     {
       "id": "msg-2",
@@ -251,11 +240,11 @@ You can pass **any message ID** from the chain — the API returns the complete 
 
 The `iterationOf` parameter is validated by the backend:
 
-| Rule                                                     | Error                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------ |
-| Target message must exist                                | `400 Bad Request`                                      |
-| Target must be in the same channel                       | `400 Bad Request`                                      |
-| Target review must be `completed` or `changes_requested` | `400 Bad Request` — cannot iterate on a pending review |
+| Rule                                           | Error                                                  |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| Target message must exist                      | `400 Bad Request`                                      |
+| Target must be in the same channel             | `400 Bad Request`                                      |
+| Target review must be `completed` or `expired` | `400 Bad Request` — cannot iterate on a pending review |
 
 <Warning>
   Messages in an iteration chain cannot be deleted while other messages reference the same group.
@@ -278,37 +267,39 @@ These views appear in the chat detail view, file preview modal, and the inbox de
 The inbox is iteration-aware:
 
 - **Re-Review badge** — messages that are iteration #2+ show a "Re-Review" tag
-- **Changes badge** — messages with `changes_requested` status show an orange indicator
 - **Iteration breadcrumbs** — navigate between iterations directly from the inbox detail
 - **Diff toggle** — compare the current iteration with the previous one
 - **Pending reviews bar** — floating bar at the top of chat showing open reviews, with iteration chains grouped
 
 ## Webhook Events
 
-When a human requests changes, a webhook is delivered with:
+When a human responds to a review, a webhook is delivered with:
 
 ```json
 {
-  "event": "review:changes_requested",
+  "event": "review:responded",
   "messageId": "msg-1",
   "channelId": "agent-123",
   "iteration": 1,
   "iterationGroupId": "msg-1",
   "feedback": "Please add Q2 projections.",
+  "response": { "selectedOption": "reject" },
   "review": { ... }
 }
 ```
+
+The agent inspects the `response` and `feedback` fields to decide whether to iterate.
 
 ## MCP Server Tools
 
 The MCP server exposes iteration support through enhanced tools:
 
-| Tool                  | Iteration support                                     |
-| --------------------- | ----------------------------------------------------- |
-| `send_message`        | `iterationOf` parameter to chain messages             |
-| `send_review_message` | `iterationOf` parameter to chain review messages      |
-| `wait_for_review`     | Returns `changes_requested` immediately with feedback |
-| `get_iteration_chain` | New tool — fetch all iterations for a message         |
+| Tool                  | Iteration support                                |
+| --------------------- | ------------------------------------------------ |
+| `send_message`        | `iterationOf` parameter to chain messages        |
+| `send_review_message` | `iterationOf` parameter to chain review messages |
+| `wait_for_review`     | Returns `completed` with response and feedback   |
+| `get_iteration_chain` | New tool — fetch all iterations for a message    |
 
 ## Agent Loop Pattern
 
@@ -349,13 +340,15 @@ base = "http://localhost:3001"
             params={"channel": channel, "timeout": "120000"},
         ).json()
 
-        if result["status"] == "changes_requested":
+        # Agent interprets the response — Placet just delivers it
+        response = result["message"]["review"].get("response", {})
+        if response.get("selectedOption") == "reject":
             feedback = result["message"]["review"].get("feedback", "")
             content = revise_content(content, feedback)
             iteration_of = msg["id"]
             continue  # next iteration
 
-        break  # approved, expired, or completed
+        break  # approved, expired, or timed out
 
 ````
 
@@ -391,14 +384,16 @@ async function runAgent(channel: string, apiKey: string) {
       { headers },
     ).then(r => r.json());
 
-    if (result.status === "changes_requested") {
+    // Agent interprets the response — Placet just delivers it
+    const response = result.message?.review?.response;
+    if (response?.selectedOption === "reject") {
       const feedback = result.message?.review?.feedback ?? "";
       content = reviseContent(content, feedback);
       iterationOf = msg.id;
       continue; // next iteration
     }
 
-    break; // approved, expired, or completed
+    break; // approved, expired, or timed out
   }
 }
 ````
@@ -422,8 +417,8 @@ The `metadata` field on messages is a free-form JSON object that the agent contr
 ```
 
 <Tip>
-  Store your agent's run context in `metadata` so you can reconstruct state when processing
-  `changes_requested`. The system never reads or modifies this field.
+  Store your agent's run context in `metadata` so you can reconstruct state across iterations.
+  Placet never reads or modifies this field.
 </Tip>
 
 ## n8n / Automation Workflow Pattern
@@ -434,17 +429,17 @@ For workflow automation tools like n8n, implement the iteration loop using a **S
 flowchart LR
     Send["HTTP Request<br/>POST /messages"]
     Wait["HTTP Request<br/>GET /reviews/.../wait"]
-    Switch{"Switch on<br/>result.status"}
+    Switch{"Switch on<br/>response content"}
     Revise["AI Node<br/>Revise content"]
     Done["✅ Done"]
 
     Send --> Wait --> Switch
-    Switch -->|changes_requested| Revise --> Send
-    Switch -->|completed| Done
+    Switch -->|rejected| Revise --> Send
+    Switch -->|approved| Done
     Switch -->|expired| Done
 
     style Done fill:#22c55e,color:#fff
     style Revise fill:#f59e0b,color:#000
 ```
 
-The key is the loop back from the Switch node to the Send node, passing the previous message ID as `iterationOf` and incorporating the feedback from the response.
+The key is the loop back from the Switch node to the Send node, passing the previous message ID as `iterationOf` and incorporating the feedback from the response. The Switch node inspects the response content (e.g. `selectedOption`) to determine the next step.

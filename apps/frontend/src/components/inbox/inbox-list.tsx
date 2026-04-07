@@ -91,7 +91,6 @@ export const InboxList = memo(function InboxList({
   const STATUS_LABELS = {
     pending: 'Pending',
     completed: 'Completed',
-    changes_requested: 'Changes Requested',
     all: 'All',
   } as const;
   const SORT_LABELS = { newest: 'Newest first', oldest: 'Oldest first' } as const;
@@ -109,18 +108,21 @@ export const InboxList = memo(function InboxList({
             <MobileNavDrawer />
             <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
           </div>
-          {reviews.length > 0 && (
-            <Badge
-              variant="secondary"
-              className={cn(
-                'h-6 min-w-6 px-2 rounded-full text-xs',
-                reviews.some((r) => isUnread(r.id)) &&
-                  'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
-              )}
-            >
-              {reviews.length}
-            </Badge>
-          )}
+          {reviews.length > 0 &&
+            (() => {
+              const unreadCount = reviews.filter((r) => isUnread(r.id)).length;
+              return (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    'h-6 min-w-6 px-2 rounded-full text-xs',
+                    unreadCount > 0 && 'bg-primary text-primary-foreground',
+                  )}
+                >
+                  {unreadCount > 0 ? unreadCount : reviews.length}
+                </Badge>
+              );
+            })()}
         </div>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -245,7 +247,6 @@ const InboxListItem = memo(function InboxListItem({
   isUnread: boolean;
 }) {
   const isDone = reviewStatus === 'completed' || reviewStatus === 'expired';
-  const isChangesRequested = reviewStatus === 'changes_requested';
 
   return (
     <Link
@@ -292,14 +293,6 @@ const InboxListItem = memo(function InboxListItem({
               className="shrink-0 text-[10px] h-4 px-1.5 rounded-md font-mono"
             >
               Rev {iteration}
-            </Badge>
-          )}
-          {isChangesRequested && (
-            <Badge
-              variant="secondary"
-              className="shrink-0 text-[10px] h-4 px-1.5 rounded-md bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-            >
-              Changes
             </Badge>
           )}
           {isDone && (

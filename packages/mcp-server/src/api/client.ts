@@ -38,7 +38,7 @@ export interface CreateAgentDto {
 }
 
 export interface WaitResult {
-  status: 'completed' | 'expired' | 'timeout' | 'changes_requested';
+  status: 'completed' | 'expired' | 'timeout';
   message?: Record<string, unknown>;
 }
 

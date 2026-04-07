@@ -118,7 +118,7 @@ const ALL_TEST_TEXTS = [
  *
  * 1. Agent sends a realistic review message (markdown report + PDF attachment)
  * 2. Human requests changes with detailed feedback
- * 3. Wait-endpoint returns changes_requested immediately
+ * 3. Wait-endpoint returns completed immediately
  * 4. Agent sends iteration #2 with revised content + same attachment
  * 5. Human requests changes again (second round of feedback)
  * 6. Agent sends iteration #3 (final revision + updated attachment)
@@ -222,13 +222,12 @@ describe('Iteration Workflow (HITL)', () => {
 
   // ── Human requests changes (round 1) ─────────────────────
 
-  it('should allow human to request changes with feedback', async () => {
+  it('should allow human to respond with feedback', async () => {
     const res = await request(httpServer)
       .post(`/api/messages/${iter1Id}/respond`)
       .set('Authorization', `Bearer ${state.accessToken}`)
       .send({
         response: { selectedOption: 'reject' },
-        requestChanges: true,
         feedback:
           'Total Revenue looks off — we had a late invoice batch that should bring it to ~$1.24M. ' +
           'Also please add Q2 projections and adjust the growth figure.',
@@ -239,13 +238,13 @@ describe('Iteration Workflow (HITL)', () => {
       string,
       unknown
     >;
-    expect(review.status).toBe('changes_requested');
+    expect(review.status).toBe('completed');
     expect(review.feedback).toBeDefined();
   });
 
   // ── Wait-endpoint returns immediately ─────────────────────
 
-  it('should return changes_requested immediately from wait endpoint', async () => {
+  it('should return completed immediately from wait endpoint', async () => {
     const res = await request(httpServer)
       .get(
         `/api/v1/reviews/${iter1Id}/wait?channel=${state.agentId}&timeout=2000`,
@@ -254,7 +253,7 @@ describe('Iteration Workflow (HITL)', () => {
       .expect(200);
 
     const body = res.body as { status: string; message: MessageResponse };
-    expect(body.status).toBe('changes_requested');
+    expect(body.status).toBe('completed');
     expect(body.message.id).toBe(iter1Id);
   });
 
@@ -287,13 +286,12 @@ describe('Iteration Workflow (HITL)', () => {
 
   // ── Human requests changes again (round 2) ───────────────
 
-  it('should allow human to request changes a second time', async () => {
+  it('should allow human to respond a second time with feedback', async () => {
     const res = await request(httpServer)
       .post(`/api/messages/${iter2Id}/respond`)
       .set('Authorization', `Bearer ${state.accessToken}`)
       .send({
         response: { selectedOption: 'reject' },
-        requestChanges: true,
         feedback:
           'Q2 forecast of $1.4M seems too optimistic — the Acme deal got pushed. ' +
           'Please adjust to ~$1.38M and note the pipeline risk.',
@@ -304,7 +302,7 @@ describe('Iteration Workflow (HITL)', () => {
       string,
       unknown
     >;
-    expect(review.status).toBe('changes_requested');
+    expect(review.status).toBe('completed');
   });
 
   // ── Iteration 3: Final revision (stays pending!) ──────────
@@ -377,7 +375,7 @@ describe('Iteration Workflow (HITL)', () => {
   // ── Wait-endpoint returns completed after approval ────────
 
   it('should return completed from wait endpoint for approved iteration', async () => {
-    // iter2 was changes_requested — wait should return immediately
+    // iter2 was completed — wait should return immediately
     const res = await request(httpServer)
       .get(
         `/api/v1/reviews/${iter2Id}/wait?channel=${state.agentId}&timeout=2000`,
@@ -385,7 +383,7 @@ describe('Iteration Workflow (HITL)', () => {
       .set('x-api-key', state.apiKeyRaw)
       .expect(200);
 
-    expect((res.body as { status: string }).status).toBe('changes_requested');
+    expect((res.body as { status: string }).status).toBe('completed');
   });
 
   // ── Rejection of invalid iterationOf targets ──────────────
@@ -513,13 +511,12 @@ describe('Iteration Workflow (HITL)', () => {
     const idA = (resA.body as MessageResponse).id;
     const idB = (resB.body as MessageResponse).id;
 
-    // Respond to chain A with changes_requested
+    // Respond to chain A with feedback
     await request(httpServer)
       .post(`/api/messages/${idA}/respond`)
       .set('Authorization', `Bearer ${state.accessToken}`)
       .send({
         response: { selectedOption: 'reject' },
-        requestChanges: true,
         feedback: 'Please add conversion funnel data.',
       })
       .expect(201);

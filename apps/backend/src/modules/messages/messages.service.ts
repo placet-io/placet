@@ -215,10 +215,10 @@ export class MessagesService {
       if (
         !targetReview ||
         (targetReview.status !== 'completed' &&
-          targetReview.status !== 'changes_requested')
+          targetReview.status !== 'expired')
       ) {
         throw new BadRequestException(
-          'iterationOf target must have a completed or changes_requested review',
+          'iterationOf target must have a completed or expired review',
         );
       }
 
@@ -547,7 +547,7 @@ export class MessagesService {
     agentId: string,
     timeoutMs = 30000,
   ): Promise<{
-    status: 'completed' | 'expired' | 'changes_requested' | 'timeout';
+    status: 'completed' | 'expired' | 'timeout';
     message?: unknown;
   }> {
     const message = await this.getReviewByAgent(userId, messageId, agentId);
@@ -565,14 +565,6 @@ export class MessagesService {
     if (review.status === 'expired') {
       return {
         status: 'expired',
-        message: await this.enrichTextAttachments(message),
-      };
-    }
-
-    // Changes requested — return immediately
-    if (review.status === 'changes_requested') {
-      return {
-        status: 'changes_requested',
         message: await this.enrichTextAttachments(message),
       };
     }
@@ -621,13 +613,6 @@ export class MessagesService {
             });
             return;
           }
-          if (r.status === 'changes_requested') {
-            resolve({
-              status: 'changes_requested',
-              message: await this.enrichTextAttachments(fresh),
-            });
-            return;
-          }
           // Check if review has expired by date
           if (r.expiresAt && new Date(r.expiresAt as string) <= new Date()) {
             const updated = await this.expireReview(messageId, r);
@@ -672,7 +657,7 @@ export class MessagesService {
         throw new ForbiddenException('Review already responded');
       }
 
-      const newStatus = dto.requestChanges ? 'changes_requested' : 'completed';
+      const newStatus = 'completed';
       const updatedReview = {
         ...review,
         status: newStatus,
@@ -692,15 +677,12 @@ export class MessagesService {
     });
 
     const review = updated.review as Record<string, unknown>;
-    const isChangesRequested = review.status === 'changes_requested';
 
     // Tier 3: WebSocket — always active
     this.events.emitToChannel(updated.channelId, 'review:responded', updated);
 
     // 3-tier webhook dispatch for review response:
-    const webhookEvent = isChangesRequested
-      ? 'review:changes_requested'
-      : 'review:responded';
+    const webhookEvent = 'review:responded';
 
     const reviewPayload: Record<string, unknown> = {
       event: webhookEvent,
@@ -762,15 +744,9 @@ export class MessagesService {
     const review = message.review as Record<string, unknown> | null;
 
     // For review messages → re-send the review:responded payload
-    if (
-      review &&
-      (review.status === 'completed' || review.status === 'changes_requested')
-    ) {
-      const isChangesRequested = review.status === 'changes_requested';
+    if (review && review.status === 'completed') {
       const reviewPayload: Record<string, unknown> = {
-        event: isChangesRequested
-          ? 'review:changes_requested'
-          : 'review:responded',
+        event: 'review:responded',
         channelId: message.channelId,
         message_id: messageId,
         review_type: review.type as string,

@@ -11,7 +11,6 @@ import {
   List,
   Loader2,
   MessageSquare,
-  RotateCcw,
   RefreshCw,
   Type,
 } from 'lucide-react';
@@ -215,7 +214,7 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
     });
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 max-w-lg">
       {fields.map((field) => (
         <div key={field.name}>
           <label className="block text-xs font-medium text-muted-foreground mb-0.5">
@@ -247,7 +246,7 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
               value={(values[field.name] as string) ?? ''}
               onChange={(e) => updateField(field.name, e.target.value)}
               rows={2}
-              className="text-sm min-h-0"
+              className="text-sm"
             />
           ) : field.type === 'checkbox' ? (
             <Checkbox
@@ -470,11 +469,6 @@ const STATUS_CONFIG = {
     className: 'bg-success-muted text-success-foreground',
   },
   expired: { label: 'Expired', icon: Clock, className: 'bg-muted text-muted-foreground' },
-  changes_requested: {
-    label: 'Changes Requested',
-    icon: RotateCcw,
-    className: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
-  },
 } as const;
 
 const TYPE_ICON = {
@@ -506,7 +500,7 @@ function CompletedFormResponse({ review }: { review: Review }) {
   if (!response) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 max-w-lg">
       {fields.map((field) => {
         const val = response[field.name];
         return (
@@ -668,7 +662,7 @@ interface ReviewCardProps {
     messageId: string,
     response: Record<string, unknown>,
     modifiedFileIds?: Record<string, string>,
-    options?: { requestChanges?: boolean; feedback?: string },
+    options?: { feedback?: string },
   ) => Promise<void>;
   onRetryDelivery?: (messageId: string) => Promise<void>;
 }
@@ -751,55 +745,46 @@ export const ReviewCard = memo(function ReviewCard({
         <FreeformReview review={review} onRespond={handleRespond} submitting={submitting} />
       )}
 
-      {/* Completed / Expired / Changes Requested → show response */}
-      {review.status === 'completed' && <CompletedResponse review={review} />}
-      {review.status === 'changes_requested' &&
-        (() => {
-          const fb = (review as Record<string, unknown>).feedback;
-          return (
-            <div className="space-y-1">
-              <CompletedResponse review={review} />
-              {typeof fb === 'string' && fb && (
-                <p className="text-sm text-orange-600 dark:text-orange-400 italic">
-                  Feedback: &quot;{fb}&quot;
-                </p>
-              )}
-            </div>
-          );
-        })()}
+      {/* Completed / Expired → show response */}
+      {review.status === 'completed' && (
+        <div className="space-y-1">
+          <CompletedResponse review={review} />
+          {review.feedback && (
+            <p className="text-sm text-muted-foreground italic">
+              Feedback: &quot;{review.feedback}&quot;
+            </p>
+          )}
+        </div>
+      )}
       {review.status === 'expired' && (
         <p className="text-sm text-muted-foreground italic">This review has expired.</p>
       )}
 
       {submitError && <p className="text-xs text-destructive">{submitError}</p>}
 
-      {(review.status === 'completed' || review.status === 'changes_requested') &&
-        deliveryStatus === 'webhook_failed' &&
-        onRetryDelivery && (
-          <div className="flex items-center gap-2 text-xs text-destructive">
-            <span>Webhook delivery failed</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs gap-1"
-              disabled={retrying}
-              onClick={handleRetry}
-            >
-              {retrying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              Retry
-            </Button>
-          </div>
-        )}
+      {review.status === 'completed' && deliveryStatus === 'webhook_failed' && onRetryDelivery && (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <span>Webhook delivery failed</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs gap-1"
+            disabled={retrying}
+            onClick={handleRetry}
+          >
+            {retrying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Retry
+          </Button>
+        </div>
+      )}
 
-      {(review.status === 'completed' || review.status === 'changes_requested') &&
-        deliveryStatus === 'webhook_delivered' && (
-          <p className="text-xs text-muted-foreground">✓✓ Delivered to agent</p>
-        )}
+      {review.status === 'completed' && deliveryStatus === 'webhook_delivered' && (
+        <p className="text-xs text-muted-foreground">✓✓ Delivered to agent</p>
+      )}
 
-      {(review.status === 'completed' || review.status === 'changes_requested') &&
-        deliveryStatus === 'agent_received' && (
-          <p className="text-xs text-blue-500">✓✓ Acknowledged by agent</p>
-        )}
+      {review.status === 'completed' && deliveryStatus === 'agent_received' && (
+        <p className="text-xs text-blue-500">✓✓ Acknowledged by agent</p>
+      )}
 
       {review.expiresAt && isPending && (
         <p className="text-xs text-muted-foreground">

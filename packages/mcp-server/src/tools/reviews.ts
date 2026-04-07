@@ -41,7 +41,7 @@ export function registerReviewTools(server: McpServer, api: PlacetApiClient, con
 
 By default returns immediately with the pending review. Set waitInline=true to wait for the response in the same call.
 For long reviews, call wait_for_review separately after this tool returns.
-Use iterationOf to create an iteration chain — link this review to a previous message that was reviewed (the target must have a completed or changes_requested review).`,
+Use iterationOf to create an iteration chain — link this review to a previous message that was reviewed (the target must have a completed or expired review).`,
     {
       channelId: channelParam,
       text: z
@@ -76,7 +76,7 @@ Use iterationOf to create an iteration chain — link this review to a previous 
         .string()
         .optional()
         .describe(
-          'ID of a previous message to iterate on. Creates an iteration chain. The target message must have a completed or changes_requested review.',
+          'ID of a previous message to iterate on. Creates an iteration chain. The target message must have a completed or expired review.',
         ),
     },
     async (
@@ -175,11 +175,7 @@ Works for reviews of any duration (minutes, hours, or days).`,
       const review = (current as { review?: { expiresAt?: string; status?: string } }).review;
 
       // Fast path: already resolved
-      if (
-        review?.status === 'completed' ||
-        review?.status === 'expired' ||
-        review?.status === 'changes_requested'
-      ) {
+      if (review?.status === 'completed' || review?.status === 'expired') {
         return {
           content: [
             {
@@ -244,11 +240,7 @@ async function doWaitLoop(
 
     const result: WaitResult = await api.waitForReview(messageId, channel, pollTimeout);
 
-    if (
-      result.status === 'completed' ||
-      result.status === 'expired' ||
-      result.status === 'changes_requested'
-    ) {
+    if (result.status === 'completed' || result.status === 'expired') {
       // Send final progress
       if (progressToken !== undefined) {
         await sendNotification({

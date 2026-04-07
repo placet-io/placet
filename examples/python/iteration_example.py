@@ -1,8 +1,8 @@
-"""Placet iteration workflow — changes_requested → revise → re-submit → approve.
+"""Placet iteration workflow — review → interpret response → revise → re-submit → approve.
 
 Demonstrates:
   - Sending a review message with metadata (agent run context)
-  - Handling the `changes_requested` status
+  - Interpreting the review response to decide whether to iterate
   - Sending an iteration via `iterationOf` to chain messages
   - Waiting for final approval
 
@@ -95,8 +95,8 @@ feedback = review_response.get("feedback", "")
 
 print(f"   Status: {status}")
 
-if status == "changes_requested":
-    print(f"   Human requested changes! Feedback: {feedback!r}")
+if status == "completed" and chosen == "reject":
+    print(f"   Human rejected! Feedback: {feedback!r}")
 elif status == "completed" and chosen == "approve":
     print("   Approved on first try!")
     sys.exit(0)
@@ -128,8 +128,8 @@ print(f"   Status: {status}")
 
 if status == "completed" and chosen == "approve":
     print("   Approved!")
-elif status == "changes_requested":
-    print("   Changes requested again — in production, loop until approved.")
+elif status == "completed" and chosen == "reject":
+    print("   Rejected again — in production, loop until approved.")
 else:
     print(f"   Result: status={status}, option={chosen}")
 

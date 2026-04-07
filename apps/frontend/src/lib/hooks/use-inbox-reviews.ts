@@ -5,7 +5,7 @@ import type { Message } from '@placet/shared';
 import { api } from '@/lib/api';
 import { useSocket } from '@/lib/contexts/socket-context';
 
-export type ReviewStatusFilter = 'pending' | 'completed' | 'changes_requested' | 'all';
+export type ReviewStatusFilter = 'pending' | 'completed' | 'all';
 export type ReviewSort = 'newest' | 'oldest';
 
 export function useInboxReviews() {
@@ -84,23 +84,18 @@ export function useInboxReviews() {
       messageId: string,
       response: Record<string, unknown>,
       modifiedFileIds?: Record<string, string>,
-      options?: { requestChanges?: boolean; feedback?: string },
+      options?: { feedback?: string },
     ) => {
       const updated = await api<Message>(`/api/messages/${messageId}/respond`, {
         method: 'POST',
         body: JSON.stringify({
           response,
           ...(modifiedFileIds && Object.keys(modifiedFileIds).length ? { modifiedFileIds } : {}),
-          ...(options?.requestChanges ? { requestChanges: true } : {}),
           ...(options?.feedback ? { feedback: options.feedback } : {}),
         }),
       });
-      // Optimistically remove from pending list (or keep if changes_requested)
-      if (options?.requestChanges) {
-        setReviews((prev) => prev.map((r) => (r.id === messageId ? updated : r)));
-      } else {
-        setReviews((prev) => prev.filter((r) => r.id !== messageId));
-      }
+      // Optimistically remove from pending list
+      setReviews((prev) => prev.filter((r) => r.id !== messageId));
       return updated;
     },
     [],

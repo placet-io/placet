@@ -1,9 +1,9 @@
 /**
- * Placet iteration workflow — changes_requested → revise → re-submit → approve.
+ * Placet iteration workflow — review → interpret response → revise → re-submit → approve.
  *
  * Demonstrates:
  *   - Sending a review message with metadata (agent run context)
- *   - Handling the `changes_requested` status
+ *   - Interpreting the review response to decide whether to iterate
  *   - Sending an iteration via `iterationOf` to chain messages
  *   - Waiting for final approval
  *
@@ -91,12 +91,12 @@ const result = await waitForReview(msg.id);
 const status = result.status;
 const reviewResponse = result.message?.review?.response ?? {};
 const chosen = reviewResponse.selectedOption ?? "";
-const feedback = reviewResponse.feedback ?? "";
+const feedback = result.message?.review?.feedback ?? "";
 
 console.log(`   Status: ${status}`);
 
-if (status === "changes_requested") {
-  console.log(`   Human requested changes! Feedback: "${feedback}"`);
+if (status === "completed" && chosen === "reject") {
+  console.log(`   Human rejected! Feedback: "${feedback}"`);
 } else if (status === "completed" && chosen === "approve") {
   console.log("   Approved on first try!");
   process.exit(0);
@@ -127,8 +127,8 @@ console.log(`   Status: ${status2}`);
 
 if (status2 === "completed" && chosen2 === "approve") {
   console.log("   Approved!");
-} else if (status2 === "changes_requested") {
-  console.log("   Changes requested again — in production, loop until approved.");
+} else if (status2 === "completed" && chosen2 === "reject") {
+  console.log("   Rejected again — in production, loop until approved.");
 } else {
   console.log(`   Result: status=${status2}, option=${chosen2}`);
 }
