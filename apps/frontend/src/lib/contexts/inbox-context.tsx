@@ -42,7 +42,7 @@ interface InboxContextValue {
     messageId: string,
     response: Record<string, unknown>,
     modifiedFileIds?: Record<string, string>,
-    options?: { requestChanges?: boolean; feedback?: string },
+    options?: { feedback?: string },
   ) => Promise<Message>;
   /** Mark a message as read (client-side, persisted in localStorage). */
   markRead: (messageId: string) => void;

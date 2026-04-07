@@ -30,7 +30,7 @@ Use this for status updates, logs, reports, and any content that does not requir
 The text field supports full markdown (headings, bold, italic, lists, code blocks, links, tables, etc.).
 Use the status field to show a colored indicator: info (blue), success (green), warning (yellow), error (red).
 For messages that require human input (approvals, forms, selections), use send_review_message instead.
-Use iterationOf to create an iteration chain — link this message to a previous one that was reviewed (the target must have a completed or changes_requested review).`,
+Use iterationOf to create an iteration chain — link this message to a previous one that was reviewed (the target must have a completed or expired review).`,
     {
       channelId: channelParam,
       text: z
@@ -55,7 +55,7 @@ Use iterationOf to create an iteration chain — link this message to a previous
         .string()
         .optional()
         .describe(
-          'ID of a previous message to iterate on. Creates an iteration chain. The target message must have a completed or changes_requested review.',
+          'ID of a previous message to iterate on. Creates an iteration chain. The target message must have a completed or expired review.',
         ),
     },
     async ({ channelId, text, status, metadata, iterationOf }) => {

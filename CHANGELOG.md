@@ -5,14 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.1] — 2026-04-07
+
+### Changed
+
+- **Removed `changes_requested` review status** — reviews now only have three statuses: `pending`, `completed`, `expired`. The `requestChanges` field has been removed from `RespondReviewSchema`. Agents and workflows should interpret the review response content (e.g. `response.selectedOption`) to decide whether to iterate. This simplifies the data model and keeps business logic where it belongs — in the agent, not the transport layer.
+- **Webhook events simplified** — `review:changes_requested` event removed; all review responses now emit `review:responded`. Agents inspect the response payload to determine next steps.
+- **Iteration target validation** — `iterationOf` target must now have a `completed` or `expired` review (previously also accepted `changes_requested`)
+- **ReviewSchema extended** — `feedback` and `modifiedFileIds` fields added to the shared `ReviewSchema` for proper type safety; removed unsafe type casts in frontend components
 
 ## [0.6.0] — 2026-04-06
 
 ### Added
 
 - **HITL iteration chains** — messages can form revision chains via `iterationOf` parameter; backend tracks `iterationGroupId` + `iteration` number with atomic `@@unique` constraint
-- **Request Changes flow** — reviewers can respond with "Request Changes" (`requestChanges: true`), setting status to `changes_requested` with human `feedback` text; agents receive the new `review:changes_requested` webhook event
+- **Request Changes flow** — reviewers can respond with human `feedback` text alongside their response; agents interpret the response to decide whether to iterate
 - **Text attachments** — `textAttachments` field on `POST /api/v1/messages` stores inline text content as file attachments in a single request (no separate upload round-trip)
 - **Text enrichment** — GET endpoints automatically inline `textContent` for small text-based attachments (≤ 50 KB), eliminating extra download calls
 - **Iteration chain endpoint** — `GET /api/v1/messages/iterations/:id?channel=` returns all messages in a chain sorted by iteration number
@@ -21,11 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Inbox redesign** — iteration grouping (shows latest revision only), collapsible message text, file tabs with inline preview, sticky review card, fullscreen file modal trigger
 - **Inbox read tracking** — localStorage-backed unread indicators with colored agent names; badge count highlights when unread items exist
 - **Self-fetching pending reviews bar** — fetches own data via `GET /api/messages/reviews?channel=` instead of relying on lazy-loaded chat messages; shows max 5 entries + "+N more" badge; stays in sync via WebSocket
-- **MCP iteration tools** — `get_iteration_chain` tool, `iterationOf` parameter on `send_message` and `send_review_message`, `changes_requested` handling in `wait_for_review`
+- **MCP iteration tools** — `get_iteration_chain` tool, `iterationOf` parameter on `send_message` and `send_review_message`
 
 ### Changed
 
-- **Review response schema** — `annotationFileId` replaced by `modifiedFileIds` (supports multiple edited files) + `requestChanges` + `feedback` fields
+- **Review response schema** — `annotationFileId` replaced by `modifiedFileIds` (supports multiple edited files) + `feedback` field
 - **Webhook retry payload** — now includes `modifiedFileIds`, `feedback`, `iterationGroupId`, and `iteration` context
 - **`GET /api/messages/reviews`** — accepts optional `channel` query param to filter by agent
 - **Markdown headings** — corrected heading sizes in chat message renderer

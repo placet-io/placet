@@ -81,7 +81,7 @@ export class MessagesController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['pending', 'completed', 'expired', 'changes_requested', 'all'],
+    enum: ['pending', 'completed', 'expired', 'all'],
     description: 'Filter by review status (default: pending)',
   })
   @ApiQuery({

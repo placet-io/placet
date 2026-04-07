@@ -150,14 +150,13 @@ export function useMessages(channelId: string | null) {
       messageId: string,
       response: Record<string, unknown>,
       modifiedFileIds?: Record<string, string>,
-      options?: { requestChanges?: boolean; feedback?: string },
+      options?: { feedback?: string },
     ) => {
       const updated = await api<Message>(`/api/messages/${messageId}/respond`, {
         method: 'POST',
         body: JSON.stringify({
           response,
           ...(modifiedFileIds && Object.keys(modifiedFileIds).length ? { modifiedFileIds } : {}),
-          ...(options?.requestChanges ? { requestChanges: true } : {}),
           ...(options?.feedback ? { feedback: options.feedback } : {}),
         }),
       });

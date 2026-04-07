@@ -11,7 +11,6 @@ import {
   Send,
   ArrowLeftRight,
   Check,
-  RotateCw,
   Circle,
   XCircle,
 } from 'lucide-react';
@@ -89,7 +88,7 @@ interface FilePreviewModalProps {
     messageId: string,
     response: Record<string, unknown>,
     modifiedFileIds?: Record<string, string>,
-    options?: { requestChanges?: boolean; feedback?: string },
+    options?: { feedback?: string },
   ) => Promise<void>;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;
   /** Plugin info for rendering plugin in preview mode */
@@ -356,18 +355,13 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                       </SelectTrigger>
                       <SelectContent align="start">
                         {iterationChain.map((iter) => {
-                          const rs = (iter.review as Record<string, unknown> | null)?.status as
-                            | string
-                            | undefined;
+                          const rs = iter.review?.status;
                           return (
                             <SelectItem key={iter.id} value={String(iter.iteration ?? 0)}>
                               <span className="flex items-center gap-1.5 text-muted-foreground">
                                 <span>Rev {iter.iteration}</span>
                                 {rs === 'completed' && (
                                   <Check size={10} className="text-muted-foreground" />
-                                )}
-                                {rs === 'changes_requested' && (
-                                  <RotateCw size={10} className="text-muted-foreground" />
                                 )}
                                 {rs === 'expired' && (
                                   <XCircle size={10} className="text-muted-foreground" />
@@ -643,11 +637,9 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                 <div className="overflow-x-auto -mx-1 px-1">
                   <div className="flex items-center gap-0 w-max">
                     {iterationChain.map((iter, idx) => {
-                      const reviewStatus = (iter.review as Record<string, unknown> | null)
-                        ?.status as string | undefined;
+                      const reviewStatus = iter.review?.status;
                       const isActive = iter.iteration === activeIteration;
                       const isDone = reviewStatus === 'completed' || reviewStatus === 'expired';
-                      const isChanges = reviewStatus === 'changes_requested';
                       const isPending = reviewStatus === 'pending';
                       return (
                         <div key={iter.id} className="flex items-center">
@@ -656,7 +648,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                             <div
                               className={cn(
                                 'h-px w-4 shrink-0',
-                                isDone || isChanges ? 'bg-border' : 'bg-border',
+                                isDone ? 'bg-border' : 'bg-border',
                               )}
                             />
                           )}
@@ -673,13 +665,10 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors border',
                                 isActive &&
                                   isPending &&
-                                  'bg-yellow-500/15 border-yellow-500/40 text-yellow-700 dark:text-yellow-400',
+                                  'bg-primary/10 border-primary/30 text-primary',
                                 isActive &&
                                   isDone &&
                                   'bg-muted border-border text-muted-foreground',
-                                isActive &&
-                                  isChanges &&
-                                  'bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-400',
                                 isActive &&
                                   !reviewStatus &&
                                   'bg-primary/10 border-primary/30 text-primary',
@@ -691,16 +680,6 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                               {reviewStatus === 'completed' && (
                                 <Check size={11} className="text-muted-foreground" />
                               )}
-                              {reviewStatus === 'changes_requested' && (
-                                <RotateCw
-                                  size={11}
-                                  className={
-                                    isActive
-                                      ? 'text-orange-600 dark:text-orange-400'
-                                      : 'text-muted-foreground'
-                                  }
-                                />
-                              )}
                               {reviewStatus === 'expired' && (
                                 <XCircle size={11} className="text-muted-foreground" />
                               )}
@@ -709,7 +688,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                                   size={9}
                                   className={cn(
                                     'fill-current',
-                                    isActive ? 'text-yellow-500' : 'text-muted-foreground/50',
+                                    isActive ? 'text-primary' : 'text-muted-foreground/50',
                                   )}
                                 />
                               )}
@@ -724,22 +703,16 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             )}
 
             {/* Previous iteration feedback */}
-            {prevIteration?.review &&
-              (() => {
-                const prevReview = prevIteration.review as Record<string, unknown>;
-                const feedback =
-                  typeof prevReview.feedback === 'string' ? prevReview.feedback : undefined;
-                return feedback ? (
-                  <div className="px-4 py-3 border-b border-border/50 overflow-auto max-h-28">
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
-                      Previous Feedback
-                    </p>
-                    <blockquote className="text-xs text-muted-foreground italic border-l-2 border-orange-400 pl-2">
-                      {feedback}
-                    </blockquote>
-                  </div>
-                ) : null;
-              })()}
+            {prevIteration?.review?.feedback && (
+              <div className="px-4 py-3 border-b border-border/50 overflow-auto max-h-28">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Previous Feedback
+                </p>
+                <blockquote className="text-xs text-muted-foreground italic border-l-2 border-orange-400 pl-2">
+                  {prevIteration.review.feedback}
+                </blockquote>
+              </div>
+            )}
 
             {/* Message text context */}
             {effectiveMessageText && (

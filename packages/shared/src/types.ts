@@ -19,7 +19,7 @@ export type MessageSenderType = z.infer<typeof MessageSenderTypeSchema>;
 export const MessageStatusSchema = z.enum(['info', 'success', 'warning', 'error']);
 export type MessageStatus = z.infer<typeof MessageStatusSchema>;
 
-export const ReviewStatusSchema = z.enum(['pending', 'completed', 'expired', 'changes_requested']);
+export const ReviewStatusSchema = z.enum(['pending', 'completed', 'expired']);
 export type ReviewStatus = z.infer<typeof ReviewStatusSchema>;
 
 export const ThemeSchema = z.enum(['light', 'dark', 'system']);
@@ -66,6 +66,10 @@ export const ReviewSchema = z.object({
   /** Convenience alternative to expiresAt: duration in seconds from now. */
   expiresInSeconds: z.number().int().positive().optional(),
   completedAt: z.string().nullish(),
+  /** Human feedback text provided alongside the review response. */
+  feedback: z.string().nullish(),
+  /** Mapping of original attachment ID → modified file ID for edited/annotated files. */
+  modifiedFileIds: z.record(z.string(), z.string()).nullish(),
 });
 export type Review = z.infer<typeof ReviewSchema>;
 
@@ -291,8 +295,6 @@ export const RespondReviewSchema = z.object({
   response: z.record(z.string(), z.unknown()),
   /** Mapping of original attachment ID → modified file ID for edited/annotated files */
   modifiedFileIds: z.record(z.string(), z.string()).optional(),
-  /** When true, sets review status to 'changes_requested' instead of 'completed'. */
-  requestChanges: z.boolean().optional(),
   /** Human feedback text explaining what needs to change. */
   feedback: z.string().optional(),
 });

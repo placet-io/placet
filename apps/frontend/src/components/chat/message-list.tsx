@@ -21,7 +21,7 @@ interface MessageListProps {
     messageId: string,
     response: Record<string, unknown>,
     modifiedFileIds?: Record<string, string>,
-    options?: { requestChanges?: boolean; feedback?: string },
+    options?: { feedback?: string },
   ) => Promise<void>;
   onReply?: (messageId: string, senderName: string, text: string) => void;
   onSendAsMessage?: (attachmentId: string) => Promise<void>;

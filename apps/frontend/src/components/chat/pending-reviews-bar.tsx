@@ -109,12 +109,12 @@ export const PendingReviewsBar = memo(function PendingReviewsBar({
   return (
     <div
       className={cn(
-        'flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-200',
+        'flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-primary/15 text-foreground',
         className,
       )}
     >
-      <AlertCircle size={14} className="shrink-0" />
-      <span className="text-xs font-medium shrink-0">
+      <AlertCircle size={14} className="shrink-0 text-primary" />
+      <span className="text-xs font-medium shrink-0 text-muted-foreground">
         {pendingEntries.length} open review{pendingEntries.length !== 1 ? 's' : ''}
       </span>
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -125,7 +125,7 @@ export const PendingReviewsBar = memo(function PendingReviewsBar({
               key={msg.id}
               type="button"
               onClick={() => handleClick(msg.id)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs whitespace-nowrap transition-colors bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs whitespace-nowrap transition-colors bg-primary/10 hover:bg-primary/15 text-foreground"
             >
               {msg.text
                 ? msg.text.slice(0, 30) + (msg.text.length > 30 ? '…' : '')
@@ -139,7 +139,7 @@ export const PendingReviewsBar = memo(function PendingReviewsBar({
           );
         })}
         {remaining > 0 && (
-          <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40">
+          <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-foreground">
             +{remaining} more
           </span>
         )}
