@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient, type PrismaClientOptions } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 function createAdapter(connectionString: string): PrismaPg | { url: string } {
@@ -30,9 +30,11 @@ export class PrismaService
     }
 
     const adapter = createAdapter(connectionString);
-    // Prisma driver-adapters are not reflected in PrismaClientOptions typings.
+    // Prisma driver-adapters are not reflected in the constructor typings.
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    super({ adapter } as unknown as PrismaClientOptions);
+    super({ adapter } as unknown as ConstructorParameters<
+      typeof PrismaClient
+    >[0]);
   }
 
   async onModuleInit() {
