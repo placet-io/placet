@@ -63,18 +63,27 @@ export class AuthService implements OnModuleInit {
     if (!rawKey) return;
 
     if (!rawKey.startsWith('hp_') || rawKey.length < 10) {
-      this.logger.warn('PLACET_API_KEY is set but invalid (must start with hp_ and be >= 10 chars)');
+      this.logger.warn(
+        'PLACET_API_KEY is set but invalid (must start with hp_ and be >= 10 chars)',
+      );
       return;
     }
 
     const keyHash = createHash('sha256').update(rawKey).digest('hex');
-    const existing = await this.prisma.apiKey.findUnique({ where: { keyHash } });
+    const existing = await this.prisma.apiKey.findUnique({
+      where: { keyHash },
+    });
     if (existing) return;
 
-    const email = this.config.get<string>('INITIAL_USER_EMAIL', 'admin@placet.local');
+    const email = this.config.get<string>(
+      'INITIAL_USER_EMAIL',
+      'admin@placet.local',
+    );
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
-      this.logger.warn('PLACET_API_KEY set but owner user not found — skipping');
+      this.logger.warn(
+        'PLACET_API_KEY set but owner user not found — skipping',
+      );
       return;
     }
 
