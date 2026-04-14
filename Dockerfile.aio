@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Placet — All-in-One Image
+# ─────────────────────────────────────────────────────────────────────────────
+# Bundles nginx, backend, frontend, MCP server and MinIO into a single
+# container behind a single port (8080).
+#
+# Supports both PostgreSQL (external) and SQLite (embedded, default for AIO).
+# Set DB_PROVIDER=sqlite for a fully self-contained setup.
+#
+# Build:  docker build -f Dockerfile.aio -t placet-aio .
+# Run:    docker compose -f docker-compose.aio.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Base ──────────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS base
+WORKDIR /app
+
+# ── Install ALL workspace dependencies ────────────────────────────────────────
+FROM base AS deps
+COPY package.json package-lock.json ./
+COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/mcp-server/package.json ./packages/mcp-server/
+RUN npm ci
+
+# ── Generate Prisma client ────────────────────────────────────────────────────
+FROM deps AS prisma
+COPY apps/backend/prisma ./apps/backend/prisma/
+COPY apps/backend/prisma.config.ts ./apps/backend/
+RUN cd apps/backend && npx prisma generate
+
+# ── Build all workspaces ──────────────────────────────────────────────────────
+FROM prisma AS build
+COPY tsconfig.base.json ./
+COPY packages/shared/ ./packages/shared/
+COPY packages/plugins/ ./packages/plugins/
+RUN npm run build --workspace=@placet/shared
+
+# Backend
+COPY apps/backend/ ./apps/backend/
+RUN npm run build --workspace=@placet/backend
+
+# Frontend
+COPY apps/frontend/ ./apps/frontend/
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build --workspace=@placet/frontend
+
+# MCP server
+COPY packages/mcp-server/ ./packages/mcp-server/
+RUN npm run build --workspace=@placet/mcp
+
+# ── All-in-One Runner ─────────────────────────────────────────────────────────
+FROM base AS runner
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# ── System packages (nginx + tini for proper PID 1) ────────────────────────
+RUN apk add --no-cache nginx tini \
+  && rm -rf /var/cache/apk/*
+
+# ── Non-root user ──────────────────────────────────────────────────────────
+RUN addgroup -g 1001 -S placet \
+  && adduser -u 1001 -S placet -G placet -h /app -s /sbin/nologin
+
+# ── MinIO binaries ─────────────────────────────────────────────────────────
+COPY --from=minio/minio:latest /usr/bin/minio /usr/local/bin/minio
+COPY --from=minio/mc:latest /usr/bin/mc /usr/local/bin/mc
+
+# ── Backend (monorepo layout so Prisma + workspace symlinks resolve) ───────
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/package-lock.json ./package-lock.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/shared ./packages/shared
+COPY --from=build /app/packages/plugins ./packages/plugins
+COPY --from=build /app/apps/backend/dist ./apps/backend/dist
+COPY --from=build /app/apps/backend/package.json ./apps/backend/
+COPY --from=build /app/apps/backend/node_modules ./apps/backend/node_modules
+COPY --from=build /app/apps/backend/prisma ./apps/backend/prisma
+COPY --from=build /app/apps/backend/prisma.config.ts ./apps/backend/
+
+# SQLite support — install into /tmp first, then merge to avoid npm pruning
+RUN cd /tmp && npm init -y > /dev/null 2>&1 \
+  && npm install --no-save \
+    @prisma/adapter-better-sqlite3@7.5.0 \
+    better-sqlite3 \
+  && cp -r /tmp/node_modules/* /app/node_modules/ 2>/dev/null || true \
+  && cp -r /tmp/node_modules/@prisma/* /app/node_modules/@prisma/ 2>/dev/null || true \
+  && rm -rf /tmp/node_modules /tmp/package.json /tmp/package-lock.json
+
+# ── Frontend (Next.js standalone) ──────────────────────────────────────────
+COPY --from=build /app/apps/frontend/.next/standalone ./frontend/
+COPY --from=build /app/apps/frontend/public ./frontend/apps/frontend/public
+COPY --from=build /app/apps/frontend/.next/static ./frontend/apps/frontend/.next/static
+
+# ── MCP server ─────────────────────────────────────────────────────────────
+COPY --from=build /app/packages/mcp-server/dist ./packages/mcp-server/dist
+COPY --from=build /app/packages/mcp-server/package.json ./packages/mcp-server/
+
+# ── Nginx config ───────────────────────────────────────────────────────────
+COPY nginx-aio.conf /etc/nginx/nginx.conf
+
+# ── Entrypoint ─────────────────────────────────────────────────────────────
+COPY docker-entrypoint-aio.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# ── Data directories + permissions ─────────────────────────────────────────
+RUN mkdir -p /data/minio /data/db /tmp/nginx-body /tmp/nginx-proxy \
+      /tmp/nginx-fastcgi /tmp/nginx-uwsgi /tmp/nginx-scgi /run/nginx \
+  && chown -R placet:placet /app /data /tmp/nginx-* /run/nginx \
+  && chmod 700 /data/db
+
+VOLUME /data
+
+# Single port for all traffic
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "const h=require('http');h.get('http://127.0.0.1:8080/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+# Use tini as PID 1 for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]

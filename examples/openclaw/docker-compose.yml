@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Placet + OpenClaw — Pre-Connected Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+# Uses the Placet all-in-one image (single container, SQLite, port 8080)
+# alongside OpenClaw, pre-connected via a shared API key.
+#
+#   cp .env.example .env
+#   docker compose up -d --build
+#
+# The PLACET_API_KEY is provisioned automatically by Placet on first boot.
+# Both services reference the same key from the .env file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Placet (all-in-one) ─────────────────────────────────────────────────
+
+  placet:
+    container_name: placet
+    build:
+      context: ../..
+      dockerfile: Dockerfile.aio
+    restart: unless-stopped
+    environment:
+      DB_PROVIDER: sqlite
+      JWT_SECRET: ${JWT_SECRET:-openclaw-local-dev-secret}
+      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@placet.local}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:8080}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:8080}
+      # ── Pre-shared API key: provisioned by AuthService on boot ──
+      PLACET_API_KEY: ${PLACET_API_KEY}
+    ports:
+      - '${PORT:-8080}:8080'
+    volumes:
+      - placet-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    tmpfs:
+      - /tmp:size=256m
+    healthcheck:
+      test: ['CMD', 'node', '-e', "const h=require('http');h.get('http://127.0.0.1:8080/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
+  # ── OpenClaw ────────────────────────────────────────────────────────────
+
+  openclaw:
+    container_name: openclaw
+    build:
+      context: .
+      dockerfile: Dockerfile.openclaw
+    restart: unless-stopped
+    depends_on:
+      placet:
+        condition: service_healthy
+    environment:
+      PLACET_URL: http://placet:8080
+      PLACET_API_KEY: ${PLACET_API_KEY}
+      PLACET_AGENT_NAME: ${PLACET_AGENT_NAME:-OpenClaw Agent}
+    volumes:
+      - openclaw-data:/data
+    ports:
+      - '${OPENCLAW_PORT:-8081}:8080'
+
+volumes:
+  placet-data:
+  openclaw-data:

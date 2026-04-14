@@ -13,7 +13,10 @@ export function useMessages(channelId: string | null) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ content: string; toolHint: boolean } | null>(null);
   const cursorRef = useRef<string | null>(null);
+  const streamBufferRef = useRef<string>('');
   const { socket, connected, subscribe, unsubscribe, markRead } = useSocket();
 
   // Load initial (newest) batch
@@ -75,6 +78,10 @@ export function useMessages(channelId: string | null) {
 
     const handleMessageCreated = (msg: Message) => {
       if (msg.channelId !== channelId) return;
+      // Clear streaming/progress state when final message arrives
+      streamBufferRef.current = '';
+      setStreamingContent(null);
+      setProgress(null);
       setMessages((prev) => {
         // Deduplicate — we may have optimistically added this already
         if (prev.some((m) => m.id === msg.id)) return prev;
@@ -101,10 +108,34 @@ export function useMessages(channelId: string | null) {
     socket.on('review:responded', handleReviewResponded);
     socket.on('message:delivery', handleDelivery);
 
+    const handleDelta = (data: { channelId: string; delta: string; streamEnd?: boolean }) => {
+      if (data.channelId !== channelId) return;
+      if (data.streamEnd) {
+        // Stream finished — clear streaming state (final message arrives via message:created)
+        streamBufferRef.current = '';
+        setStreamingContent(null);
+      } else {
+        streamBufferRef.current += data.delta;
+        setStreamingContent(streamBufferRef.current);
+      }
+      // Clear progress when streaming starts
+      setProgress(null);
+    };
+
+    const handleProgress = (data: { channelId: string; content: string; toolHint?: boolean }) => {
+      if (data.channelId !== channelId) return;
+      setProgress({ content: data.content, toolHint: !!data.toolHint });
+    };
+
+    socket.on('message:delta', handleDelta);
+    socket.on('message:progress', handleProgress);
+
     return () => {
       socket.off('message:created', handleMessageCreated);
       socket.off('review:responded', handleReviewResponded);
       socket.off('message:delivery', handleDelivery);
+      socket.off('message:delta', handleDelta);
+      socket.off('message:progress', handleProgress);
       unsubscribe(channelId);
     };
   }, [channelId, socket, connected, subscribe, unsubscribe, markRead]);
@@ -189,6 +220,8 @@ export function useMessages(channelId: string | null) {
     loadingOlder,
     hasMore,
     error,
+    streamingContent,
+    progress,
     refetch: fetchMessages,
     sendMessage,
     uploadFile,

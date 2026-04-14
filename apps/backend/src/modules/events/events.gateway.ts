@@ -153,6 +153,31 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit('pong');
   }
 
+  // ── Agent-initiated events (forwarded to channel subscribers) ──
+
+  @SubscribeMessage('message:delta')
+  handleMessageDelta(
+    client: Socket,
+    data: {
+      channelId: string;
+      delta: string;
+      streamId?: string;
+      streamEnd?: boolean;
+    },
+  ) {
+    if (!data?.channelId) return;
+    this.server.to(`channel:${data.channelId}`).emit('message:delta', data);
+  }
+
+  @SubscribeMessage('message:progress')
+  handleMessageProgress(
+    client: Socket,
+    data: { channelId: string; content: string; toolHint?: boolean },
+  ) {
+    if (!data?.channelId) return;
+    this.server.to(`channel:${data.channelId}`).emit('message:progress', data);
+  }
+
   // ── Server-side emit helpers ───────────────────────────────
 
   emitToChannel(channelId: string, event: string, data: unknown) {

@@ -1,0 +1,2 @@
+FROM ghcr.io/openclaw/openclaw:latest
+RUN npm install openclaw-placet-channel

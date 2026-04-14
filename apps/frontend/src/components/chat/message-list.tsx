@@ -15,6 +15,8 @@ interface MessageListProps {
   loadingOlder?: boolean;
   hasMore?: boolean;
   highlightMessageId?: string | null;
+  streamingContent?: string | null;
+  progress?: { content: string; toolHint: boolean } | null;
   onLoadOlder?: () => void;
   onSetupWebhook?: () => void;
   onReviewRespond?: (
@@ -37,6 +39,8 @@ export const MessageList = memo(function MessageList({
   loadingOlder = false,
   hasMore = false,
   highlightMessageId,
+  streamingContent,
+  progress,
   onLoadOlder,
   onSetupWebhook,
   onReviewRespond,
@@ -88,6 +92,12 @@ export const MessageList = memo(function MessageList({
     prevLengthRef.current = messages.length;
     prevLastIdRef.current = lastId;
   }, [messages]);
+
+  // Auto-scroll during streaming
+  useEffect(() => {
+    if (!streamingContent) return;
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [streamingContent]);
 
   // Preserve scroll position when older messages are prepended
   useEffect(() => {
@@ -262,6 +272,35 @@ export const MessageList = memo(function MessageList({
             onRetryDelivery={onRetryDelivery}
           />
         ))}
+
+        {/* Streaming: show partial response as it arrives */}
+        {streamingContent && (
+          <MessageBubble
+            messageId="__streaming__"
+            channelId={channelId}
+            senderType="agent"
+            senderName={agentName}
+            avatarUrl={agentAvatarUrl}
+            text={streamingContent}
+            createdAt={new Date().toISOString()}
+            status={null}
+            review={null}
+            metadata={null}
+            attachments={[]}
+            deliveryStatus={null}
+            iterationGroupId={null}
+            iteration={null}
+          />
+        )}
+
+        {/* Progress/thinking indicator */}
+        {!streamingContent && progress && (
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">{progress.content}</span>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
     </div>
