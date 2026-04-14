@@ -39,6 +39,35 @@ export class MessagesService {
   /** Max size for inline text content (64 KB). Larger files require download. */
   private static readonly MAX_INLINE_TEXT_SIZE = 64 * 1024;
 
+  private static readonly REDACTED_VALUE = '***REDACTED***';
+
+  /**
+   * Redact password field values from a form review response.
+   * Looks up form field definitions in the review payload to identify
+   * fields with `type: 'password'` and replaces their values.
+   */
+  private redactPasswordFields(
+    review: Record<string, unknown>,
+    response: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (review.type !== 'form') return response;
+    const payload = review.payload as
+      | { fields?: Array<{ name: string; type: string }> }
+      | undefined;
+    if (!payload?.fields) return response;
+    const passwordKeys = new Set(
+      payload.fields.filter((f) => f.type === 'password').map((f) => f.name),
+    );
+    if (passwordKeys.size === 0) return response;
+    const redacted = { ...response };
+    for (const key of passwordKeys) {
+      if (key in redacted && redacted[key]) {
+        redacted[key] = MessagesService.REDACTED_VALUE;
+      }
+    }
+    return redacted;
+  }
+
   /** MIME types whose content is returned inline in API responses. */
   private static isInlineTextMime(mimeType: string): boolean {
     return (
@@ -103,9 +132,27 @@ export class MessagesService {
     });
 
     return {
-      data: messages,
+      data: messages.map((m) => this.sanitizeMessageForClient(m)),
       nextCursor:
         messages.length === limit ? messages[messages.length - 1]?.id : null,
+    };
+  }
+
+  /**
+   * Redact password field values from a message's review response before
+   * sending to the client (REST API). The raw values remain in the database
+   * so that webhook delivery to agents can include the real value.
+   */
+  private sanitizeMessageForClient<T extends { review?: unknown }>(msg: T): T {
+    const review = msg.review as Record<string, unknown> | null | undefined;
+    if (!review || review.type !== 'form') return msg;
+    const response = review.response as Record<string, unknown> | undefined;
+    if (!response) return msg;
+    const redacted = this.redactPasswordFields(review, response);
+    if (redacted === response) return msg; // no password fields
+    return {
+      ...msg,
+      review: { ...review, response: redacted },
     };
   }
 
@@ -472,7 +519,7 @@ export class MessagesService {
       webhookUrl: _wu,
       ...safeAgent
     } = message.agent;
-    return { ...message, agent: safeAgent };
+    return this.sanitizeMessageForClient({ ...message, agent: safeAgent });
   }
 
   async getReviews(userId: string, status?: string, channelId?: string) {
@@ -489,20 +536,21 @@ export class MessagesService {
         });
     const agentIds = agents.map((a) => a.id);
 
-    const where: Record<string, unknown> = {
-      channelId: { in: agentIds },
-      review: { not: Prisma.JsonNull },
-    };
-
-    if (status && status !== 'all') {
-      where.AND = { review: { path: ['status'], equals: status } };
-    }
-
-    return this.prisma.message.findMany({
-      where,
+    const messages = await this.prisma.message.findMany({
+      where: {
+        channelId: { in: agentIds },
+        review: { not: Prisma.JsonNull },
+      },
       include: { attachments: true },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (status && status !== 'all') {
+      return messages
+        .filter((m) => (m.review as Record<string, unknown>)?.status === status)
+        .map((m) => this.sanitizeMessageForClient(m));
+    }
+    return messages.map((m) => this.sanitizeMessageForClient(m));
   }
 
   /** @deprecated Use getReviews instead */
@@ -515,17 +563,18 @@ export class MessagesService {
   async getPendingReviewsByAgent(userId: string, agentId: string) {
     await this.assertOwnership(agentId, userId);
 
-    return this.prisma.message.findMany({
+    const messages = await this.prisma.message.findMany({
       where: {
         channelId: agentId,
         review: { not: Prisma.JsonNull },
-        AND: {
-          review: { path: ['status'], equals: 'pending' },
-        },
       },
       include: { attachments: true },
       orderBy: { createdAt: 'desc' },
     });
+
+    return messages.filter(
+      (m) => (m.review as Record<string, unknown>)?.status === 'pending',
+    );
   }
 
   async getReviewByAgent(userId: string, messageId: string, agentId: string) {
@@ -900,10 +949,9 @@ export class MessagesService {
   /** Runs every 60 seconds — marks reviews as expired whose expiresAt has passed. */
   @Cron(CronExpression.EVERY_MINUTE)
   async handleReviewExpiry() {
-    const pending = await this.prisma.message.findMany({
+    const allWithReview = await this.prisma.message.findMany({
       where: {
         review: { not: Prisma.JsonNull },
-        AND: { review: { path: ['status'], equals: 'pending' } },
       },
       select: {
         id: true,
@@ -915,6 +963,10 @@ export class MessagesService {
         },
       },
     });
+
+    const pending = allWithReview.filter(
+      (m) => (m.review as Record<string, unknown>)?.status === 'pending',
+    );
 
     const now = new Date();
     let expired = 0;

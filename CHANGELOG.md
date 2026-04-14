@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] — 2026-04-14
+
+### Added
+
+- **All-in-One Docker image** — single-container deployment via `Dockerfile.aio` with Nginx reverse proxy, bundled PostgreSQL/SQLite, and MinIO; ideal for quick self-hosting and evaluation
+- **SQLite support** — AiO container can run with SQLite instead of PostgreSQL for lightweight single-node deployments (`DATABASE_PROVIDER=sqlite`)
+- **Agent streaming** — new `message:delta` WebSocket event forwards LLM token deltas from agent to frontend in real-time; gateway relays agent-emitted events to channel subscribers
+- **Progress / thinking indicator** — new `message:progress` WebSocket event for ephemeral tool-hint and thinking status; frontend shows spinner + context text while agent processes
+- **Agent status lifecycle** — agents now report `busy` / `active` / `error` status via `POST /api/v1/status/ping`; status transitions triggered automatically on message processing start, completion, and failure
+
+### Changed
+
+- `events.gateway.ts` — added `@SubscribeMessage('message:delta')` and `@SubscribeMessage('message:progress')` handlers that forward agent events to `channel:{id}` room subscribers
+- `use-messages` hook — accumulates `streamingContent` from delta events, tracks `progress` state, auto-clears both on `message:created`
+- `MessageList` — renders streaming bubble (partial response in real-time) and thinking indicator (spinner + tool hint text) below message list
+- `ChatThreadPage` — passes `streamingContent` and `progress` props through to `MessageList`
+
 ## [0.6.1] — 2026-04-07
 
 ### Changed

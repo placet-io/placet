@@ -35,6 +35,8 @@ export default function ChatThreadPage() {
     loading: messagesLoading,
     loadingOlder,
     hasMore,
+    streamingContent,
+    progress,
     sendMessage,
     uploadFile,
     loadOlder,
@@ -108,6 +110,8 @@ export default function ChatThreadPage() {
             loadingOlder={loadingOlder}
             hasMore={hasMore}
             highlightMessageId={highlightMessageId}
+            streamingContent={streamingContent}
+            progress={progress}
             onLoadOlder={handleLoadOlder}
             onSetupWebhook={handleSetupWebhook}
             onReviewRespond={respondToReview}

@@ -589,6 +589,8 @@ function CompletedFormResponse({ review }: { review: Review }) {
                   </div>
                 );
               })()
+            ) : field.type === 'password' ? (
+              <Input type="password" value="••••••••" readOnly className="text-sm h-8 opacity-70" />
             ) : (
               <Input
                 type="text"

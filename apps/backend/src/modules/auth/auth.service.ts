@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'crypto';
 import { hashPassword, verifyPassword } from '../../common/crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -27,6 +28,7 @@ export class AuthService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedInitialUser();
+    await this.ensureApiKey();
   }
 
   private async seedInitialUser() {
@@ -54,6 +56,41 @@ export class AuthService implements OnModuleInit {
     });
 
     this.logger.log(`Initial owner user created: ${email}`);
+  }
+
+  private async ensureApiKey() {
+    const rawKey = this.config.get<string>('PLACET_API_KEY');
+    if (!rawKey) return;
+
+    if (!rawKey.startsWith('hp_') || rawKey.length < 10) {
+      this.logger.warn('PLACET_API_KEY is set but invalid (must start with hp_ and be >= 10 chars)');
+      return;
+    }
+
+    const keyHash = createHash('sha256').update(rawKey).digest('hex');
+    const existing = await this.prisma.apiKey.findUnique({ where: { keyHash } });
+    if (existing) return;
+
+    const email = this.config.get<string>('INITIAL_USER_EMAIL', 'admin@placet.local');
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      this.logger.warn('PLACET_API_KEY set but owner user not found — skipping');
+      return;
+    }
+
+    const label = this.config.get<string>('PLACET_API_KEY_LABEL', 'Docker');
+    const keyPrefix = rawKey.substring(0, 11);
+
+    await this.prisma.apiKey.create({
+      data: {
+        userId: user.id,
+        label,
+        keyHash,
+        keyPrefix,
+      },
+    });
+
+    this.logger.log(`API key ${keyPrefix}... provisioned for ${email}`);
   }
 
   async login(email: string, password: string) {
