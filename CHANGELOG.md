@@ -5,11 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] — 2026-04-15
+
+### Changed
+
+- **Multi-platform Docker image** — release workflow now builds for `linux/amd64` and `linux/arm64` using native GitHub runners (no QEMU emulation), merged into a single multi-arch manifest; `docker pull` automatically selects the correct architecture
+
 ## [0.6.4] — 2026-04-15
 
 ### Changed
 
-- **Multi-platform Docker image** — release workflow now builds for `linux/amd64` and `linux/arm64` (Apple Silicon, Raspberry Pi) via QEMU emulation; `docker pull` automatically selects the correct architecture
+- **Multi-arch Docker build (QEMU)** — initial attempt at multi-platform image via QEMU emulation; superseded by native runner approach in 0.6.5
 
 ## [0.6.3] — 2026-04-14
 
