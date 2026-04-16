@@ -34,6 +34,16 @@ export type HttpMethod = z.infer<typeof HttpMethodSchema>;
 export const AgentStatusSchema = z.enum(['active', 'busy', 'error', 'offline']);
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 
+// ── Agent Commands ──────────────────────────────────────────────────────────
+
+export const AgentCommandSchema = z.object({
+  command: z.string(),
+  description: z.string(),
+  acceptsArgs: z.boolean().optional(),
+  argHint: z.string().optional(),
+});
+export type AgentCommand = z.infer<typeof AgentCommandSchema>;
+
 export const DeliveryStatusSchema = z.enum([
   'sent',
   'webhook_delivered',
@@ -102,6 +112,7 @@ export const AgentSchema = z.object({
   statusMessage: z.string().nullish(),
   statusSince: z.string().nullish(),
   lastActiveAt: z.string().nullish(),
+  commands: z.array(AgentCommandSchema).nullish(),
   createdAt: z.string(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
@@ -223,6 +234,11 @@ export const UpdateAgentSchema = z.object({
   webhookAuth: WebhookAuthSchema.nullable().optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
+
+export const UpdateAgentCommandsSchema = z.object({
+  commands: z.array(AgentCommandSchema),
+});
+export type UpdateAgentCommandsRequest = z.infer<typeof UpdateAgentCommandsSchema>;
 
 export const SetWebhookSchema = z.object({
   url: z.string().url(),

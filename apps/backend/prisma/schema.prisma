@@ -38,6 +38,7 @@ model Agent {
   statusMessage  String?   @map("status_message")
   statusSince    DateTime? @map("status_since")
   lastActiveAt   DateTime? @map("last_active_at")
+  commands       Json?     // Slash command metadata from agent [{command, description, acceptsArgs?, argHint?}]
   createdAt    DateTime  @default(now()) @map("created_at")
 
   owner          User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)

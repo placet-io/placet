@@ -31,6 +31,7 @@ const AGENT_SELECT = {
   statusMessage: true,
   statusSince: true,
   lastActiveAt: true,
+  commands: true,
   createdAt: true,
 } as const;
 
@@ -175,6 +176,16 @@ export class AgentsService {
           webhookAuth: jsonOrDbNull(dto.webhookAuth),
         }),
       },
+      select: AGENT_SELECT,
+    });
+    return maskWebhookAuth(updated);
+  }
+
+  async updateCommands(id: string, ownerId: string, commands: unknown[]) {
+    await this.findById(id, ownerId);
+    const updated = await this.prisma.agent.update({
+      where: { id },
+      data: { commands: commands as Prisma.InputJsonValue },
       select: AGENT_SELECT,
     });
     return maskWebhookAuth(updated);

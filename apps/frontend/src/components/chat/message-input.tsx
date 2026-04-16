@@ -1,9 +1,11 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { File as FileIcon, Paperclip, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import type { AgentCommand } from '@placet/shared';
+import { SlashCommandMenu } from './slash-command-menu';
 
 export interface QuotedMessage {
   messageId: string;
@@ -18,6 +20,7 @@ interface MessageInputProps {
   className?: string;
   quotedMessage?: QuotedMessage | null;
   onClearQuote?: () => void;
+  commands?: AgentCommand[];
 }
 
 export const MessageInput = memo(function MessageInput({
@@ -27,12 +30,45 @@ export const MessageInput = memo(function MessageInput({
   className,
   quotedMessage,
   onClearQuote,
+  commands = [],
 }: MessageInputProps) {
   const [text, setText] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [showCommands, setShowCommands] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Slash command detection: show menu when text starts with `/`
+  const slashQuery = useMemo(() => {
+    if (!text.startsWith('/') || text.includes(' ') || text.includes('\n')) return null;
+    return text.slice(1); // everything after the `/`
+  }, [text]);
+
+  useEffect(() => {
+    setShowCommands(slashQuery !== null && commands.length > 0);
+  }, [slashQuery, commands.length]);
+
+  // Matched command for syntax highlighting (e.g. "/dream-log some-sha")
+  const matchedCommand = useMemo(() => {
+    if (!text.startsWith('/') || commands.length === 0) return null;
+    return commands.find((c) => text === c.command || text.startsWith(c.command + ' ')) ?? null;
+  }, [text, commands]);
+
+  const handleCommandSelect = useCallback(
+    (cmd: AgentCommand) => {
+      const newText = cmd.acceptsArgs ? cmd.command + ' ' : cmd.command;
+      setText(newText);
+      setShowCommands(false);
+      textareaRef.current?.focus();
+      // If command doesn't accept args, send immediately
+      if (!cmd.acceptsArgs) {
+        onSend(cmd.command);
+        setText('');
+      }
+    },
+    [onSend],
+  );
 
   // Auto-resize textarea up to 3 lines
   const LINE_HEIGHT = 24; // text-base 16px * 1.5
@@ -93,12 +129,19 @@ export const MessageInput = memo(function MessageInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Let SlashCommandMenu handle navigation keys when open
+      if (showCommands && ['ArrowUp', 'ArrowDown', 'Tab', 'Escape'].includes(e.key)) {
+        return; // Handled by the menu's document keydown listener
+      }
+      if (showCommands && e.key === 'Enter') {
+        return; // Menu handles Enter to select
+      }
       if (e.key === 'Enter' && !e.shiftKey && !isMobile()) {
         e.preventDefault();
         void handleSubmit(e);
       }
     },
-    [handleSubmit, isMobile],
+    [handleSubmit, isMobile, showCommands],
   );
 
   const handleFileSelect = useCallback(() => {
@@ -190,46 +233,75 @@ export const MessageInput = memo(function MessageInput({
       )}
 
       <div className="p-2 sm:p-4">
-        <form
-          onSubmit={handleSubmit}
-          className="flex items-center gap-2 bg-muted/50 rounded-3xl p-1.5 sm:p-2 border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all"
-        >
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled || uploading || !!quotedMessage}
-            className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
-            onClick={handleFileSelect}
-          >
-            <Paperclip size={20} />
-          </Button>
-
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
-            disabled={disabled}
-            rows={1}
-            className="flex-1 min-h-[32px] sm:min-h-[40px] bg-transparent border-none outline-none text-base placeholder:text-muted-foreground text-foreground resize-none py-1.5 sm:py-2.5 scrollbar-hide"
+        <div className="relative">
+          <SlashCommandMenu
+            commands={commands}
+            query={slashQuery ?? ''}
+            onSelect={handleCommandSelect}
+            onClose={() => setShowCommands(false)}
+            visible={showCommands}
           />
-
-          <Button
-            type="submit"
-            size="icon"
-            disabled={disabled || !canSend}
-            className="shrink-0 rounded-full"
+          <form
+            onSubmit={handleSubmit}
+            className="relative flex items-center gap-2 bg-muted/50 rounded-3xl p-1.5 sm:p-2 border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all"
           >
-            {uploading ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-            ) : (
-              <Send size={18} />
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={disabled || uploading || !!quotedMessage}
+              className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+              onClick={handleFileSelect}
+            >
+              <Paperclip size={20} />
+            </Button>
+
+            {/* Syntax highlight overlay for matched commands */}
+            {matchedCommand && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-3xl p-1.5 sm:p-2"
+              >
+                {/* Spacer for the paperclip button */}
+                <div className="shrink-0 w-10 h-10" />
+                <div className="flex-1 min-h-[32px] sm:min-h-[40px] text-base py-1.5 sm:py-2.5 whitespace-pre-wrap break-words">
+                  <span className="text-primary font-medium">{matchedCommand.command}</span>
+                  <span className="text-foreground">
+                    {text.slice(matchedCommand.command.length)}
+                  </span>
+                </div>
+              </div>
             )}
-          </Button>
-        </form>
+
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
+              disabled={disabled}
+              rows={1}
+              className={cn(
+                'flex-1 min-h-[32px] sm:min-h-[40px] bg-transparent border-none outline-none text-base placeholder:text-muted-foreground resize-none py-1.5 sm:py-2.5 scrollbar-hide',
+                matchedCommand ? 'text-transparent caret-foreground' : 'text-foreground',
+              )}
+            />
+
+            <Button
+              type="submit"
+              size="icon"
+              disabled={disabled || !canSend}
+              className="shrink-0 rounded-full"
+            >
+              {uploading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                <Send size={18} />
+              )}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

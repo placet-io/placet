@@ -182,6 +182,15 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`channel:${data.channelId}`).emit('message:progress', data);
   }
 
+  @SubscribeMessage('agent:commands')
+  handleAgentCommands(
+    client: Socket,
+    data: { channelId: string; commands: unknown[] },
+  ) {
+    if (!data?.channelId) return;
+    this.server.to(`channel:${data.channelId}`).emit('agent:commands', data);
+  }
+
   // ── Server-side emit helpers ───────────────────────────────
 
   emitToChannel(channelId: string, event: string, data: unknown) {

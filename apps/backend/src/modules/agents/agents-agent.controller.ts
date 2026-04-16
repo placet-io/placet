@@ -4,7 +4,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -22,6 +24,7 @@ import type { RequestWithUser } from '../../common/types';
 import { AgentsService } from './agents.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { SetWebhookDto, DeleteWebhookDto } from './dto/set-webhook.dto';
+import { UpdateCommandsDto } from './dto/update-commands.dto';
 
 @ApiTags('Agents')
 @ApiSecurity('api-key')
@@ -98,5 +101,25 @@ export class AgentsAgentController {
       webhookHeaders: null,
       webhookAuth: null,
     });
+  }
+
+  @Put(':id/commands')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update slash commands for an agent',
+    description:
+      'Persists the slash command metadata exposed by the agent. Frontends fetch this to render a command palette.',
+  })
+  @ApiOkResponse({ description: 'Commands updated', type: AgentResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async updateCommands(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateCommandsDto,
+  ) {
+    return this.agentsService.updateCommands(id, req.user.id, dto.commands);
   }
 }

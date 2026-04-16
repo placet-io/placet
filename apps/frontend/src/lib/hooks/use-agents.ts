@@ -58,9 +58,23 @@ export function useAgents() {
       );
     };
 
-    const handleStatus = (data: { agentId: string; status: AgentStatus }) => {
+    const handleStatus = (data: {
+      agentId: string;
+      status: AgentStatus;
+      statusMessage?: string;
+      statusSince?: string;
+    }) => {
       setAgents((prev) =>
-        prev.map((a) => (a.id === data.agentId ? { ...a, status: data.status } : a)),
+        prev.map((a) =>
+          a.id === data.agentId
+            ? {
+                ...a,
+                status: data.status,
+                statusMessage: data.statusMessage ?? a.statusMessage,
+                statusSince: data.statusSince ?? a.statusSince,
+              }
+            : a,
+        ),
       );
     };
 

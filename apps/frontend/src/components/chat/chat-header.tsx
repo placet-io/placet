@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Settings, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
+import { cn } from '@/lib/utils';
+import type { AgentStatus } from '@placet/shared';
 
 export interface ChatHeaderHandle {
   openSettings: () => void;
@@ -15,12 +17,13 @@ interface ChatHeaderProps {
   name: string;
   avatarUrl?: string | null;
   description?: string | null;
+  status?: AgentStatus | null;
   showSettings?: boolean;
   onToggleSettings?: () => void;
 }
 
 export const ChatHeader = forwardRef<ChatHeaderHandle, ChatHeaderProps>(function ChatHeader(
-  { agentId, name, avatarUrl, description, showSettings, onToggleSettings },
+  { agentId, name, avatarUrl, description, status, showSettings, onToggleSettings },
   ref,
 ) {
   const router = useRouter();
@@ -50,7 +53,20 @@ export const ChatHeader = forwardRef<ChatHeaderHandle, ChatHeaderProps>(function
           </Button>
           <AgentAvatar name={name} avatarUrl={avatarUrl} size="sm" />
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-foreground truncate">{name}</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-base font-semibold text-foreground truncate">{name}</h2>
+              {status && status !== 'offline' && (
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full shrink-0',
+                    status === 'active' && 'bg-success',
+                    status === 'busy' && 'bg-warning',
+                    status === 'error' && 'bg-error',
+                  )}
+                  title={status}
+                />
+              )}
+            </div>
             {description && <p className="text-xs text-muted-foreground truncate">{description}</p>}
           </div>
         </div>

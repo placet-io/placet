@@ -184,7 +184,10 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
           step?: number;
           unit?: string;
           defaultValue?: string | number | boolean;
+          description?: string;
         }[];
+        submitLabel?: string;
+        dismissLabel?: string;
       }
     | undefined;
   const fields = payload?.fields ?? [];
@@ -249,10 +252,15 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
               className="text-sm"
             />
           ) : field.type === 'checkbox' ? (
-            <Checkbox
-              checked={!!values[field.name]}
-              onCheckedChange={(checked) => updateField(field.name, checked)}
-            />
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={!!values[field.name]}
+                onCheckedChange={(checked) => updateField(field.name, checked)}
+              />
+              {field.description && (
+                <span className="text-sm text-muted-foreground">{field.description}</span>
+              )}
+            </div>
           ) : field.type === 'range' ? (
             <div className="flex items-center gap-3">
               <Slider
@@ -372,15 +380,28 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
           )}
         </div>
       ))}
-      <Button
-        size="sm"
-        disabled={submitting || !requiredMet}
-        className="rounded-lg text-sm h-8"
-        onClick={() => onRespond(values as Record<string, unknown>)}
-      >
-        {submitting && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-        Submit
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={submitting || !requiredMet}
+          className="rounded-lg text-sm h-8"
+          onClick={() => onRespond(values as Record<string, unknown>)}
+        >
+          {submitting && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+          {payload?.submitLabel ?? 'Submit'}
+        </Button>
+        {payload?.dismissLabel && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={submitting}
+            className="rounded-lg text-sm h-8"
+            onClick={() => onRespond({ _dismissed: true })}
+          >
+            {payload.dismissLabel}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
