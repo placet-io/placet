@@ -150,7 +150,7 @@ export function useMessages(channelId: string | null) {
     async (text: string) => {
       if (!channelId) return;
       // Show a thinking indicator immediately so the user gets instant feedback
-      setProgress({ content: 'Thinking…', toolHint: false });
+      setProgress({ content: 'Processing', toolHint: false });
       const msg = await api<Message>('/api/messages', {
         method: 'POST',
         body: JSON.stringify({ channelId, text }),

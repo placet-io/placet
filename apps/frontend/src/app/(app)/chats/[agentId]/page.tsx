@@ -11,6 +11,7 @@ import type { QuotedMessage } from '@/components/chat/message-input';
 import { PendingReviewsBar } from '@/components/chat/pending-reviews-bar';
 import { useAgentsContext } from '@/lib/contexts/agents-context';
 import { useMessages } from '@/lib/hooks/use-messages';
+import { useCommands } from '@/lib/hooks/use-commands';
 import { useSocket } from '@/lib/contexts/socket-context';
 
 /** Prevent iOS/Android from scrolling the page when the virtual keyboard opens. */
@@ -55,6 +56,8 @@ export default function ChatThreadPage() {
   const agentAvatarUrl = agent?.avatarUrl
     ? `/api/agents/${agentId}/avatar?v=${encodeURIComponent(agent.avatarUrl)}`
     : null;
+
+  const { commands } = useCommands(agentId, agent?.commands);
 
   const {
     messages,
@@ -115,6 +118,7 @@ export default function ChatThreadPage() {
         name={agentName}
         avatarUrl={agentAvatarUrl}
         description={agent?.description}
+        status={agent?.status}
         showSettings={showSettings}
         onToggleSettings={handleToggleSettings}
       />
@@ -153,6 +157,7 @@ export default function ChatThreadPage() {
             onUploadFile={uploadFile}
             quotedMessage={quotedMessage}
             onClearQuote={handleClearQuote}
+            commands={commands}
           />
         </>
       )}

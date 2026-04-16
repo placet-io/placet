@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-04-16
+
+### Added
+
+- **Slash command palette** — `MessageInput` detects `/` prefix and shows a filterable command menu; keyboard navigation (↑↓ Tab Escape Enter); matched commands are highlighted in primary color via a transparent-caret overlay; commands without args auto-send on selection
+- **Agent commands API** — new `PUT /agents/:id/commands` endpoint persists slash command metadata (`command`, `description`, `acceptsArgs?`, `argHint?`) on the agent model; `commands` field added to `Agent` Prisma schema and shared types (`AgentCommandSchema`, `UpdateAgentCommandsSchema`)
+- **Live command sync via WebSocket** — new `agent:commands` socket event relays updated command lists to all channel subscribers; `useCommands` hook merges seed data from REST with live socket updates
+- **Agent status dot in chat header** — small colored indicator next to agent name: green (`active`), amber (`busy`), red (`error`); hidden when `offline`
+- **Form review: dismiss button** — `dismissLabel` in the review payload renders a secondary outline button that responds with `{ _dismissed: true }`
+- **Form review: checkbox description** — checkbox fields accept a `description` property shown as an inline label
+- **External Traefik compose file** — `docker-compose.external-traefik.yml` for deployments attaching to a pre-existing Traefik network
+
+### Changed
+
+- **Socket reconnect reliability** — `io server disconnect` triggers a full reconnect after 1 s with a fresh ticket; `connect_error` during active reconnect refreshes the auth token on the socket; `ensureConnected` now distinguishes `disconnected` (full reconnect) from `!connected` (token-refresh + `sock.connect()`); 30 s periodic heartbeat fires while the tab is visible
+- **`agent:status` socket event** — `use-agents` now propagates `statusMessage` and `statusSince` from the event payload alongside `status`
+- **Form review: configurable submit label** — submit button text driven by `payload.submitLabel` (default: `Submit`)
+- **Message bubble sender name** — name row is hidden when there is no status badge and no iteration context, reducing visual noise for plain assistant messages
+- **Progress indicator** — shimmer text size bumped from `text-xs` to `text-sm`; initial thinking indicator text changed from "Thinking…" to "Processing"
+
 ## [0.7.0] — 2026-04-16
 
 ### Added

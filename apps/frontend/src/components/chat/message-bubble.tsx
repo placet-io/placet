@@ -275,9 +275,8 @@ export const MessageBubble = memo(function MessageBubble({
           )}
 
           <div className={cn('flex flex-col min-w-0', isUser ? 'items-end' : 'items-start')}>
-            {!isUser && (
+            {!isUser && (status || (iterationGroupId && iteration != null)) && (
               <div className="flex items-center gap-2 mb-1 ml-1">
-                <span className="text-xs font-medium text-foreground">{senderName}</span>
                 {status && (
                   <Badge variant={STATUS_VARIANT[status]} className="text-xs h-4 px-1.5">
                     {status}

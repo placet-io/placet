@@ -470,7 +470,7 @@ export const MessageList = memo(function MessageList({
         {/* Progress/activity indicator */}
         {progress?.content ? (
           <div className="pl-0 sm:pl-11">
-            <ShimmerText text={progress.content} className="text-xs font-medium" />
+            <ShimmerText text={progress.content} className="text-sm font-medium" />
           </div>
         ) : null}
 

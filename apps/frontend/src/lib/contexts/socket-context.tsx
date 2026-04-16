@@ -161,8 +161,37 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      sock.on('disconnect', () => {
+      sock.on('disconnect', (reason) => {
         if (mountedRef.current) setConnected(false);
+        // If the server forced the disconnect, Socket.IO won't auto-reconnect
+        // for "io server disconnect" / "io client disconnect". Force a full
+        // reconnect with a fresh ticket.
+        if (reason === 'io server disconnect') {
+          setTimeout(() => {
+            connectingRef.current = false;
+            void connectRef.current?.();
+          }, 1000);
+        }
+      });
+
+      // If Socket.IO's built-in reconnect fails (e.g. expired ticket),
+      // fetch a fresh ticket and do a full reconnect.
+      sock.on('connect_error', () => {
+        // Only act if this is a reconnection attempt (not the initial connect).
+        // On initial connect the constructor already handles the error.
+        if (sock.active) {
+          // Socket.IO is still trying to reconnect — refresh the ticket
+          // so the next attempt uses a valid one.
+          fetchTicket()
+            .then((newTicket) => {
+              sock.auth = { token: newTicket };
+            })
+            .catch(() => {
+              // Auth is completely gone — tear down and full reconnect on
+              // next visibility/focus/online event.
+              sock.disconnect();
+            });
+        }
       });
 
       // Fetch a fresh ticket before each reconnect attempt
@@ -188,8 +217,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   // ── Ensure connection is alive. Called on visibility change + user actions ─
   const ensureConnected = useCallback(() => {
     const sock = sockRef.current;
-    if (!sock || !sock.connected) {
+    if (!sock || sock.disconnected) {
+      // Socket doesn't exist or was explicitly disconnected — full reconnect
       reconnect();
+      return;
+    }
+    if (!sock.connected) {
+      // Socket exists but isn't connected. If Socket.IO's manager is no
+      // longer trying (e.g. the transport was closed and it gave up), kick
+      // it back into action. `sock.connect()` is a no-op if already trying.
+      fetchTicket()
+        .then((newTicket) => {
+          sock.auth = { token: newTicket };
+          sock.connect();
+        })
+        .catch(() => {
+          // Ticket fetch failed — do a full reconnect
+          reconnect();
+        });
       return;
     }
     // Socket thinks it's connected — verify with a volatile ping.
@@ -225,12 +270,22 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       reconnect();
     }
 
+    // Periodic heartbeat: while the tab is visible, check every 30 s that the
+    // connection is still alive. Browsers throttle timers for background tabs,
+    // so this effectively only fires when the tab is in the foreground.
+    const heartbeatId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        ensureConnected();
+      }
+    }, 30_000);
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleOnline);
 
     return () => {
       mountedRef.current = false;
+      clearInterval(heartbeatId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
