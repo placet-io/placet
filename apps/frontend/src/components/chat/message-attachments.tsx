@@ -95,8 +95,9 @@ const InlineHtmlViewer = memo(function InlineHtmlViewer({ att, onPreview }: Inli
         e.data.type === '__hp_iframe_height__' &&
         typeof e.data.height === 'number'
       ) {
-        // Clamp between 80 px and 480 px to keep the bubble readable
-        setIframeHeight(Math.min(Math.max(e.data.height, 80), 480));
+        // Clamp between 80 px and 60vh to keep the bubble readable
+        const maxH = Math.round(window.innerHeight * 0.6);
+        setIframeHeight(Math.min(Math.max(e.data.height, 80), maxH));
       }
     }
     window.addEventListener('message', onMessage);

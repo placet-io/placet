@@ -29,7 +29,14 @@ export function FilePreview({ fileId, mimeType, filename, className }: FilePrevi
     case 'html':
     case 'markdown':
     case 'code':
-      return <TextPreview fileId={fileId} mimeType={mimeType} filename={filename} />;
+      return (
+        <TextPreview
+          fileId={fileId}
+          mimeType={mimeType}
+          filename={filename}
+          className={className}
+        />
+      );
 
     case 'csv':
     case 'spreadsheet':

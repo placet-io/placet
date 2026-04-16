@@ -93,7 +93,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     (client.data as Record<string, unknown>).userId = apiKey.userId;
-    void client.join(`user:${apiKey.userId}`);
+    // Do NOT join the user room for API-key connections.  The user room is
+    // for frontend clients (cross-channel notifications, unread badges etc.).
+    // Agents subscribe explicitly to their channel room via subscribe:channel.
+    // Joining both rooms causes every message:created event to be delivered
+    // twice — once per room — which leads to duplicate processing.
     this.logger.log(
       `Client connected via API key: ${client.id} (user: ${apiKey.userId})`,
     );

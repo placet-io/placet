@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 
+// Force dynamic rendering so process.env is read at request time, not cached.
+export const dynamic = 'force-dynamic';
+
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -18,6 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
 };
 
 export const metadata: Metadata = {
@@ -39,11 +43,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   // Expose runtime config to client-side code via a global.
-  // This avoids NEXT_PUBLIC_* build-time inlining, so a single prebuilt
-  // Docker image works for any deployment — users just set env vars.
+  // IMPORTANT: NEXT_PUBLIC_* env vars are inlined at build time by the
+  // Next.js compiler — even in Server Components — so they cannot carry
+  // runtime values.  We read non-prefixed env vars first (true runtime),
+  // then fall back to the NEXT_PUBLIC_ variants (build-time), then defaults.
   const runtimeConfig = JSON.stringify({
-    wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001',
-    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    wsUrl: process.env.WS_URL ?? process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001',
+    appUrl: process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   });
 
   return (
@@ -59,7 +65,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="h-dvh overflow-hidden flex flex-col">
         <Providers>{children}</Providers>
       </body>
     </html>

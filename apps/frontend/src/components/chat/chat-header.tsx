@@ -50,7 +50,7 @@ export const ChatHeader = forwardRef<ChatHeaderHandle, ChatHeaderProps>(function
           </Button>
           <AgentAvatar name={name} avatarUrl={avatarUrl} size="sm" />
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-foreground truncate">{name}</h2>
+            <h2 className="text-base font-semibold text-foreground truncate">{name}</h2>
             {description && <p className="text-xs text-muted-foreground truncate">{description}</p>}
           </div>
         </div>

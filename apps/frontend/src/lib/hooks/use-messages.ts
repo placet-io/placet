@@ -14,7 +14,10 @@ export function useMessages(channelId: string | null) {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ content: string; toolHint: boolean } | null>(null);
+  const [progress, setProgress] = useState<{
+    content: string;
+    toolHint: boolean;
+  } | null>(null);
   const cursorRef = useRef<string | null>(null);
   const streamBufferRef = useRef<string>('');
   const { socket, connected, subscribe, unsubscribe, markRead } = useSocket();
@@ -111,20 +114,23 @@ export function useMessages(channelId: string | null) {
     const handleDelta = (data: { channelId: string; delta: string; streamEnd?: boolean }) => {
       if (data.channelId !== channelId) return;
       if (data.streamEnd) {
-        // Stream finished — clear streaming state (final message arrives via message:created)
-        streamBufferRef.current = '';
-        setStreamingContent(null);
-      } else {
-        streamBufferRef.current += data.delta;
-        setStreamingContent(streamBufferRef.current);
+        // Stream segment finished — keep content visible until message:created
+        // arrives to avoid a flash where the bubble disappears and reappears.
+        // Just stop accumulating; handleMessageCreated will clean up.
+        return;
       }
+      streamBufferRef.current += data.delta;
+      setStreamingContent(streamBufferRef.current);
       // Clear progress when streaming starts
       setProgress(null);
     };
 
     const handleProgress = (data: { channelId: string; content: string; toolHint?: boolean }) => {
       if (data.channelId !== channelId) return;
-      setProgress({ content: data.content, toolHint: !!data.toolHint });
+      setProgress({
+        content: data.content,
+        toolHint: !!data.toolHint,
+      });
     };
 
     socket.on('message:delta', handleDelta);
@@ -143,6 +149,8 @@ export function useMessages(channelId: string | null) {
   const sendMessage = useCallback(
     async (text: string) => {
       if (!channelId) return;
+      // Show a thinking indicator immediately so the user gets instant feedback
+      setProgress({ content: 'Thinking…', toolHint: false });
       const msg = await api<Message>('/api/messages', {
         method: 'POST',
         body: JSON.stringify({ channelId, text }),

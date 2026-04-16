@@ -28,7 +28,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   }
 
   return (
-    <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
+    <div className={cn('prose dark:prose-invert max-w-none', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
@@ -70,7 +70,10 @@ export const MarkdownContent = memo(function MarkdownContent({
             const str = String(children);
             if (str.endsWith('\n') || codeClassName) {
               return (
-                <code className={cn('text-xs font-mono text-foreground', codeClassName)} {...props}>
+                <code
+                  className={cn('text-[13px] font-mono text-foreground', codeClassName)}
+                  {...props}
+                >
                   {children}
                 </code>
               );
@@ -78,7 +81,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             // Inline code
             return (
               <code
-                className="bg-foreground/[0.07] border border-border/70 rounded px-1.5 py-0.5 text-xs font-mono"
+                className="bg-foreground/[0.07] border border-border/70 rounded px-1.5 py-0.5 text-[13px] font-mono"
                 {...props}
               >
                 {children}
@@ -88,7 +91,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           // Pre block wrapper
           pre: ({ children, node: _node, ...props }) => (
             <pre
-              className="bg-foreground/[0.07] border border-border rounded-lg p-3 overflow-x-auto text-xs my-2"
+              className="bg-foreground/[0.07] border border-border rounded-lg p-3 overflow-x-auto text-[13px] my-2"
               {...props}
             >
               {children}
@@ -97,7 +100,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           // Tables
           table: ({ children, node: _node, ...props }) => (
             <div className="overflow-x-auto my-2 -mx-1">
-              <table className="min-w-[360px] text-xs border-collapse" {...props}>
+              <table className="min-w-[360px] text-sm border-collapse" {...props}>
                 {children}
               </table>
             </div>
@@ -117,12 +120,12 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           // Lists
           ul: ({ children, node: _node, ...props }) => (
-            <ul className="list-disc list-inside space-y-0.5 my-1" {...props}>
+            <ul className="list-disc pl-5 space-y-0.5 my-1" {...props}>
               {children}
             </ul>
           ),
           ol: ({ children, node: _node, ...props }) => (
-            <ol className="list-decimal list-inside space-y-0.5 my-1" {...props}>
+            <ol className="list-decimal pl-5 space-y-0.5 my-1" {...props}>
               {children}
             </ol>
           ),
@@ -143,36 +146,33 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           // Headings — scaled down to fit chat context
           h1: ({ children, node: _node, ...props }) => (
-            <h1 className="text-base font-semibold mt-3 mb-1 first:mt-0" {...props}>
+            <h1 className="text-[22px] font-semibold mt-3 mb-1 first:mt-0" {...props}>
               {children}
             </h1>
           ),
           h2: ({ children, node: _node, ...props }) => (
-            <h2 className="text-sm font-semibold mt-3 mb-1 first:mt-0" {...props}>
+            <h2 className="text-xl font-semibold mt-3 mb-1 first:mt-0" {...props}>
               {children}
             </h2>
           ),
           h3: ({ children, node: _node, ...props }) => (
-            <h3 className="text-sm font-medium mt-2 mb-0.5 first:mt-0" {...props}>
+            <h3 className="text-lg font-medium mt-2 mb-0.5 first:mt-0" {...props}>
               {children}
             </h3>
           ),
           h4: ({ children, node: _node, ...props }) => (
-            <h4
-              className="text-xs font-semibold mt-2 mb-0.5 first:mt-0 uppercase tracking-wide"
-              {...props}
-            >
+            <h4 className="text-base font-semibold mt-2 mb-0.5 first:mt-0" {...props}>
               {children}
             </h4>
           ),
           h5: ({ children, node: _node, ...props }) => (
-            <h5 className="text-xs font-medium mt-1.5 mb-0.5 first:mt-0" {...props}>
+            <h5 className="text-sm font-medium mt-1.5 mb-0.5 first:mt-0" {...props}>
               {children}
             </h5>
           ),
           h6: ({ children, node: _node, ...props }) => (
             <h6
-              className="text-xs font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground"
+              className="text-sm font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground"
               {...props}
             >
               {children}

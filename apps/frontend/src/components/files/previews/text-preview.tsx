@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { MarkdownContent } from '@/components/chat/markdown-content';
 import { getFileExtension } from '@/lib/file-utils';
+import { useChatSettings } from '@/lib/hooks/use-chat-settings';
+import { cn } from '@/lib/utils';
 import 'highlight.js/styles/github-dark.css';
 
 interface TextPreviewProps {
   fileId: string;
   mimeType: string;
   filename: string;
+  className?: string;
 }
 
 // Map file extensions to highlight.js language identifiers
@@ -65,8 +68,9 @@ const EXT_TO_LANG: Record<string, string> = {
   makefile: 'makefile',
 };
 
-export function TextPreview({ fileId, mimeType, filename }: TextPreviewProps) {
+export function TextPreview({ fileId, mimeType, filename, className }: TextPreviewProps) {
   const { content, loading, error } = useTextContent(fileId);
+  const { settings } = useChatSettings();
 
   if (loading) return <PreviewLoader />;
   if (error || content === null) return <PreviewError message={error} />;
@@ -75,9 +79,9 @@ export function TextPreview({ fileId, mimeType, filename }: TextPreviewProps) {
     return (
       <iframe
         srcDoc={content}
-        sandbox=""
+        sandbox={settings.inlineHtml ? 'allow-scripts allow-same-origin' : ''}
         title="HTML preview"
-        className="w-full h-[65vh] rounded border-0 bg-white"
+        className={cn('w-full rounded border-0 bg-white', className || 'h-[65vh]')}
       />
     );
   }
@@ -85,7 +89,7 @@ export function TextPreview({ fileId, mimeType, filename }: TextPreviewProps) {
   const isMarkdown = mimeType === 'text/markdown' || /\.(md|mdx|markdown)$/i.test(filename);
   if (isMarkdown) {
     return (
-      <div className="w-full max-h-[65vh] overflow-auto p-4">
+      <div className={cn('w-full overflow-auto p-4', className || 'max-h-[65vh]')}>
         <MarkdownContent content={content} />
       </div>
     );

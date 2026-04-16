@@ -31,7 +31,7 @@ export class PrismaService
 
     const adapter = createAdapter(connectionString);
     // Prisma driver-adapters are not reflected in the constructor typings.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
     super({ adapter } as unknown as ConstructorParameters<
       typeof PrismaClient
     >[0]);

@@ -92,10 +92,10 @@ export class AgentsService {
     const unreadCounts =
       agentIds.length > 0
         ? await this.prisma.$queryRaw<{ channel_id: string; count: bigint }[]>`
-            SELECT m.channel_id, COUNT(*)::bigint AS count
+            SELECT m.channel_id, COUNT(*) AS count
             FROM messages m
             JOIN channel_reads cr ON cr.channel_id = m.channel_id AND cr.user_id = ${ownerId}
-            WHERE m.channel_id = ANY(${agentIds})
+            WHERE m.channel_id IN (${Prisma.join(agentIds)})
               AND m.created_at > cr.last_read_at
               AND m.sender_type = 'agent'
             GROUP BY m.channel_id`
@@ -236,7 +236,7 @@ export class AgentsService {
       // Count API logs by status code range (success vs error) — per agent
       this.prisma.$queryRaw<
         { is_success: boolean; count: bigint }[]
-      >`SELECT status_code < 400 AS is_success, COUNT(*)::bigint AS count
+      >`SELECT status_code < 400 AS is_success, COUNT(*) AS count
         FROM api_logs
         WHERE user_id = ${ownerId}
           AND path LIKE '/api/v1/%'
@@ -300,7 +300,7 @@ export class AgentsService {
       }),
       this.prisma.$queryRaw<
         { is_success: boolean; count: bigint }[]
-      >`SELECT status_code < 400 AS is_success, COUNT(*)::bigint AS count
+      >`SELECT status_code < 400 AS is_success, COUNT(*) AS count
         FROM api_logs
         WHERE user_id = ${ownerId}
           AND path LIKE '/api/v1/%'

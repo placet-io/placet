@@ -716,11 +716,11 @@ export const FilePreviewModal = memo(function FilePreviewModal({
 
             {/* Message text context */}
             {effectiveMessageText && (
-              <div className="px-4 py-3 border-b border-border/50 overflow-auto max-h-40">
+              <div className="px-4 py-3 border-b border-border/50 overflow-auto flex-1 min-h-0">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
                   Message
                 </p>
-                <div className="text-xs leading-relaxed">
+                <div className="text-sm leading-relaxed">
                   <MarkdownContent content={effectiveMessageText} />
                 </div>
               </div>

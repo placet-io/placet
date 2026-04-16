@@ -13,14 +13,40 @@ import { useAgentsContext } from '@/lib/contexts/agents-context';
 import { useMessages } from '@/lib/hooks/use-messages';
 import { useSocket } from '@/lib/contexts/socket-context';
 
+/** Prevent iOS/Android from scrolling the page when the virtual keyboard opens. */
+function useStableViewport(containerRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      // Offset for the keyboard: difference between layout viewport and visual viewport
+      const offset = window.innerHeight - vv.height;
+      container.style.height = offset > 0 ? `${vv.height}px` : '';
+    };
+
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, [containerRef]);
+}
+
 export default function ChatThreadPage() {
   const params = useParams<{ agentId: string }>();
   const agentId = params.agentId;
   const searchParams = useSearchParams();
   const highlightMessageId = searchParams.get('messageId');
   const headerRef = useRef<ChatHeaderHandle>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null);
+
+  useStableViewport(containerRef);
 
   const { agents, clearUnread } = useAgentsContext();
   const { markRead } = useSocket();
@@ -79,7 +105,10 @@ export default function ChatThreadPage() {
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col bg-card lg:rounded-3xl overflow-hidden lg:shadow-sm relative h-full lg:border lg:border-border/50">
+    <div
+      ref={containerRef}
+      className="flex flex-1 flex-col bg-card lg:rounded-3xl overflow-hidden lg:shadow-sm relative h-full lg:border lg:border-border/50"
+    >
       <ChatHeader
         ref={headerRef}
         agentId={agentId}
