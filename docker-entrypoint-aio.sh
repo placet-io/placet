@@ -146,6 +146,10 @@ export INTERNAL_API_URL="http://127.0.0.1:${BACKEND_PORT}"
 
 # In AIO mode, frontend and backend are behind nginx on the same port.
 # WS and APP URLs should point to the external URL (default: the nginx port).
+# Non-prefixed vars are read at true runtime by the Next.js Server Component;
+# NEXT_PUBLIC_* variants are kept for backward compatibility.
+export WS_URL="${NEXT_PUBLIC_WS_URL:-http://localhost:8080}"
+export APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:8080}"
 export NEXT_PUBLIC_WS_URL="${NEXT_PUBLIC_WS_URL:-http://localhost:8080}"
 export NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:8080}"
 export HOSTNAME="0.0.0.0"

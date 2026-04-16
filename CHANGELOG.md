@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-04-16
+
+### Added
+
+- **Typewriter streaming effect** — agent responses now render character-by-character with adaptive speed via new `useTypewriter` hook; replaces instant-append for a smoother reading experience
+- **Shimmer status indicator** — new `ShimmerText` component with breathing opacity pulse and sequential dot animation replaces the plain spinner for progress/thinking states
+- **Smart chat scroll behavior** — user messages pin at 40% from top on send, leaving visible room for the incoming response; auto-scroll follows growing content then transitions to bottom-following when it exceeds the viewport; dynamic spacer provides scroll room without permanent dead space
+- **Instant "Thinking…" feedback** — `sendMessage` now immediately shows a thinking indicator so the user gets visual feedback before the server responds
+- **Mobile keyboard viewport fix** — added `interactiveWidget: 'resizes-content'` to viewport config and `h-dvh overflow-hidden` body layout to prevent the mobile keyboard from pushing the entire view upward
+
+### Changed
+
+- **Font sizes to industry standard** — base chat text bumped from 14px to 16px (`text-sm` → `text-base`), headings scaled up (h1: 22px, h2: 20px, h3: 18px), code blocks from 12px to 13px, tables from 12px to 14px, agent header name from 14px to 16px, message input consistent 16px
+- **Markdown list rendering** — switched from `list-inside` to `list-outside` with `pl-5` padding; fixes numbered lists with paragraph content rendering the number on a separate line
+- **Inline HTML preview height** — iframe max-height changed from fixed 480px to dynamic `60vh`
+- **File preview modal** — `TextPreview` now accepts and applies `className` from parent; HTML/markdown previews fill the full modal area instead of being capped at 65vh
+- **File preview message panel** — right sidebar message text area uses `flex-1 min-h-0` to expand into available space instead of being capped at `max-h-40`
+- **Streaming end handling** — `message:delta` with `streamEnd` no longer immediately clears the streaming bubble; content stays visible until `message:created` arrives, preventing a flash where the bubble disappears and reappears
+- **Runtime config in AIO** — layout.tsx reads `WS_URL` / `APP_URL` (true runtime env) before falling back to `NEXT_PUBLIC_*` (build-time); `force-dynamic` export ensures Server Component re-evaluates on each request; entrypoint exports both variants
+- **Nginx WebSocket routing** — changed location from `/ws` to `/socket.io/` with proper `$connection_upgrade` variable; fixes 504 timeouts when Socket.IO client connects via default path
+
+### Fixed
+
+- **SQLite query compatibility** — removed PostgreSQL-specific `::bigint` casts and `= ANY()` syntax in `agents.service.ts`; uses `Prisma.join()` for `IN` clauses, making unread-count and API-log queries work on both SQLite and PostgreSQL
+- **Duplicate message delivery** — API-key WebSocket connections no longer join the user broadcast room in `events.gateway.ts`; prevents agents from receiving every `message:created` event twice (once via user room, once via channel room)
+
 ## [0.6.6] — 2026-04-15
 
 ### Changed

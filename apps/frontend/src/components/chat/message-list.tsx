@@ -4,6 +4,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Copy, Check, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './message-bubble';
+import { ShimmerText } from './shimmer-text';
+import { useTypewriter } from '@/lib/hooks/use-typewriter';
 import type { Message } from '@placet/shared';
 
 interface MessageListProps {
@@ -16,7 +18,10 @@ interface MessageListProps {
   hasMore?: boolean;
   highlightMessageId?: string | null;
   streamingContent?: string | null;
-  progress?: { content: string; toolHint: boolean } | null;
+  progress?: {
+    content: string;
+    toolHint: boolean;
+  } | null;
   onLoadOlder?: () => void;
   onSetupWebhook?: () => void;
   onReviewRespond?: (
@@ -49,6 +54,7 @@ export const MessageList = memo(function MessageList({
   onRetryDelivery,
 }: MessageListProps) {
   const [copied, setCopied] = useState(false);
+  const displayedStreaming = useTypewriter(streamingContent ?? null);
 
   // Compute max iteration per group for "Iteration X/Y" display
   const iterationTotals = useMemo(() => {
@@ -70,34 +76,183 @@ export const MessageList = memo(function MessageList({
   }, [channelId]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(messages.length);
   const prevLastIdRef = useRef<string | null>(null);
   const prevScrollHeightRef = useRef(0);
+  const pinnedUserMessageIdRef = useRef<string | null>(null);
+  const isAtBottomRef = useRef(true);
 
-  // Auto-scroll to bottom on new messages (only if user is near the bottom)
+  /**
+   * Dynamically size the bottom spacer so the user message can be
+   * positioned at 40% from top.  Shrinks as response content grows,
+   * reaches 0 when content fills the viewport below the user message
+   * or when no message is pinned (normal browsing / initial load).
+   */
+  const updateSpacer = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const spacer = spacerRef.current;
+    const bottom = bottomRef.current;
+    if (!container || !spacer || !bottom) return;
+
+    const pinnedId = pinnedUserMessageIdRef.current;
+    if (!pinnedId) {
+      spacer.style.height = '0px';
+      return;
+    }
+
+    const userEl = container.querySelector(`[data-message-id="${CSS.escape(pinnedId)}"]`);
+    if (!(userEl instanceof HTMLElement)) {
+      spacer.style.height = '0px';
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const userRect = userEl.getBoundingClientRect();
+    const bottomRect = bottom.getBoundingClientRect();
+
+    // Convert to scroll-content coordinates
+    const userTop = userRect.top - containerRect.top + container.scrollTop;
+    const contentEnd = bottomRect.top - containerRect.top + container.scrollTop;
+    const viewportH = container.clientHeight;
+
+    // For 40% positioning we need: scrollHeight >= userTop + viewportH * 0.6
+    const neededScrollHeight = userTop + viewportH * 0.6;
+    const spacerHeight = Math.max(0, Math.ceil(neededScrollHeight - contentEnd));
+    spacer.style.height = `${spacerHeight}px`;
+  }, []);
+
+  const scrollUserMessageIntoView = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const pinnedId = pinnedUserMessageIdRef.current;
+    if (!container || !pinnedId) return;
+
+    const el = container.querySelector(`[data-message-id="${CSS.escape(pinnedId)}"]`);
+    if (!(el instanceof HTMLElement)) return;
+
+    // Ensure spacer is sized before scrolling
+    updateSpacer();
+
+    // Position the user message roughly 40% from the top — leaves space below
+    // for the upcoming response to appear visibly
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const elTopInContainer = elRect.top - containerRect.top + container.scrollTop;
+    const targetScrollTop = elTopInContainer - container.clientHeight * 0.4;
+    container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+  }, [updateSpacer]);
+
+  /**
+   * Smart scroll that keeps the user message visible while following growing
+   * content (streaming / new agent message).  Once the content grows long
+   * enough that the user message can no longer fit, it transitions to
+   * regular bottom-following.
+   */
+  const scrollFollowContent = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const pinnedId = pinnedUserMessageIdRef.current;
+    if (!pinnedId) {
+      // No pin — just follow bottom
+      updateSpacer();
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    const userEl = container.querySelector(`[data-message-id="${CSS.escape(pinnedId)}"]`);
+    if (!(userEl instanceof HTMLElement)) {
+      pinnedUserMessageIdRef.current = null;
+      updateSpacer();
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const userRect = userEl.getBoundingClientRect();
+    const userTopInContainer = userRect.top - containerRect.top + container.scrollTop;
+    const containerH = container.clientHeight;
+
+    // Measure content end at bottomRef (excludes spacer)
+    const bottomEl = bottomRef.current;
+    const contentEnd = bottomEl
+      ? bottomEl.getBoundingClientRect().top - containerRect.top + container.scrollTop
+      : container.scrollHeight;
+    const contentBelowUser = contentEnd - userTopInContainer;
+
+    if (contentBelowUser <= containerH) {
+      // Everything (user msg + response so far) fits in viewport —
+      // keep user message at ~40% from top
+      updateSpacer();
+      const target = userTopInContainer - containerH * 0.4;
+      container.scrollTo({ top: Math.max(0, target) });
+    } else {
+      // Response has grown past one viewport — unpin and follow bottom
+      pinnedUserMessageIdRef.current = null;
+      updateSpacer();
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [updateSpacer]);
+
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container || messages.length === 0) return;
 
-    const lastId = messages[messages.length - 1].id;
+    const lastMsg = messages[messages.length - 1];
+    const lastId = lastMsg.id;
     const isNewMessage =
       messages.length > prevLengthRef.current || lastId !== prevLastIdRef.current;
     const wasLoadingOlder = prevScrollHeightRef.current > 0;
 
     if (isNewMessage && !wasLoadingOlder) {
-      // New message appended at bottom — scroll down
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (lastMsg.senderType === 'user') {
+        // User just sent a message — pin it at ~40% from top so the
+        // upcoming response has room to appear below.
+        pinnedUserMessageIdRef.current = lastId;
+        isAtBottomRef.current = true;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollUserMessageIntoView();
+          });
+        });
+      } else {
+        // Agent message arrived — keep pin if we have one so the user
+        // message stays visible with the response below it.
+        if (isAtBottomRef.current) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              scrollFollowContent();
+            });
+          });
+        }
+      }
     }
 
     prevLengthRef.current = messages.length;
     prevLastIdRef.current = lastId;
-  }, [messages]);
+  }, [messages, scrollUserMessageIntoView, scrollFollowContent]);
 
-  // Auto-scroll during streaming
+  // Auto-scroll during streaming — follow the growing response while
+  // keeping the user message visible as long as it fits in the viewport.
   useEffect(() => {
-    if (!streamingContent) return;
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [streamingContent]);
+    if (!displayedStreaming) return;
+    if (!isAtBottomRef.current) return;
+
+    requestAnimationFrame(() => {
+      scrollFollowContent();
+    });
+  }, [displayedStreaming, scrollFollowContent]);
+
+  // Auto-scroll when progress/status changes (only when at bottom)
+  useEffect(() => {
+    if (!progress) return;
+    if (!isAtBottomRef.current) return;
+
+    requestAnimationFrame(() => {
+      scrollFollowContent();
+    });
+  }, [progress, scrollFollowContent]);
 
   // Preserve scroll position when older messages are prepended
   useEffect(() => {
@@ -112,12 +267,28 @@ export const MessageList = memo(function MessageList({
     prevScrollHeightRef.current = 0;
   }, [messages]);
 
-  // Scroll handler to detect scroll-to-top for loading older messages
+  // Scroll handler: track "at bottom" state + load older messages on scroll-up
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
-    if (!container || !hasMore || loadingOlder || !onLoadOlder) return;
+    if (!container) return;
 
-    if (container.scrollTop < 100) {
+    // Measure distance to bottomRef (ignores the dynamic spacer) so that
+    // auto-scroll keeps working even when the spacer is present.
+    const bottom = bottomRef.current;
+    if (bottom) {
+      const containerRect = container.getBoundingClientRect();
+      const bottomRect = bottom.getBoundingClientRect();
+      // bottomRect.top - containerRect.bottom: negative when bottomRef is
+      // above the viewport bottom edge (i.e. content is scrolled past it)
+      const distFromContent = bottomRect.top - containerRect.bottom;
+      isAtBottomRef.current = distFromContent < 150;
+    } else {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      isAtBottomRef.current = distanceFromBottom < 150;
+    }
+
+    if (hasMore && !loadingOlder && onLoadOlder && container.scrollTop < 100) {
       prevScrollHeightRef.current = container.scrollHeight;
       onLoadOlder();
     }
@@ -199,7 +370,10 @@ export const MessageList = memo(function MessageList({
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto scrollbar-hide"
     >
-      <div className="p-6 space-y-4">
+      <div className="flex flex-col min-h-full p-6 gap-4">
+        {/* Push messages to the bottom when there are few */}
+        <div className="flex-1" />
+
         {loadingOlder && (
           <div className="flex justify-center py-2">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -214,7 +388,7 @@ export const MessageList = memo(function MessageList({
 
         {messages.length === 0 && (
           <div className="flex flex-col items-center gap-4 py-12">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               No messages yet. Start the conversation!
             </p>
             {channelId && (
@@ -274,14 +448,14 @@ export const MessageList = memo(function MessageList({
         ))}
 
         {/* Streaming: show partial response as it arrives */}
-        {streamingContent && (
+        {displayedStreaming && (
           <MessageBubble
             messageId="__streaming__"
             channelId={channelId}
             senderType="agent"
             senderName={agentName}
             avatarUrl={agentAvatarUrl}
-            text={streamingContent}
+            text={displayedStreaming}
             createdAt={new Date().toISOString()}
             status={null}
             review={null}
@@ -293,15 +467,18 @@ export const MessageList = memo(function MessageList({
           />
         )}
 
-        {/* Progress/thinking indicator */}
-        {!streamingContent && progress && (
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">{progress.content}</span>
+        {/* Progress/activity indicator */}
+        {progress?.content ? (
+          <div className="pl-0 sm:pl-11">
+            <ShimmerText text={progress.content} className="text-xs font-medium" />
           </div>
-        )}
+        ) : null}
 
         <div ref={bottomRef} />
+
+        {/* Dynamic bottom spacer — sized by updateSpacer() to allow
+            40% positioning when a user message is pinned; 0 otherwise. */}
+        <div ref={spacerRef} className="shrink-0" aria-hidden />
       </div>
     </div>
   );

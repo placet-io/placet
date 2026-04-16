@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize2, Reply, Check, CheckCheck } from 'lucide-react';
+import { Maximize2, Reply, Check, CheckCheck, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
@@ -50,6 +50,7 @@ const STATUS_VARIANT = {
 };
 
 const SWIPE_THRESHOLD = 60;
+const USER_MSG_COLLAPSE_CHARS = 500;
 
 export const MessageBubble = memo(function MessageBubble({
   messageId,
@@ -76,6 +77,7 @@ export const MessageBubble = memo(function MessageBubble({
   const time = formatTime(createdAt);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [pluginPreviewOpen, setPluginPreviewOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const hasAttachments = attachments.length > 0;
   const pluginName = typeof metadata?.plugin === 'string' ? metadata.plugin : null;
 
@@ -306,7 +308,7 @@ export const MessageBubble = memo(function MessageBubble({
               )}
               <div
                 className={cn(
-                  'px-4 py-2.5 rounded-2xl text-sm leading-relaxed min-w-0 break-words',
+                  'px-4 py-2.5 rounded-2xl text-base leading-relaxed min-w-0 break-words',
                   isUser
                     ? 'bg-primary text-primary-foreground rounded-tr-sm'
                     : 'bg-muted text-foreground rounded-tl-sm',
@@ -341,7 +343,26 @@ export const MessageBubble = memo(function MessageBubble({
                   </div>
                 )}
                 {hasText && (
-                  <MarkdownContent content={bodyText} onFilePreview={handleFilePreview} />
+                  <>
+                    {isUser && !expanded && bodyText.length > USER_MSG_COLLAPSE_CHARS ? (
+                      <div className="relative">
+                        <div className="overflow-hidden max-h-24">
+                          <MarkdownContent content={bodyText} onFilePreview={handleFilePreview} />
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-primary to-transparent" />
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-xs text-primary-foreground/80 hover:text-primary-foreground mt-1"
+                          onClick={() => setExpanded(true)}
+                        >
+                          <ChevronDown size={12} />
+                          Show more
+                        </button>
+                      </div>
+                    ) : (
+                      <MarkdownContent content={bodyText} onFilePreview={handleFilePreview} />
+                    )}
+                  </>
                 )}
 
                 {hasAttachments && (
