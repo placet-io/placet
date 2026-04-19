@@ -95,6 +95,8 @@ function SelectionReview({ review, onRespond, submitting }: ReviewTypeProps) {
     | {
         mode?: 'single' | 'multi';
         items?: { id: string; label: string; description?: string }[];
+        submitLabel?: string;
+        dismissLabel?: string;
       }
     | undefined;
   const items = payload?.items ?? [];
@@ -156,15 +158,28 @@ function SelectionReview({ review, onRespond, submitting }: ReviewTypeProps) {
           </button>
         ))}
       </div>
-      <Button
-        size="sm"
-        disabled={submitting || selected.size === 0}
-        className="rounded-lg text-sm h-8"
-        onClick={() => onRespond({ selectedIds: [...selected] })}
-      >
-        {submitting && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-        Confirm Selection
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={submitting || selected.size === 0}
+          className="rounded-lg text-sm h-8"
+          onClick={() => onRespond({ selectedIds: [...selected] })}
+        >
+          {submitting && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+          {payload?.submitLabel ?? 'Confirm Selection'}
+        </Button>
+        {payload?.dismissLabel && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={submitting}
+            className="rounded-lg text-sm h-8"
+            onClick={() => onRespond({ _dismissed: true })}
+          >
+            {payload.dismissLabel}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -409,7 +424,13 @@ function FormReview({ review, onRespond, submitting }: ReviewTypeProps) {
 /* ---------- text-input ---------- */
 function TextInputReview({ review, onRespond, submitting }: ReviewTypeProps) {
   const payload = review.payload as
-    | { placeholder?: string; prefill?: string; markdown?: boolean }
+    | {
+        placeholder?: string;
+        prefill?: string;
+        markdown?: boolean;
+        submitLabel?: string;
+        dismissLabel?: string;
+      }
     | undefined;
   const [text, setText] = useState(payload?.prefill ?? '');
 
@@ -422,15 +443,28 @@ function TextInputReview({ review, onRespond, submitting }: ReviewTypeProps) {
         rows={3}
         className="text-sm min-h-0 font-mono"
       />
-      <Button
-        size="sm"
-        disabled={submitting || !text.trim()}
-        className="rounded-lg text-sm h-8"
-        onClick={() => onRespond({ text: text.trim() })}
-      >
-        {submitting && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-        Send Response
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={submitting || !text.trim()}
+          className="rounded-lg text-sm h-8"
+          onClick={() => onRespond({ text: text.trim() })}
+        >
+          {submitting && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+          {payload?.submitLabel ?? 'Send Response'}
+        </Button>
+        {payload?.dismissLabel && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={submitting}
+            className="rounded-lg text-sm h-8"
+            onClick={() => onRespond({ _dismissed: true })}
+          >
+            {payload.dismissLabel}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

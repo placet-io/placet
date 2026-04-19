@@ -13,6 +13,8 @@ const STORAGE_FILE_RE = /^\/([a-z0-9]{20,})$/i;
 interface MarkdownContentProps {
   content: string;
   className?: string;
+  /** When true, adapts element colours to sit on the user bubble (primary bg). */
+  isUser?: boolean;
   /** Called when user clicks expand on an inline storage media element */
   onFilePreview?: (fileId: string) => void;
 }
@@ -20,15 +22,17 @@ interface MarkdownContentProps {
 export const MarkdownContent = memo(function MarkdownContent({
   content,
   className,
+  isUser,
   onFilePreview,
 }: MarkdownContentProps) {
-  // If content has no markdown indicators, render as plain text for perf
-  if (!hasMarkdown(content)) {
-    return <span className={cn('whitespace-pre-wrap break-words', className)}>{content}</span>;
-  }
-
   return (
-    <div className={cn('prose dark:prose-invert max-w-none', className)}>
+    <div
+      className={cn(
+        'max-w-none',
+        isUser ? '[&_strong]:font-semibold' : 'prose dark:prose-invert',
+        className,
+      )}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
@@ -38,7 +42,10 @@ export const MarkdownContent = memo(function MarkdownContent({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary underline underline-offset-2 hover:text-primary/80"
+              className={cn(
+                'underline underline-offset-2',
+                isUser ? 'text-inherit hover:opacity-80' : 'text-primary hover:text-primary/80',
+              )}
               {...props}
             >
               {children}
@@ -71,7 +78,11 @@ export const MarkdownContent = memo(function MarkdownContent({
             if (str.endsWith('\n') || codeClassName) {
               return (
                 <code
-                  className={cn('text-[13px] font-mono text-foreground', codeClassName)}
+                  className={cn(
+                    'text-[13px] font-mono',
+                    isUser ? 'text-inherit' : 'text-foreground',
+                    codeClassName,
+                  )}
                   {...props}
                 >
                   {children}
@@ -81,7 +92,12 @@ export const MarkdownContent = memo(function MarkdownContent({
             // Inline code
             return (
               <code
-                className="bg-foreground/[0.07] border border-border/70 rounded px-1.5 py-0.5 text-[13px] font-mono"
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-[13px] font-mono',
+                  isUser
+                    ? 'bg-primary-foreground/15'
+                    : 'bg-foreground/[0.07] border border-border/70',
+                )}
                 {...props}
               >
                 {children}
@@ -91,7 +107,10 @@ export const MarkdownContent = memo(function MarkdownContent({
           // Pre block wrapper
           pre: ({ children, node: _node, ...props }) => (
             <pre
-              className="bg-foreground/[0.07] border border-border rounded-lg p-3 overflow-x-auto text-[13px] my-2"
+              className={cn(
+                'rounded-lg p-3 overflow-x-auto text-[13px] my-2',
+                isUser ? 'bg-primary-foreground/10' : 'bg-foreground/[0.07] border border-border',
+              )}
               {...props}
             >
               {children}
@@ -107,14 +126,25 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           th: ({ children, node: _node, ...props }) => (
             <th
-              className="border border-border px-2 py-1 bg-muted/40 text-left font-medium"
+              className={cn(
+                'px-2 py-1 text-left font-medium border',
+                isUser
+                  ? 'border-primary-foreground/15 bg-primary-foreground/10'
+                  : 'border-border bg-muted/40',
+              )}
               {...props}
             >
               {children}
             </th>
           ),
           td: ({ children, node: _node, ...props }) => (
-            <td className="border border-border px-2 py-1" {...props}>
+            <td
+              className={cn(
+                'px-2 py-1 border',
+                isUser ? 'border-primary-foreground/15' : 'border-border',
+              )}
+              {...props}
+            >
               {children}
             </td>
           ),
@@ -132,7 +162,10 @@ export const MarkdownContent = memo(function MarkdownContent({
           // Blockquote
           blockquote: ({ children, node: _node, ...props }) => (
             <blockquote
-              className="border-l-2 border-primary/40 pl-3 my-2 text-muted-foreground italic"
+              className={cn(
+                'border-l-2 pl-3 my-2 italic',
+                isUser ? 'border-primary-foreground/40' : 'border-primary/40 text-muted-foreground',
+              )}
               {...props}
             >
               {children}
@@ -172,14 +205,22 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           h6: ({ children, node: _node, ...props }) => (
             <h6
-              className="text-sm font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground"
+              className={cn(
+                'text-sm font-medium mt-1.5 mb-0.5 first:mt-0',
+                !isUser && 'text-muted-foreground',
+              )}
               {...props}
             >
               {children}
             </h6>
           ),
           // Horizontal rule
-          hr: ({ ...props }) => <hr className="my-2 border-border" {...props} />,
+          hr: ({ ...props }) => (
+            <hr
+              className={cn('my-2', isUser ? 'border-primary-foreground/30' : 'border-border')}
+              {...props}
+            />
+          ),
         }}
       >
         {content}
@@ -187,11 +228,6 @@ export const MarkdownContent = memo(function MarkdownContent({
     </div>
   );
 });
-
-/** Quick heuristic to detect markdown syntax in text */
-function hasMarkdown(text: string): boolean {
-  return /[!*_`~\[#>|\n]|-{3,}|\d+\.\s/.test(text);
-}
 
 // ---------------------------------------------------------------------------
 // Inline storage media component — resolves file type via HEAD request

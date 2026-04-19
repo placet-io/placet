@@ -21,7 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  interactiveWidget: 'resizes-content',
+  interactiveWidget: 'resizes-visual',
 };
 
 export const metadata: Metadata = {
@@ -65,7 +65,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="h-dvh overflow-hidden flex flex-col">
+      <body className="fixed inset-0 overflow-hidden flex flex-col">
         <Providers>{children}</Providers>
       </body>
     </html>

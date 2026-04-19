@@ -23,6 +23,7 @@ function ChatsLayoutInner({ children }: { children: React.ReactNode }) {
         ? formatRelativeTime(a.lastActiveAt)
         : undefined,
     unreadCount: a.unreadCount,
+    tag: a.tag,
   }));
 
   return (

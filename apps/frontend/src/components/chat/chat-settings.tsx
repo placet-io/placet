@@ -27,6 +27,7 @@ interface ChatSettingsProps {
   agentId: string;
   name: string;
   avatarUrl?: string | null;
+  tag?: string | null;
   webhookUrl?: string | null;
   webhookHeaders?: Record<string, string> | null;
   webhookAuth?: { username: string; password: string } | null;
@@ -36,6 +37,7 @@ export const ChatSettings = memo(function ChatSettings({
   agentId,
   name,
   avatarUrl,
+  tag,
   webhookUrl,
   webhookHeaders: initialHeaders,
   webhookAuth: initialAuth,
@@ -63,6 +65,27 @@ export const ChatSettings = memo(function ChatSettings({
       setSavingName(false);
     }
   }, [savingName, nameChanged, agentId, editName, refetch]);
+
+  // Tag
+  const [editTag, setEditTag] = useState(tag ?? '');
+  const [savingTag, setSavingTag] = useState(false);
+  const tagChanged = (editTag.trim() || null) !== (tag ?? null);
+
+  const handleSaveTag = useCallback(async () => {
+    if (savingTag || !tagChanged) return;
+    try {
+      setSavingTag(true);
+      await api(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tag: editTag.trim() || null }),
+      });
+      void refetch();
+    } catch {
+      // silently fail
+    } finally {
+      setSavingTag(false);
+    }
+  }, [savingTag, tagChanged, agentId, editTag, refetch]);
 
   // Copy ID
   const [copied, setCopied] = useState(false);
@@ -199,7 +222,7 @@ export const ChatSettings = memo(function ChatSettings({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Avatar</label>
+              <label className="text-sm font-medium text-muted-foreground">Avatar</label>
               <div className="flex items-center gap-3">
                 <div className="relative group">
                   <AgentAvatar name={name} avatarUrl={avatarUrl} size="lg" />
@@ -227,7 +250,7 @@ export const ChatSettings = memo(function ChatSettings({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-lg text-xs h-7"
+                    className="rounded-lg text-sm h-7"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingAvatar}
                   >
@@ -238,7 +261,7 @@ export const ChatSettings = memo(function ChatSettings({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-lg text-xs h-7 text-muted-foreground hover:text-destructive"
+                      className="rounded-lg text-sm h-7 text-muted-foreground hover:text-destructive"
                       onClick={() => void handleRemoveAvatar()}
                       disabled={removingAvatar}
                     >
@@ -255,7 +278,7 @@ export const ChatSettings = memo(function ChatSettings({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Chat Name</label>
+              <label className="text-sm font-medium text-muted-foreground">Chat Name</label>
               <div className="flex items-center gap-2">
                 <Input
                   value={editName}
@@ -277,9 +300,33 @@ export const ChatSettings = memo(function ChatSettings({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Chat ID</label>
+              <label className="text-sm font-medium text-muted-foreground">Tag</label>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs font-mono text-foreground truncate">
+                <Input
+                  placeholder="e.g. Monitoring, Support..."
+                  value={editTag}
+                  onChange={(e) => setEditTag(e.target.value)}
+                  className="rounded-lg text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSaveTag();
+                    if (e.key === 'Escape') setEditTag(tag ?? '');
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="shrink-0 rounded-lg"
+                  disabled={savingTag || !tagChanged}
+                  onClick={() => void handleSaveTag()}
+                >
+                  {savingTag ? <Loader2 size={14} className="animate-spin" /> : 'Save'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-muted-foreground">Chat ID</label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm font-mono text-foreground truncate">
                   {agentId}
                 </code>
                 <Button
@@ -320,7 +367,7 @@ export const ChatSettings = memo(function ChatSettings({
           <CardContent className="space-y-4">
             {/* URL */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Webhook URL</label>
+              <label className="text-sm font-medium text-muted-foreground">Webhook URL</label>
               <Input
                 placeholder="https://your-server.com/webhook"
                 value={hookUrl}
@@ -332,7 +379,7 @@ export const ChatSettings = memo(function ChatSettings({
             {/* Custom Headers */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">Custom Headers</label>
+                <label className="text-sm font-medium text-muted-foreground">Custom Headers</label>
                 <Button variant="ghost" size="sm" className="text-xs gap-1 h-7" onClick={addHeader}>
                   <Plus size={12} />
                   Add
@@ -369,7 +416,7 @@ export const ChatSettings = memo(function ChatSettings({
 
             {/* Basic Auth */}
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label className="text-sm font-medium text-muted-foreground">
                 Basic Authentication
               </label>
               <div className="grid grid-cols-2 gap-2">

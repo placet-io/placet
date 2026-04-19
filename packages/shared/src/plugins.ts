@@ -82,6 +82,8 @@ export const SelectionItemSchema = z.object({
 export const SelectionInputSchema = z.object({
   mode: z.enum(['single', 'multi']),
   items: z.array(SelectionItemSchema).min(1),
+  submitLabel: z.string().optional(),
+  dismissLabel: z.string().optional(),
 });
 export type SelectionInput = z.infer<typeof SelectionInputSchema>;
 
@@ -129,6 +131,7 @@ export const FormFieldSchema = z.object({
 export const FormInputSchema = z.object({
   fields: z.array(FormFieldSchema).min(1),
   submitLabel: z.string().optional(),
+  dismissLabel: z.string().optional(),
 });
 export type FormInput = z.infer<typeof FormInputSchema>;
 
@@ -146,6 +149,8 @@ export const TextInputInputSchema = z.object({
   markdown: z.boolean().optional(),
   minLength: z.number().int().positive().optional(),
   maxLength: z.number().int().positive().optional(),
+  submitLabel: z.string().optional(),
+  dismissLabel: z.string().optional(),
 });
 export type TextInputInput = z.infer<typeof TextInputInputSchema>;
 

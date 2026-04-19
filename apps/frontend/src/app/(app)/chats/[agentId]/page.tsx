@@ -20,19 +20,26 @@ function useStableViewport(containerRef: React.RefObject<HTMLDivElement | null>)
     const vv = window.visualViewport;
     if (!vv) return;
 
-    const onResize = () => {
+    const update = () => {
       const container = containerRef.current;
       if (!container) return;
-      // Offset for the keyboard: difference between layout viewport and visual viewport
-      const offset = window.innerHeight - vv.height;
-      container.style.height = offset > 0 ? `${vv.height}px` : '';
+      const keyboardOpen = window.innerHeight - vv.height > 50;
+      if (keyboardOpen) {
+        // Shrink to visual viewport and translate to compensate for any
+        // scroll offset Safari applies (GPU-accelerated, single frame).
+        container.style.height = `${vv.height}px`;
+        container.style.transform = `translateY(${vv.offsetTop}px)`;
+      } else {
+        container.style.height = '';
+        container.style.transform = '';
+      }
     };
 
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
     return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
     };
   }, [containerRef]);
 }
@@ -127,6 +134,7 @@ export default function ChatThreadPage() {
           agentId={agentId}
           name={agentName}
           avatarUrl={agentAvatarUrl}
+          tag={agent?.tag}
           webhookUrl={agent?.webhookUrl}
           webhookHeaders={agent?.webhookHeaders}
           webhookAuth={agent?.webhookAuth}

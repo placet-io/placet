@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added tag support for agents in chat list and settings.
+- Introduced collapsible groups in chat list for better organization.
+- Implemented view mode toggle between flat and grouped views.
+- Enhanced chat settings to allow editing of agent tags.
+- Updated UI components for improved accessibility and usability.
+- Added copy functionality for messages in message bubbles.
+- Improved markdown rendering in chat messages with user-specific styles.
+- Updated Docker Compose configuration for external Traefik integration.
+
 ## [0.8.0] — 2026-04-16
 
 ### Added

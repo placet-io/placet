@@ -75,7 +75,9 @@ export default function LogsPage() {
         <div className="flex items-center justify-between mb-6 md:mb-8">
           <div className="flex items-center gap-2">
             <MobileNavDrawer />
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">API Logs</h1>
+            <h1 className="text-xl md:text-3xl font-semibold md:font-bold text-foreground">
+              API Logs
+            </h1>
           </div>
           <Button
             variant="outline"

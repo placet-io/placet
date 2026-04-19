@@ -113,6 +113,7 @@ export const AgentSchema = z.object({
   statusSince: z.string().nullish(),
   lastActiveAt: z.string().nullish(),
   commands: z.array(AgentCommandSchema).nullish(),
+  tag: z.string().nullish(),
   createdAt: z.string(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
@@ -222,6 +223,7 @@ export const CreateAgentSchema = z.object({
   description: z.string().optional(),
   avatarUrl: z.string().url().optional(),
   webhookUrl: z.string().url().optional(),
+  tag: z.string().max(64).optional(),
 });
 export type CreateAgentRequest = z.infer<typeof CreateAgentSchema>;
 
@@ -232,8 +234,15 @@ export const UpdateAgentSchema = z.object({
   webhookUrl: z.string().url().nullable().optional(),
   webhookHeaders: z.record(z.string(), z.string()).nullable().optional(),
   webhookAuth: WebhookAuthSchema.nullable().optional(),
+  tag: z.string().max(64).nullable().optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
+
+export const SetTagSchema = z.object({
+  channelId: z.string().min(1),
+  tag: z.string().max(64).nullable(),
+});
+export type SetTagRequest = z.infer<typeof SetTagSchema>;
 
 export const UpdateAgentCommandsSchema = z.object({
   commands: z.array(AgentCommandSchema),

@@ -4,7 +4,7 @@ import { SocketProvider } from '@/lib/contexts/socket-context';
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SocketProvider>
-      <div className="flex h-dvh overflow-hidden bg-background font-sans justify-center">
+      <div className="flex h-full overflow-hidden bg-background font-sans justify-center">
         <div className="flex w-full max-w-[2000px] pt-[env(safe-area-inset-top)] lg:p-4 lg:gap-4">
           <div className="hidden lg:flex">
             <IconBar />
