@@ -60,7 +60,14 @@ export const MessageInput = memo(function MessageInput({
       const newText = cmd.acceptsArgs ? cmd.command + ' ' : cmd.command;
       setText(newText);
       setShowCommands(false);
-      textareaRef.current?.focus();
+      // Move cursor to end after React re-renders with the new value
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(newText.length, newText.length);
+        }
+      });
       // If command doesn't accept args, send immediately
       if (!cmd.acceptsArgs) {
         onSend(cmd.command);

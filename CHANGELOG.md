@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OAuth relay module** *(experimental)* — new `OAuthRelayModule` enables agents to initiate browser-based OAuth flows through Placet as a relay; includes `GET /api/v1/oauth/callback` endpoint that receives authorization codes from external OAuth providers and forwards them to the originating agent channel via Socket.IO (`oauth:code` event); pending flows are state-tracked with 10-minute TTL and automatic cleanup
+- **`oauth:start` WebSocket event** — agents emit `oauth:start` with `channelId`, `state`, `provider`, and `authUrl`; Placet registers the state for callback resolution and forwards the event to the user's frontend for browser redirect
+- **OAuth relay documentation** — new `connections/oauth-relay` docs page added to navigation
+- **Inline HTML rendering enabled by default** — `useChatSettings` hook now defaults `inlineHtml` to `true` (was `false`); existing users with localStorage override are unaffected
+- **Nginx upload limit increased** — `client_max_body_size` set to `100m` in AIO nginx config to support large file uploads (images, videos, zips)
 - Added tag support for agents in chat list and settings.
 - Introduced collapsible groups in chat list for better organization.
 - Implemented view mode toggle between flat and grouped views.
@@ -17,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added copy functionality for messages in message bubbles.
 - Improved markdown rendering in chat messages with user-specific styles.
 - Updated Docker Compose configuration for external Traefik integration.
+
+### Fixed
+
+- **Command palette cursor position** — selecting a slash command that accepts args now correctly moves the cursor to the end of the inserted text via `requestAnimationFrame` + `setSelectionRange`; previously the cursor could remain at position 0
+
+### Changed
+
+- **EventsGateway dependency** — gateway now injects `OAuthRelayService` (via `forwardRef`) to register OAuth flow states when `oauth:start` events arrive from agents
 
 ## [0.8.0] — 2026-04-16
 

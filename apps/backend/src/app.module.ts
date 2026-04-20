@@ -21,6 +21,7 @@ import { PluginsModule } from './modules/plugins/plugins.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ShareModule } from './modules/share/share.module';
 import { PushModule } from './modules/push/push.module';
+import { OAuthRelayModule } from './modules/oauth-relay/oauth-relay.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
 
 @Module({
@@ -111,6 +112,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
     ApiKeysModule,
     ShareModule,
     PushModule,
+    OAuthRelayModule,
   ],
   controllers: [AppController],
   providers: [
