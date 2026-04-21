@@ -5,6 +5,7 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
@@ -28,7 +29,9 @@ function resolveWsCors(): { origin: string | string[] | boolean } {
   cors: resolveWsCors(),
   namespace: '/ws',
 })
-export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -41,69 +44,81 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly oauthRelay: OAuthRelayService,
   ) {}
 
+  afterInit(server: Server) {
+    // Authenticate BEFORE the connection is accepted so that `client.data.userId`
+    // is guaranteed to be set before any event handler runs. Without this,
+    // handlers like `subscribe:channel` could race with the async API-key DB
+    // lookup and silently drop room joins.
+    server.use((socket, next) => {
+      const auth = socket.handshake.auth ?? {};
+      const token = auth.token as string | undefined;
+      const apiKey = auth.apiKey as string | undefined;
+
+      if (apiKey) {
+        this.resolveApiKey(apiKey)
+          .then((userId) => {
+            if (!userId) {
+              return next(new Error('unauthorized'));
+            }
+            (socket.data as Record<string, unknown>).userId = userId;
+            (socket.data as Record<string, unknown>).authMethod = 'apiKey';
+            next();
+          })
+          .catch(() => next(new Error('unauthorized')));
+        return;
+      }
+
+      if (!token) {
+        return next(new Error('unauthorized'));
+      }
+
+      try {
+        const payload = this.jwtService.verify<{ sub: string }>(token);
+        (socket.data as Record<string, unknown>).userId = payload.sub;
+        (socket.data as Record<string, unknown>).authMethod = 'jwt';
+        next();
+      } catch {
+        next(new Error('unauthorized'));
+      }
+    });
+  }
+
   handleConnection(client: Socket) {
-    // Auth exclusively via handshake auth object — never from URL query params
-    const token = client.handshake.auth?.token as string | undefined;
-    const apiKey = client.handshake.auth?.apiKey as string | undefined;
+    const data = client.data as Record<string, unknown>;
+    const userId = data.userId as string | undefined;
+    const authMethod = data.authMethod as string | undefined;
 
-    if (apiKey) {
-      // Agent API key auth — resolve owner from hashed key
-      void this.authenticateWithApiKey(client, apiKey);
-      return;
-    }
-
-    if (!token) {
-      this.logger.warn(`WS connection rejected: no token (${client.id})`);
+    if (!userId) {
+      // Should never happen — middleware rejects unauth'd sockets.
+      this.logger.warn(`WS connection without userId (${client.id})`);
       client.disconnect(true);
       return;
     }
 
-    try {
-      const payload = this.jwtService.verify<{ sub: string }>(token);
-      const userId = payload.sub;
-
-      // Store userId on socket data for later use
-      (client.data as Record<string, unknown>).userId = userId;
+    if (authMethod === 'jwt') {
       void client.join(`user:${userId}`);
       this.logger.log(`Client connected: ${client.id} (user: ${userId})`);
-    } catch {
-      this.logger.warn(`WS connection rejected: invalid token (${client.id})`);
-      client.disconnect(true);
+    } else {
+      // API-key connections do NOT join the user room. The user room is for
+      // frontend clients (cross-channel notifications, unread badges etc.).
+      // Agents subscribe explicitly to their channel room via
+      // subscribe:channel. Joining both rooms causes every message:created
+      // event to be delivered twice — once per room — which leads to
+      // duplicate processing.
+      this.logger.log(
+        `Client connected via API key: ${client.id} (user: ${userId})`,
+      );
     }
   }
 
-  private async authenticateWithApiKey(client: Socket, rawKey: string) {
-    if (!rawKey.startsWith('hp_')) {
-      this.logger.warn(
-        `WS connection rejected: invalid API key format (${client.id})`,
-      );
-      client.disconnect(true);
-      return;
-    }
-
+  private async resolveApiKey(rawKey: string): Promise<string | null> {
+    if (!rawKey.startsWith('hp_')) return null;
     const keyHash = createHash('sha256').update(rawKey).digest('hex');
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { keyHash },
       select: { userId: true },
     });
-
-    if (!apiKey) {
-      this.logger.warn(
-        `WS connection rejected: unknown API key (${client.id})`,
-      );
-      client.disconnect(true);
-      return;
-    }
-
-    (client.data as Record<string, unknown>).userId = apiKey.userId;
-    // Do NOT join the user room for API-key connections.  The user room is
-    // for frontend clients (cross-channel notifications, unread badges etc.).
-    // Agents subscribe explicitly to their channel room via subscribe:channel.
-    // Joining both rooms causes every message:created event to be delivered
-    // twice — once per room — which leads to duplicate processing.
-    this.logger.log(
-      `Client connected via API key: ${client.id} (user: ${apiKey.userId})`,
-    );
+    return apiKey?.userId ?? null;
   }
 
   handleDisconnect(client: Socket) {

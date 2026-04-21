@@ -294,6 +294,12 @@ export const MessageInput = memo(function MessageInput({
               placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
               disabled={disabled}
               rows={1}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="sentences"
+              spellCheck={false}
+              inputMode="text"
+              enterKeyHint="send"
               className={cn(
                 'flex-1 min-h-[32px] sm:min-h-[40px] bg-transparent border-none outline-none text-base placeholder:text-muted-foreground resize-none py-1.5 sm:py-2.5 scrollbar-hide',
                 matchedCommand ? 'text-transparent caret-foreground' : 'text-foreground',

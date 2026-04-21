@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-04-21
+
+### Fixed
+
+- **WebSocket auth race condition** — `EventsGateway` now authenticates connections in a Socket.IO middleware (`server.use(...)`) instead of an async `handleConnection`, so `client.data.userId` is guaranteed to be set before any event handler runs. Previously, agents connecting via API key could emit `subscribe:channel` before the async DB lookup resolved, causing the handler's `if (!userId) return` guard to silently drop the join — with the result that `review:responded` and other channel-scoped events never reached the agent. Auth is now awaited before the connection is accepted. Clients with an invalid/missing key now receive a `connect_error` from the middleware instead of a post-`connect` `disconnect`; the documented requirement ("invalid or missing key → connection closed") is unchanged.
+- **Duplicate agent messages on retry** — `POST /api/v1/messages` (agent endpoint) now accepts an optional `clientId` idempotency key; if the agent retries a timed-out request with the same `clientId`, the backend returns the already-persisted message instead of creating a second row; facio's `PlacetChannel.send()` generates a UUID per call and includes it in every POST, eliminating the double-bubble that appeared after transient network errors
+
 ## [0.9.0] — 2026-04-21
 
 ### Added

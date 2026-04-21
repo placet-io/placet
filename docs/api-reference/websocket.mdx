@@ -30,7 +30,7 @@ sio.connect(
 )
 ```
 
-The server validates the API key on connection. If the key is invalid or missing, the connection is immediately closed.
+The server validates the API key on connection. If the key is invalid or missing, the connection is rejected before it is established — clients receive a Socket.IO `connect_error` (not a post-`connect` `disconnect`).
 
 ## Channel Subscription
 
