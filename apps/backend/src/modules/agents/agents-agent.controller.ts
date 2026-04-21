@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Put,
   Req,
@@ -18,12 +20,18 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AgentResponse, ErrorResponse } from '../../common/swagger-responses';
+import {
+  AgentResponse,
+  DeletedResponse,
+  ErrorResponse,
+} from '../../common/swagger-responses';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import type { RequestWithUser } from '../../common/types';
 import { AgentsService } from './agents.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
+import { UpdateAgentDto } from './dto/update-agent.dto';
 import { SetWebhookDto, DeleteWebhookDto } from './dto/set-webhook.dto';
+import { SetTagDto } from './dto/set-tag.dto';
 import { UpdateCommandsDto } from './dto/update-commands.dto';
 
 @ApiTags('Agents')
@@ -55,6 +63,32 @@ export class AgentsAgentController {
   })
   async create(@Req() req: RequestWithUser, @Body() dto: CreateAgentDto) {
     return this.agentsService.create(req.user.id, dto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a channel (agent)' })
+  @ApiOkResponse({ description: 'Agent updated', type: AgentResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async update(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateAgentDto,
+  ) {
+    return this.agentsService.update(id, req.user.id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a channel (agent)' })
+  @ApiOkResponse({ description: 'Agent deleted', type: DeletedResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async remove(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.agentsService.remove(id, req.user.id);
   }
 
   @Post('setWebhook')
@@ -121,5 +155,23 @@ export class AgentsAgentController {
     @Body() dto: UpdateCommandsDto,
   ) {
     return this.agentsService.updateCommands(id, req.user.id, dto.commands);
+  }
+
+  @Post('setTag')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Set grouping tag for a channel',
+    description:
+      'Assigns a short tag (e.g. "monitoring", "prod") to a channel. Used by frontends for grouping in the chat list. Pass null to clear the tag.',
+  })
+  @ApiOkResponse({ description: 'Tag updated', type: AgentResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async setTag(@Req() req: RequestWithUser, @Body() dto: SetTagDto) {
+    return this.agentsService.update(dto.channelId, req.user.id, {
+      tag: dto.tag,
+    });
   }
 }

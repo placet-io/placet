@@ -37,7 +37,8 @@
               "connections/mcp",
               "connections/rest-api",
               "connections/websocket",
-              "connections/webhooks"
+              "connections/webhooks",
+              "connections/oauth-relay"
             ]
           },
           {

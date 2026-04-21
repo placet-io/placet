@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize2, Reply, Check, CheckCheck, ChevronDown } from 'lucide-react';
+import { Maximize2, Reply, Check, CheckCheck, ChevronDown, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
@@ -12,8 +12,9 @@ import { MessageAttachments } from './message-attachments';
 import { FilePreviewModal } from './file-preview-modal';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format-date';
-import type { Attachment, DeliveryStatus, Review } from '@placet/shared';
+import type { Attachment, Review } from '@placet/shared';
 import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
+import type { ChatDeliveryStatus } from '@/lib/hooks/use-messages';
 
 interface MessageBubbleProps {
   messageId: string;
@@ -27,7 +28,7 @@ interface MessageBubbleProps {
   review?: Review | null;
   metadata?: Record<string, unknown> | null;
   attachments?: Attachment[];
-  deliveryStatus?: DeliveryStatus | null;
+  deliveryStatus?: ChatDeliveryStatus | null;
   iterationGroupId?: string | null;
   iteration?: number | null;
   iterationTotal?: number;
@@ -149,6 +150,10 @@ export const MessageBubble = memo(function MessageBubble({
     onReply?.(messageId, senderName, text);
   }, [messageId, senderName, text, onReply]);
 
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text);
+  }, [text]);
+
   const handlePluginReviewRespond = useCallback(
     async (response: Record<string, unknown>) => {
       await onReviewRespond?.(messageId, response);
@@ -269,7 +274,7 @@ export const MessageBubble = memo(function MessageBubble({
             </div>
           )}
           {!isUser && (
-            <div className="hidden sm:block w-8 h-8 shrink-0 mt-6">
+            <div className="hidden sm:block w-8 h-8 shrink-0 mt-0.5">
               <AgentAvatar name={senderName} avatarUrl={avatarUrl} size="sm" />
             </div>
           )}
@@ -295,16 +300,6 @@ export const MessageBubble = memo(function MessageBubble({
             )}
 
             <div className="flex items-start gap-1 max-w-full">
-              {isUser && onReply && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="hidden group-hover/msg:flex shrink-0 mt-1 text-muted-foreground hover:text-foreground"
-                  onClick={handleReply}
-                >
-                  <Reply size={14} />
-                </Button>
-              )}
               <div
                 className={cn(
                   'px-4 py-2.5 rounded-2xl text-base leading-relaxed min-w-0 break-words',
@@ -344,11 +339,17 @@ export const MessageBubble = memo(function MessageBubble({
                 {hasText && (
                   <>
                     {isUser && !expanded && bodyText.length > USER_MSG_COLLAPSE_CHARS ? (
-                      <div className="relative">
-                        <div className="overflow-hidden max-h-24">
-                          <MarkdownContent content={bodyText} onFilePreview={handleFilePreview} />
+                      <div>
+                        <div className="relative">
+                          <div className="overflow-hidden max-h-24">
+                            <MarkdownContent
+                              content={bodyText}
+                              onFilePreview={handleFilePreview}
+                              isUser={isUser}
+                            />
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-primary to-transparent pointer-events-none" />
                         </div>
-                        <div className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-primary to-transparent" />
                         <button
                           type="button"
                           className="flex items-center gap-1 text-xs text-primary-foreground/80 hover:text-primary-foreground mt-1"
@@ -359,7 +360,11 @@ export const MessageBubble = memo(function MessageBubble({
                         </button>
                       </div>
                     ) : (
-                      <MarkdownContent content={bodyText} onFilePreview={handleFilePreview} />
+                      <MarkdownContent
+                        content={bodyText}
+                        onFilePreview={handleFilePreview}
+                        isUser={isUser}
+                      />
                     )}
                   </>
                 )}
@@ -406,21 +411,70 @@ export const MessageBubble = memo(function MessageBubble({
                   />
                 )}
               </div>
-              {!isUser && onReply && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="hidden group-hover/msg:flex shrink-0 mt-1 text-muted-foreground hover:text-foreground"
-                  onClick={handleReply}
-                >
-                  <Reply size={14} />
-                </Button>
-              )}
             </div>
 
             <div className={cn('flex items-center gap-1 mt-1', isUser ? 'mr-1' : 'ml-1')}>
+              {isUser && (
+                <div className="hidden group-hover/msg:flex items-center gap-0.5">
+                  {onReply && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                      onClick={handleReply}
+                    >
+                      <Reply size={12} />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                    onClick={handleCopy}
+                    title="Copy message"
+                  >
+                    <Copy size={12} />
+                  </Button>
+                </div>
+              )}
+              {isUser && deliveryStatus === 'unsent' && (
+                <span className="text-xs text-destructive">Not sent</span>
+              )}
+              {isUser && deliveryStatus === 'unsent' && onRetryDelivery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1.5 text-xs text-destructive hover:text-destructive"
+                  onClick={() => void onRetryDelivery(messageId)}
+                >
+                  Resend
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground">{time}</span>
-              {isUser && deliveryStatus && (
+              {!isUser && (
+                <div className="hidden group-hover/msg:flex items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                    onClick={handleCopy}
+                    title="Copy message"
+                  >
+                    <Copy size={12} />
+                  </Button>
+                  {onReply && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                      onClick={handleReply}
+                    >
+                      <Reply size={12} />
+                    </Button>
+                  )}
+                </div>
+              )}
+              {isUser && deliveryStatus && deliveryStatus !== 'unsent' && (
                 <span
                   className={cn(
                     'inline-flex',

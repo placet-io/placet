@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -117,11 +118,28 @@ export class MessagesController {
     type: ErrorResponse,
   })
   create(@Req() req: RequestWithUser, @Body() dto: CreateUserMessageDto) {
+    const rawDto = dto as unknown as Record<string, unknown>;
+    const channelId = rawDto.channelId;
+    const text = rawDto.text;
+    const attachmentIds = rawDto.attachmentIds;
+    const clientId = rawDto.clientId;
+    const hasStringAttachmentIds =
+      Array.isArray(attachmentIds) &&
+      attachmentIds.every((item) => typeof item === 'string');
+    const safeAttachmentIds = hasStringAttachmentIds
+      ? attachmentIds
+      : undefined;
+
+    if (typeof channelId !== 'string') {
+      throw new BadRequestException('channelId must be a string');
+    }
+
     return this.messagesService.createFromUser(
       req.user.id,
-      dto.channelId,
-      dto.text,
-      dto.attachmentIds,
+      channelId,
+      typeof text === 'string' ? text : undefined,
+      safeAttachmentIds,
+      typeof clientId === 'string' ? clientId : undefined,
     );
   }
 

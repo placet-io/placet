@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Inject, Logger, forwardRef } from '@nestjs/common';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OAuthRelayService } from '../oauth-relay/oauth-relay.service';
 
 function resolveWsCors(): { origin: string | string[] | boolean } {
   const env = process.env.NODE_ENV;
@@ -36,6 +37,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => OAuthRelayService))
+    private readonly oauthRelay: OAuthRelayService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -189,6 +192,52 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     if (!data?.channelId) return;
     this.server.to(`channel:${data.channelId}`).emit('agent:commands', data);
+  }
+
+  // ── OAuth relay events ──────────────────────────────────
+
+  @SubscribeMessage('oauth:start')
+  async handleOAuthStart(
+    client: Socket,
+    data: {
+      channelId: string;
+      state: string;
+      provider: string;
+      authUrl?: string;
+      deviceCode?: {
+        verificationUri: string;
+        userCode: string;
+        expiresIn?: number;
+      };
+    },
+  ) {
+    if (!data?.channelId || !data?.state || !data?.provider) return;
+
+    const userId = (client.data as Record<string, unknown>).userId as
+      | string
+      | undefined;
+    if (!userId) return;
+
+    // Verify channel ownership
+    const agent = await this.prisma.agent.findFirst({
+      where: { id: data.channelId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!agent) return;
+
+    // Register state for auth code callback resolution
+    if (data.authUrl) {
+      this.oauthRelay.register(data.state, data.channelId, data.provider);
+    }
+
+    // Forward to the user's frontend (user room)
+    this.emitToUser(userId, 'oauth:start', {
+      channelId: data.channelId,
+      state: data.state,
+      provider: data.provider,
+      authUrl: data.authUrl ?? null,
+      deviceCode: data.deviceCode ?? null,
+    });
   }
 
   // ── Server-side emit helpers ───────────────────────────────

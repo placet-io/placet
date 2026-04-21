@@ -70,6 +70,12 @@ export class AgentResponse {
   @ApiPropertyOptional({ example: 'https://example.com/webhook' })
   webhookUrl?: string;
 
+  @ApiPropertyOptional({
+    example: 'monitoring',
+    description: 'Grouping tag used for chat list organization',
+  })
+  tag?: string;
+
   @ApiPropertyOptional({ example: '2025-01-01T12:00:00.000Z' })
   lastActiveAt?: string;
 

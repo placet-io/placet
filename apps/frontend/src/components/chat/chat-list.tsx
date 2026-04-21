@@ -2,7 +2,15 @@
 
 import { memo, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, Loader2 } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Loader2,
+  LayoutList,
+  FolderClosed,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,6 +27,75 @@ export interface AgentListItem {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount?: number;
+  tag?: string | null;
+}
+
+type ViewMode = 'flat' | 'grouped';
+
+const VIEW_MODE_KEY = 'placet:chat-list-view';
+
+function getInitialViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'flat';
+  try {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    if (stored === 'grouped') return 'grouped';
+  } catch {
+    /* ignore */
+  }
+  return 'flat';
+}
+
+/** Tag group header with collapsible child items. */
+function CollapsibleGroup({
+  tag,
+  items,
+  activeAgentId,
+}: {
+  tag: string;
+  items: AgentListItem[];
+  activeAgentId?: string;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 pt-2 pb-1 hover:bg-muted/50 rounded-lg transition-colors cursor-pointer"
+      >
+        <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary text-xs font-semibold uppercase">
+          {tag.charAt(0)}
+        </span>
+        <span className="flex-1 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {tag}
+        </span>
+        {open ? (
+          <ChevronDown size={14} className="text-muted-foreground" />
+        ) : (
+          <ChevronRight size={14} className="text-muted-foreground" />
+        )}
+      </button>
+      {open &&
+        items.map((agent) => (
+          <ChatListItem
+            key={agent.id}
+            agentId={agent.id}
+            name={agent.name}
+            avatarUrl={
+              agent.avatarUrl
+                ? `/api/agents/${agent.id}/avatar?v=${encodeURIComponent(agent.avatarUrl)}`
+                : null
+            }
+            description={agent.description}
+            lastMessage={agent.lastMessage}
+            lastMessageTime={agent.lastMessageTime}
+            unreadCount={agent.unreadCount}
+            tag={agent.tag}
+            isActive={agent.id === activeAgentId}
+          />
+        ))}
+    </div>
+  );
 }
 
 interface ChatListProps {
@@ -38,8 +115,34 @@ export const ChatList = memo(function ChatList({
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+
+  const toggleViewMode = useCallback(() => {
+    setViewMode((prev) => {
+      const next = prev === 'flat' ? 'grouped' : 'flat';
+      try {
+        localStorage.setItem(VIEW_MODE_KEY, next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   const filtered = agents.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()));
+
+  // Group by tag: untagged first, then alphabetical by tag name
+  const grouped = filtered.reduce<Map<string, AgentListItem[]>>((acc, agent) => {
+    const key = agent.tag ?? '';
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key)!.push(agent);
+    return acc;
+  }, new Map());
+  const groupKeys = Array.from(grouped.keys()).sort((a, b) => {
+    if (a === '') return -1;
+    if (b === '') return 1;
+    return a.localeCompare(b);
+  });
 
   const handleCreate = useCallback(async () => {
     if (creating || !newName.trim()) return;
@@ -69,14 +172,25 @@ export const ChatList = memo(function ChatList({
             <MobileNavDrawer />
             <h1 className="text-xl font-semibold text-foreground">Agents</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-lg"
-            onClick={() => setShowCreate((v) => !v)}
-          >
-            <Plus size={18} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              onClick={toggleViewMode}
+              title={viewMode === 'flat' ? 'Switch to grouped view' : 'Switch to flat view'}
+            >
+              {viewMode === 'flat' ? <FolderClosed size={18} /> : <LayoutList size={18} />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              onClick={() => setShowCreate((v) => !v)}
+            >
+              <Plus size={18} />
+            </Button>
+          </div>
         </div>
 
         {showCreate && (
@@ -119,24 +233,60 @@ export const ChatList = memo(function ChatList({
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-2 space-y-0.5">
-          {filtered.map((agent) => (
-            <ChatListItem
-              key={agent.id}
-              agentId={agent.id}
-              name={agent.name}
-              avatarUrl={
-                agent.avatarUrl
-                  ? `/api/agents/${agent.id}/avatar?v=${encodeURIComponent(agent.avatarUrl)}`
-                  : null
-              }
-              description={agent.description}
-              lastMessage={agent.lastMessage}
-              lastMessageTime={agent.lastMessageTime}
-              unreadCount={agent.unreadCount}
-              isActive={agent.id === activeAgentId}
-            />
-          ))}
+        <div className="p-2 space-y-2">
+          {viewMode === 'grouped'
+            ? /* Grouped view — collapsible sections per tag */
+              groupKeys.map((tag) => {
+                const items = grouped.get(tag)!;
+                return tag ? (
+                  <CollapsibleGroup
+                    key={tag}
+                    tag={tag}
+                    items={items}
+                    activeAgentId={activeAgentId}
+                  />
+                ) : (
+                  <div key="untagged" className="space-y-0.5">
+                    {items.map((agent) => (
+                      <ChatListItem
+                        key={agent.id}
+                        agentId={agent.id}
+                        name={agent.name}
+                        avatarUrl={
+                          agent.avatarUrl
+                            ? `/api/agents/${agent.id}/avatar?v=${encodeURIComponent(agent.avatarUrl)}`
+                            : null
+                        }
+                        description={agent.description}
+                        lastMessage={agent.lastMessage}
+                        lastMessageTime={agent.lastMessageTime}
+                        unreadCount={agent.unreadCount}
+                        tag={agent.tag}
+                        isActive={agent.id === activeAgentId}
+                      />
+                    ))}
+                  </div>
+                );
+              })
+            : /* Flat view — simple list, tag shown as badge on each item */
+              filtered.map((agent) => (
+                <ChatListItem
+                  key={agent.id}
+                  agentId={agent.id}
+                  name={agent.name}
+                  avatarUrl={
+                    agent.avatarUrl
+                      ? `/api/agents/${agent.id}/avatar?v=${encodeURIComponent(agent.avatarUrl)}`
+                      : null
+                  }
+                  description={agent.description}
+                  lastMessage={agent.lastMessage}
+                  lastMessageTime={agent.lastMessageTime}
+                  unreadCount={agent.unreadCount}
+                  tag={agent.tag}
+                  isActive={agent.id === activeAgentId}
+                />
+              ))}
           {filtered.length === 0 && (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
               {search ? 'No chats found' : 'No chats yet. Click + to create one.'}

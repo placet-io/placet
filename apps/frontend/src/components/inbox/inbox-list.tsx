@@ -263,7 +263,7 @@ const InboxListItem = memo(function InboxListItem({
         <div className="flex items-baseline justify-between gap-2 mb-0.5">
           <h3
             className={cn(
-              'truncate text-sm font-medium',
+              'truncate text-base font-medium',
               isUnread ? 'text-primary' : 'text-foreground',
             )}
           >
@@ -276,29 +276,26 @@ const InboxListItem = memo(function InboxListItem({
         <div className="flex items-center gap-2">
           <p
             className={cn(
-              'truncate text-xs flex-1',
+              'truncate text-sm flex-1',
               isUnread ? 'text-foreground/80' : 'text-muted-foreground',
             )}
           >
             {text ?? 'Review requested'}
           </p>
           {reviewType && (
-            <Badge variant="outline" className="shrink-0 text-[10px] h-4 px-1.5 rounded-md">
+            <Badge variant="outline" className="shrink-0 text-xs h-4 px-1.5 rounded-md">
               {REVIEW_TYPE_LABELS[reviewType] ?? reviewType}
             </Badge>
           )}
           {iteration != null && iteration > 1 && (
-            <Badge
-              variant="outline"
-              className="shrink-0 text-[10px] h-4 px-1.5 rounded-md font-mono"
-            >
+            <Badge variant="outline" className="shrink-0 text-xs h-4 px-1.5 rounded-md font-mono">
               Rev {iteration}
             </Badge>
           )}
           {isDone && (
             <Badge
               variant={reviewStatus === 'completed' ? 'default' : 'secondary'}
-              className="shrink-0 text-[10px] h-4 px-1.5 rounded-md"
+              className="shrink-0 text-xs h-4 px-1.5 rounded-md"
             >
               {reviewStatus === 'completed' ? 'Done' : 'Expired'}
             </Badge>

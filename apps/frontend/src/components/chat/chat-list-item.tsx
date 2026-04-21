@@ -14,6 +14,7 @@ interface ChatListItemProps {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount?: number;
+  tag?: string | null;
   isActive?: boolean;
 }
 
@@ -25,6 +26,7 @@ export const ChatListItem = memo(function ChatListItem({
   lastMessage,
   lastMessageTime,
   unreadCount = 0,
+  tag,
   isActive = false,
 }: ChatListItemProps) {
   return (
@@ -38,8 +40,13 @@ export const ChatListItem = memo(function ChatListItem({
       <AgentAvatar name={name} avatarUrl={avatarUrl} size="md" className="shrink-0" />
 
       <div className="min-w-0 flex-1">
+        {tag && (
+          <Badge variant="secondary" className="h-4 px-1.5 text-xs font-medium leading-none mb-0.5">
+            {tag}
+          </Badge>
+        )}
         <div className="flex items-baseline justify-between gap-2 mb-0.5">
-          <h3 className="truncate text-sm font-medium text-foreground">{name}</h3>
+          <h3 className="truncate text-base font-medium text-foreground min-w-0 flex-1">{name}</h3>
           {lastMessageTime && (
             <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
               {lastMessageTime}
@@ -47,7 +54,7 @@ export const ChatListItem = memo(function ChatListItem({
           )}
         </div>
         <div className="relative flex items-center gap-2">
-          <p className={cn('truncate text-xs text-muted-foreground', unreadCount > 0 && 'pr-7')}>
+          <p className={cn('truncate text-sm text-muted-foreground', unreadCount > 0 && 'pr-7')}>
             {lastMessage ?? description ?? 'No messages yet'}
           </p>
           {unreadCount > 0 && (

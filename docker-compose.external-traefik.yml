@@ -1,0 +1,203 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Placet — Production Compose for existing Traefik on the host
+# ─────────────────────────────────────────────────────────────────────────────
+# Use this file when Traefik is already running in another compose project.
+# This stack does NOT start its own Traefik.
+#
+# Usage:
+#   docker compose -f docker-compose.external-traefik.yml up -d --build
+#
+# Step 1 — find your Traefik network name:
+#   docker inspect placet-traefik \
+#     --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+#
+# Step 2 — add to your .env:
+#   docker compose -f docker-compose.external-traefik.yml up -d --build<network name from above>
+#   DOMAIN=app.example.com
+#   ACME_EMAIL=admin@example.com   (only needed if you want TLS via this Traefik)
+#
+# Required .env variables:
+#   TRAEFIK_NETWORK          — Docker network Traefik is connected to
+#   DOMAIN                   — Domain for the app (e.g. app.placet.dev)
+#   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   JWT_SECRET
+#   MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, MINIO_BUCKET
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Database ─────────────────────────────────────────────────────────────
+
+  postgres:
+    container_name: placet-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-placet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-placet}
+      POSTGRES_DB: ${POSTGRES_DB:-placet}
+    volumes:
+      - ./volumes/pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-placet}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible storage) ────────────────────────────────────────
+
+  minio:
+    container_name: placet-minio
+    image: minio/minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./volumes/miniodata:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-setup:
+    container_name: placet-minio-setup
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: 'no'
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing myminio/$${MINIO_BUCKET};
+      mc anonymous set download myminio/$${MINIO_BUCKET};
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-placet}
+    networks:
+      - internal
+
+  # ── Backend API ──────────────────────────────────────────────────────────
+
+  backend:
+    container_name: placet-backend
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      BACKEND_PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-placet}:${POSTGRES_PASSWORD:-placet}@postgres:5432/${POSTGRES_DB:-placet}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-placet}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:-admin@placet.local}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-changeme}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      APP_URL: https://${DOMAIN}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@placet.local}
+      THROTTLE_TTL: ${THROTTLE_TTL:-60}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
+      ALLOW_PLUGIN_LOCAL_FETCH: ${ALLOW_PLUGIN_LOCAL_FETCH:-false}
+    networks:
+      - internal
+      - traefik
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${TRAEFIK_NETWORK}
+      # Shared service definition — both routers use the same backend service
+      traefik.http.services.placet-backend.loadbalancer.server.port: ${BACKEND_PORT:-3001}
+      # API routes
+      traefik.http.routers.placet-backend.rule: Host(`${DOMAIN}`) && PathPrefix(`/api`)
+      traefik.http.routers.placet-backend.entrypoints: websecure
+      traefik.http.routers.placet-backend.tls.certresolver: letsencrypt
+      traefik.http.routers.placet-backend.service: placet-backend
+      # WebSocket (Socket.io)
+      traefik.http.routers.placet-backend-ws.rule: Host(`${DOMAIN}`) && PathPrefix(`/socket.io`)
+      traefik.http.routers.placet-backend-ws.entrypoints: websecure
+      traefik.http.routers.placet-backend-ws.tls.certresolver: letsencrypt
+      traefik.http.routers.placet-backend-ws.service: placet-backend
+
+  # ── App Frontend ─────────────────────────────────────────────────────────
+
+  frontend:
+    container_name: placet-frontend
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      INTERNAL_API_URL: http://backend:${BACKEND_PORT:-3001}
+      NEXT_PUBLIC_WS_URL: https://${DOMAIN}
+      NEXT_PUBLIC_APP_URL: https://${DOMAIN}
+    networks:
+      - internal
+      - traefik
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${TRAEFIK_NETWORK}
+      traefik.http.routers.placet-frontend.rule: Host(`${DOMAIN}`)
+      traefik.http.routers.placet-frontend.entrypoints: websecure
+      traefik.http.routers.placet-frontend.tls.certresolver: letsencrypt
+      traefik.http.services.placet-frontend.loadbalancer.server.port: 3000
+
+  # ── MCP Server ───────────────────────────────────────────────────────────
+
+  mcp-server:
+    container_name: placet-mcp-server
+    build:
+      context: .
+      dockerfile: packages/mcp-server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      PLACET_API_URL: http://backend:${BACKEND_PORT:-3001}
+      PLACET_DEFAULT_CHANNEL: ${PLACET_DEFAULT_CHANNEL:-}
+      MCP_PORT: ${MCP_PORT:-3002}
+      MCP_CONNECTION_TIMEOUT_MS: ${MCP_CONNECTION_TIMEOUT_MS:-300000}
+    networks:
+      - internal
+      - traefik
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${TRAEFIK_NETWORK}
+      traefik.http.routers.placet-mcp.rule: Host(`${DOMAIN}`) && PathPrefix(`/mcp`)
+      traefik.http.routers.placet-mcp.entrypoints: websecure
+      traefik.http.routers.placet-mcp.tls.certresolver: letsencrypt
+      traefik.http.services.placet-mcp.loadbalancer.server.port: ${MCP_PORT:-3002}
+
+networks:
+  # Internal network — only reachable from within the stack
+  internal:
+    internal: true
+
+  # External Traefik network — must already exist on the host
+  # Name is taken from TRAEFIK_NETWORK env var
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK}
+
+volumes: {}

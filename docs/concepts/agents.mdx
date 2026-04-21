@@ -208,6 +208,20 @@ Agents can upload files and attach them to messages. Upload a file first, then r
 
 Files are previewed inline in the chat. Supported formats include images, PDFs, video, audio, Office documents, spreadsheets, code files, and more. Users can annotate images directly in the preview.
 
+### Inline HTML Attachments
+
+When a message contains a single `text/html` attachment and **Inline HTML rendering** is enabled in chat settings, Placet renders that file inside a sandboxed iframe.
+
+This is useful for lightweight interactive demos, status panels, or self-contained UI mockups, but the iframe has important limits:
+
+- Use `addEventListener()` instead of inline event attributes like `onclick`
+- Do not rely on `<form>` submission
+- Do not rely on `alert()`, `confirm()`, or `prompt()`
+- Do not rely on `window.open()` or popup flows
+- Regular CSS, DOM manipulation, and `<script>` tags work
+
+In practice, inline HTML attachments should be written as self-contained HTML/CSS/JS pages that do all interaction inside the document itself.
+
 ## Agent Status
 
 Agents can report their operational status via the heartbeat endpoint:

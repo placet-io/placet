@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { MessageBubble } from './message-bubble';
 import { ShimmerText } from './shimmer-text';
 import { useTypewriter } from '@/lib/hooks/use-typewriter';
-import type { Message } from '@placet/shared';
+import type { ChatMessage, StreamingMessage } from '@/lib/hooks/use-messages';
+
+const QUOTED_REPLY_PREFIX = /^> \*\*.+?:\*\* .+?(?:…)?\n\n[\s\S]*$/;
 
 interface MessageListProps {
-  messages: Message[];
+  messages: ChatMessage[];
   agentName: string;
   agentAvatarUrl?: string | null;
   channelId?: string;
@@ -17,7 +19,7 @@ interface MessageListProps {
   loadingOlder?: boolean;
   hasMore?: boolean;
   highlightMessageId?: string | null;
-  streamingContent?: string | null;
+  streamingMessages?: StreamingMessage[];
   progress?: {
     content: string;
     toolHint: boolean;
@@ -35,6 +37,39 @@ interface MessageListProps {
   onRetryDelivery?: (messageId: string) => Promise<void>;
 }
 
+const StreamingBubble = memo(function StreamingBubble({
+  stream,
+  agentName,
+  agentAvatarUrl,
+  channelId,
+}: {
+  stream: StreamingMessage;
+  agentName: string;
+  agentAvatarUrl?: string | null;
+  channelId?: string;
+}) {
+  const displayedStreaming = useTypewriter(stream.content);
+
+  return (
+    <MessageBubble
+      messageId={`__streaming__${stream.streamId}`}
+      channelId={channelId}
+      senderType="agent"
+      senderName={agentName}
+      avatarUrl={agentAvatarUrl}
+      text={displayedStreaming ?? stream.content}
+      createdAt={stream.createdAt}
+      status={null}
+      review={null}
+      metadata={null}
+      attachments={[]}
+      deliveryStatus={null}
+      iterationGroupId={null}
+      iteration={null}
+    />
+  );
+});
+
 export const MessageList = memo(function MessageList({
   messages,
   agentName,
@@ -44,7 +79,7 @@ export const MessageList = memo(function MessageList({
   loadingOlder = false,
   hasMore = false,
   highlightMessageId,
-  streamingContent,
+  streamingMessages = [],
   progress,
   onLoadOlder,
   onSetupWebhook,
@@ -54,7 +89,7 @@ export const MessageList = memo(function MessageList({
   onRetryDelivery,
 }: MessageListProps) {
   const [copied, setCopied] = useState(false);
-  const displayedStreaming = useTypewriter(streamingContent ?? null);
+  const latestStreamingContent = streamingMessages[streamingMessages.length - 1]?.content ?? null;
 
   // Compute max iteration per group for "Iteration X/Y" display
   const iterationTotals = useMemo(() => {
@@ -207,12 +242,20 @@ export const MessageList = memo(function MessageList({
 
     if (isNewMessage && !wasLoadingOlder) {
       if (lastMsg.senderType === 'user') {
-        // User just sent a message — pin it at ~40% from top so the
-        // upcoming response has room to appear below.
-        pinnedUserMessageIdRef.current = lastId;
+        const isQuotedReply = !!lastMsg.text && QUOTED_REPLY_PREFIX.test(lastMsg.text);
+
+        // Quoted replies should keep normal bottom-follow behavior; otherwise
+        // the pinning mode can make older agent messages appear to vanish.
+        pinnedUserMessageIdRef.current = isQuotedReply ? null : lastId;
         isAtBottomRef.current = true;
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
+            if (isQuotedReply) {
+              updateSpacer();
+              bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+              return;
+            }
+
             scrollUserMessageIntoView();
           });
         });
@@ -231,18 +274,18 @@ export const MessageList = memo(function MessageList({
 
     prevLengthRef.current = messages.length;
     prevLastIdRef.current = lastId;
-  }, [messages, scrollUserMessageIntoView, scrollFollowContent]);
+  }, [messages, scrollUserMessageIntoView, scrollFollowContent, updateSpacer]);
 
   // Auto-scroll during streaming — follow the growing response while
   // keeping the user message visible as long as it fits in the viewport.
   useEffect(() => {
-    if (!displayedStreaming) return;
+    if (!latestStreamingContent) return;
     if (!isAtBottomRef.current) return;
 
     requestAnimationFrame(() => {
       scrollFollowContent();
     });
-  }, [displayedStreaming, scrollFollowContent]);
+  }, [latestStreamingContent, scrollFollowContent]);
 
   // Auto-scroll when progress/status changes (only when at bottom)
   useEffect(() => {
@@ -368,7 +411,7 @@ export const MessageList = memo(function MessageList({
     <div
       ref={scrollContainerRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto scrollbar-hide"
+      className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
     >
       <div className="flex flex-col min-h-full p-6 gap-4">
         {/* Push messages to the bottom when there are few */}
@@ -447,25 +490,16 @@ export const MessageList = memo(function MessageList({
           />
         ))}
 
-        {/* Streaming: show partial response as it arrives */}
-        {displayedStreaming && (
-          <MessageBubble
-            messageId="__streaming__"
+        {/* Streaming: keep concurrent or segmented responses isolated per stream. */}
+        {streamingMessages.map((stream) => (
+          <StreamingBubble
+            key={stream.streamId}
+            stream={stream}
+            agentName={agentName}
+            agentAvatarUrl={agentAvatarUrl}
             channelId={channelId}
-            senderType="agent"
-            senderName={agentName}
-            avatarUrl={agentAvatarUrl}
-            text={displayedStreaming}
-            createdAt={new Date().toISOString()}
-            status={null}
-            review={null}
-            metadata={null}
-            attachments={[]}
-            deliveryStatus={null}
-            iterationGroupId={null}
-            iteration={null}
           />
-        )}
+        ))}
 
         {/* Progress/activity indicator */}
         {progress?.content ? (

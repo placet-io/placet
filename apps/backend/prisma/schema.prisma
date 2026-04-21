@@ -39,6 +39,7 @@ model Agent {
   statusSince    DateTime? @map("status_since")
   lastActiveAt   DateTime? @map("last_active_at")
   commands       Json?     // Slash command metadata from agent [{command, description, acceptsArgs?, argHint?}]
+  tag            String?   // Grouping tag for chat list (e.g. "monitoring", "prod"). Agent-settable via x-api-key.
   createdAt    DateTime  @default(now()) @map("created_at")
 
   owner          User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)

@@ -466,6 +466,7 @@ export class MessagesService {
     channelId: string,
     text?: string,
     attachmentIds?: string[],
+    clientId?: string,
   ) {
     const agent = await this.assertOwnership(channelId, userId);
 
@@ -475,6 +476,7 @@ export class MessagesService {
         senderType: 'user',
         senderId: userId,
         ...(text ? { text } : {}),
+        ...(clientId ? { metadata: { clientId } } : {}),
       },
       include: { attachments: true },
     });

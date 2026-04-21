@@ -60,7 +60,14 @@ export const MessageInput = memo(function MessageInput({
       const newText = cmd.acceptsArgs ? cmd.command + ' ' : cmd.command;
       setText(newText);
       setShowCommands(false);
-      textareaRef.current?.focus();
+      // Move cursor to end after React re-renders with the new value
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(newText.length, newText.length);
+        }
+      });
       // If command doesn't accept args, send immediately
       if (!cmd.acceptsArgs) {
         onSend(cmd.command);
@@ -178,7 +185,12 @@ export const MessageInput = memo(function MessageInput({
   const canSend = pendingFile ? !uploading : !!text.trim();
 
   return (
-    <div className={cn('bg-card', className)}>
+    <div
+      className={cn(
+        'sticky bottom-0 z-20 shrink-0 border-t border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90',
+        className,
+      )}
+    >
       {/* Quote preview (hidden when file is pending) */}
       {quotedMessage && !pendingFile && (
         <div className="mx-4 mt-2 flex items-center gap-2 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">

@@ -32,6 +32,7 @@ const AGENT_SELECT = {
   statusSince: true,
   lastActiveAt: true,
   commands: true,
+  tag: true,
   createdAt: true,
 } as const;
 
@@ -154,6 +155,7 @@ export class AgentsService {
         description: dto.description,
         avatarUrl: dto.avatarUrl,
         webhookUrl: dto.webhookUrl,
+        tag: dto.tag,
       },
       select: AGENT_SELECT,
     });
@@ -175,6 +177,7 @@ export class AgentsService {
         ...(dto.webhookAuth !== undefined && {
           webhookAuth: jsonOrDbNull(dto.webhookAuth),
         }),
+        ...(dto.tag !== undefined && { tag: dto.tag }),
       },
       select: AGENT_SELECT,
     });

@@ -9,7 +9,7 @@ interface ChatSettings {
 }
 
 const DEFAULTS: ChatSettings = {
-  inlineHtml: false,
+  inlineHtml: true,
 };
 
 function load(): ChatSettings {

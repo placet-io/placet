@@ -20,19 +20,29 @@ function useStableViewport(containerRef: React.RefObject<HTMLDivElement | null>)
     const vv = window.visualViewport;
     if (!vv) return;
 
-    const onResize = () => {
+    const update = () => {
       const container = containerRef.current;
       if (!container) return;
-      // Offset for the keyboard: difference between layout viewport and visual viewport
-      const offset = window.innerHeight - vv.height;
-      container.style.height = offset > 0 ? `${vv.height}px` : '';
+      const keyboardOpen = window.innerHeight - vv.height > 50;
+      if (keyboardOpen) {
+        // Use the visual viewport on mobile keyboard open and clamp offsets to
+        // avoid Safari reporting negative or stale positions during animation.
+        container.style.height = `${Math.min(window.innerHeight, vv.height)}px`;
+        container.style.transform = `translateY(${Math.max(0, vv.offsetTop)}px)`;
+      } else {
+        container.style.height = '';
+        container.style.transform = '';
+      }
     };
 
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
     return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
     };
   }, [containerRef]);
 }
@@ -64,7 +74,7 @@ export default function ChatThreadPage() {
     loading: messagesLoading,
     loadingOlder,
     hasMore,
-    streamingContent,
+    streamingMessages,
     progress,
     sendMessage,
     uploadFile,
@@ -110,7 +120,7 @@ export default function ChatThreadPage() {
   return (
     <div
       ref={containerRef}
-      className="flex flex-1 flex-col bg-card lg:rounded-3xl overflow-hidden lg:shadow-sm relative h-full lg:border lg:border-border/50"
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-3xl lg:border lg:border-border/50 lg:shadow-sm"
     >
       <ChatHeader
         ref={headerRef}
@@ -127,6 +137,7 @@ export default function ChatThreadPage() {
           agentId={agentId}
           name={agentName}
           avatarUrl={agentAvatarUrl}
+          tag={agent?.tag}
           webhookUrl={agent?.webhookUrl}
           webhookHeaders={agent?.webhookHeaders}
           webhookAuth={agent?.webhookAuth}
@@ -143,7 +154,7 @@ export default function ChatThreadPage() {
             loadingOlder={loadingOlder}
             hasMore={hasMore}
             highlightMessageId={highlightMessageId}
-            streamingContent={streamingContent}
+            streamingMessages={streamingMessages}
             progress={progress}
             onLoadOlder={handleLoadOlder}
             onSetupWebhook={handleSetupWebhook}

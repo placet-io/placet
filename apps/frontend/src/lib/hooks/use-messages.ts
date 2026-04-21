@@ -1,33 +1,180 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message, PaginatedResponse } from '@placet/shared';
 import { api } from '@/lib/api';
 import { useSocket } from '@/lib/contexts/socket-context';
 
 const PAGE_SIZE = 25;
+const PENDING_MESSAGES_STORAGE_KEY = 'placet:pending-messages';
+
+export type ChatDeliveryStatus = Message['deliveryStatus'] | 'unsent';
+export interface ChatMessage extends Omit<Message, 'deliveryStatus'> {
+  deliveryStatus?: ChatDeliveryStatus;
+}
+
+export interface StreamingMessage {
+  streamId: string;
+  content: string;
+  complete: boolean;
+  createdAt: string;
+}
+
+function getPendingMessagesStorageKey(channelId: string) {
+  return `${PENDING_MESSAGES_STORAGE_KEY}:${channelId}`;
+}
+
+function getMessageClientId(metadata: ChatMessage['metadata']): string | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const clientId = metadata.clientId;
+  return typeof clientId === 'string' ? clientId : null;
+}
+
+function createPendingMessage(channelId: string, text: string, clientId: string): ChatMessage {
+  return {
+    id: `pending:${clientId}`,
+    channelId,
+    senderType: 'user',
+    senderId: 'local',
+    text,
+    status: null,
+    review: null,
+    metadata: { clientId, pending: true },
+    deliveryStatus: 'unsent',
+    iterationGroupId: null,
+    iteration: null,
+    createdAt: new Date().toISOString(),
+    attachments: [],
+  };
+}
+
+function readPendingMessages(channelId: string): ChatMessage[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const stored = window.localStorage.getItem(getPendingMessagesStorageKey(channelId));
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? (parsed as ChatMessage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingMessages(channelId: string, messages: ChatMessage[]) {
+  if (typeof window === 'undefined') return;
+
+  const key = getPendingMessagesStorageKey(channelId);
+  if (messages.length === 0) {
+    window.localStorage.removeItem(key);
+    return;
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(messages));
+}
+
+function reconcilePendingMessages(pending: ChatMessage[], persisted: Message[]) {
+  const persistedClientIds = new Set(
+    persisted
+      .map((message) => getMessageClientId(message.metadata))
+      .filter((clientId): clientId is string => !!clientId),
+  );
+
+  return pending.filter((message) => {
+    const clientId = getMessageClientId(message.metadata);
+    return !clientId || !persistedClientIds.has(clientId);
+  });
+}
 
 export function useMessages(channelId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [streamingContent, setStreamingContent] = useState<string | null>(null);
+  const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
   const [progress, setProgress] = useState<{
     content: string;
     toolHint: boolean;
   } | null>(null);
   const cursorRef = useRef<string | null>(null);
-  const streamBufferRef = useRef<string>('');
+  const retryingPendingIdsRef = useRef<Set<string>>(new Set());
   const { socket, connected, subscribe, unsubscribe, markRead } = useSocket();
+
+  const allMessages = useMemo(() => {
+    const reconciledPending = reconcilePendingMessages(pendingMessages, messages);
+    return [...messages, ...reconciledPending].sort(
+      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+    );
+  }, [messages, pendingMessages]);
+
+  const removePendingMessage = useCallback((match: { id?: string; clientId?: string }) => {
+    setPendingMessages((prev) =>
+      prev.filter((message) => {
+        if (match.id && message.id === match.id) return false;
+        if (match.clientId && getMessageClientId(message.metadata) === match.clientId) return false;
+        return true;
+      }),
+    );
+  }, []);
+
+  const addOrReplaceMessage = useCallback((message: Message) => {
+    setMessages((prev) => {
+      if (prev.some((existing) => existing.id === message.id)) {
+        return prev;
+      }
+      return [...prev, message];
+    });
+  }, []);
+
+  const submitPendingMessage = useCallback(
+    async (pendingMessage: ChatMessage) => {
+      if (!channelId || !pendingMessage.text) return;
+      if (retryingPendingIdsRef.current.has(pendingMessage.id)) return;
+
+      retryingPendingIdsRef.current.add(pendingMessage.id);
+      const clientId = getMessageClientId(pendingMessage.metadata);
+
+      try {
+        const persisted = await api<Message>('/api/messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            channelId,
+            text: pendingMessage.text,
+            ...(clientId ? { clientId } : {}),
+          }),
+        });
+
+        if (clientId) {
+          removePendingMessage({ clientId });
+        } else {
+          removePendingMessage({ id: pendingMessage.id });
+        }
+        addOrReplaceMessage(persisted);
+        setError(null);
+      } catch {
+        setPendingMessages((prev) =>
+          prev.map((message) =>
+            message.id === pendingMessage.id ? { ...message, deliveryStatus: 'unsent' } : message,
+          ),
+        );
+      } finally {
+        retryingPendingIdsRef.current.delete(pendingMessage.id);
+      }
+    },
+    [addOrReplaceMessage, channelId, removePendingMessage],
+  );
 
   // Load initial (newest) batch
   const fetchMessages = useCallback(async () => {
     if (!channelId) {
       setMessages([]);
+      setPendingMessages([]);
       setLoading(false);
       setHasMore(false);
+      setStreamingMessages([]);
+      setProgress(null);
       cursorRef.current = null;
       return;
     }
@@ -39,6 +186,7 @@ export function useMessages(channelId: string | null) {
       // API returns newest first, reverse to show oldest first
       const sorted = res.data.reverse();
       setMessages(sorted);
+      setPendingMessages((prev) => reconcilePendingMessages(prev, sorted));
       cursorRef.current = res.nextCursor ?? null;
       setHasMore(!!res.nextCursor);
       setError(null);
@@ -72,6 +220,27 @@ export function useMessages(channelId: string | null) {
     void fetchMessages();
   }, [fetchMessages]);
 
+  useEffect(() => {
+    if (!channelId) {
+      setPendingMessages([]);
+      return;
+    }
+
+    const stored = readPendingMessages(channelId);
+    setPendingMessages(stored);
+
+    if (connected) {
+      stored.forEach((message) => {
+        void submitPendingMessage(message);
+      });
+    }
+  }, [channelId, connected, submitPendingMessage]);
+
+  useEffect(() => {
+    if (!channelId) return;
+    writePendingMessages(channelId, pendingMessages);
+  }, [channelId, pendingMessages]);
+
   // ── WebSocket: subscribe to channel + listen for real-time events ──
   useEffect(() => {
     if (!channelId || !socket || !connected) return;
@@ -82,14 +251,18 @@ export function useMessages(channelId: string | null) {
     const handleMessageCreated = (msg: Message) => {
       if (msg.channelId !== channelId) return;
       // Clear streaming/progress state when final message arrives
-      streamBufferRef.current = '';
-      setStreamingContent(null);
       setProgress(null);
-      setMessages((prev) => {
-        // Deduplicate — we may have optimistically added this already
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
+      setStreamingMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const completedStream = prev.find((stream) => stream.complete);
+        const streamToClear = completedStream ?? prev[0];
+        return prev.filter((stream) => stream.streamId !== streamToClear.streamId);
       });
+      const clientId = getMessageClientId(msg.metadata);
+      if (clientId) {
+        removePendingMessage({ clientId });
+      }
+      addOrReplaceMessage(msg);
     };
 
     const handleReviewResponded = (msg: Message) => {
@@ -111,16 +284,45 @@ export function useMessages(channelId: string | null) {
     socket.on('review:responded', handleReviewResponded);
     socket.on('message:delivery', handleDelivery);
 
-    const handleDelta = (data: { channelId: string; delta: string; streamEnd?: boolean }) => {
+    const handleDelta = (data: {
+      channelId: string;
+      delta: string;
+      streamId?: string;
+      streamEnd?: boolean;
+    }) => {
       if (data.channelId !== channelId) return;
+      const streamId = data.streamId ?? '__default__';
       if (data.streamEnd) {
         // Stream segment finished — keep content visible until message:created
         // arrives to avoid a flash where the bubble disappears and reappears.
         // Just stop accumulating; handleMessageCreated will clean up.
+        setStreamingMessages((prev) =>
+          prev.map((stream) =>
+            stream.streamId === streamId ? { ...stream, complete: true } : stream,
+          ),
+        );
         return;
       }
-      streamBufferRef.current += data.delta;
-      setStreamingContent(streamBufferRef.current);
+      setStreamingMessages((prev) => {
+        const existing = prev.find((stream) => stream.streamId === streamId);
+        if (!existing) {
+          return [
+            ...prev,
+            {
+              streamId,
+              content: data.delta,
+              complete: false,
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        }
+
+        return prev.map((stream) =>
+          stream.streamId === streamId
+            ? { ...stream, content: `${stream.content}${data.delta}`, complete: false }
+            : stream,
+        );
+      });
       // Clear progress when streaming starts
       setProgress(null);
     };
@@ -144,21 +346,41 @@ export function useMessages(channelId: string | null) {
       socket.off('message:progress', handleProgress);
       unsubscribe(channelId);
     };
-  }, [channelId, socket, connected, subscribe, unsubscribe, markRead]);
+  }, [
+    channelId,
+    socket,
+    connected,
+    subscribe,
+    unsubscribe,
+    markRead,
+    addOrReplaceMessage,
+    removePendingMessage,
+  ]);
 
   const sendMessage = useCallback(
     async (text: string) => {
       if (!channelId) return;
-      // Show a thinking indicator immediately so the user gets instant feedback
-      setProgress({ content: 'Processing', toolHint: false });
-      const msg = await api<Message>('/api/messages', {
-        method: 'POST',
-        body: JSON.stringify({ channelId, text }),
-      });
-      // Add optimistically — WebSocket handler deduplicates
-      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      const clientId = crypto.randomUUID();
+      const pendingMessage = createPendingMessage(channelId, text, clientId);
+
+      setPendingMessages((prev) => [...prev, pendingMessage]);
+
+      try {
+        const msg = await api<Message>('/api/messages', {
+          method: 'POST',
+          body: JSON.stringify({ channelId, text, clientId }),
+        });
+        removePendingMessage({ clientId });
+        addOrReplaceMessage(msg);
+      } catch {
+        setPendingMessages((prev) =>
+          prev.map((message) =>
+            message.id === pendingMessage.id ? { ...message, deliveryStatus: 'unsent' } : message,
+          ),
+        );
+      }
     },
-    [channelId],
+    [addOrReplaceMessage, channelId, removePendingMessage],
   );
 
   const uploadFile = useCallback(
@@ -216,19 +438,28 @@ export function useMessages(channelId: string | null) {
     [channelId],
   );
 
-  const retryDelivery = useCallback(async (messageId: string) => {
-    await api<{ retried: boolean }>(`/api/messages/${messageId}/retry`, {
-      method: 'POST',
-    });
-  }, []);
+  const retryDelivery = useCallback(
+    async (messageId: string) => {
+      const pendingMessage = pendingMessages.find((message) => message.id === messageId);
+      if (pendingMessage) {
+        await submitPendingMessage(pendingMessage);
+        return;
+      }
+
+      await api<{ retried: boolean }>(`/api/messages/${messageId}/retry`, {
+        method: 'POST',
+      });
+    },
+    [pendingMessages, submitPendingMessage],
+  );
 
   return {
-    messages,
+    messages: allMessages,
     loading,
     loadingOlder,
     hasMore,
     error,
-    streamingContent,
+    streamingMessages,
     progress,
     refetch: fetchMessages,
     sendMessage,

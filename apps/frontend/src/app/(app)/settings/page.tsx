@@ -8,12 +8,14 @@ import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
 
 export default function SettingsPage() {
   return (
-    <div className="flex-1 h-full overflow-y-auto bg-card rounded-t-3xl lg:rounded-b-3xl shadow-sm border border-border/50 border-b-0 lg:border-b p-8">
+    <div className="flex-1 h-full overflow-y-auto bg-card rounded-t-3xl lg:rounded-b-3xl shadow-sm border border-border/50 border-b-0 lg:border-b p-4 md:p-8">
       <div className="max-w-3xl mx-auto space-y-10">
         <div>
           <div className="flex items-center gap-2">
             <MobileNavDrawer />
-            <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+            <h1 className="text-xl md:text-3xl font-semibold md:font-bold text-foreground">
+              Settings
+            </h1>
           </div>
           <p className="text-muted-foreground">Manage your API keys, preferences, and team.</p>
         </div>
