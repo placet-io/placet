@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { FilesService } from './files.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
+import { EventsGateway } from '../events/events.gateway';
 
 describe('FilesService', () => {
   let service: FilesService;
@@ -17,6 +18,10 @@ describe('FilesService', () => {
     getStream: jest.Mock;
     delete: jest.Mock;
     deleteMany: jest.Mock;
+  };
+  let events: {
+    emitToChannel: jest.Mock;
+    emitToUser: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -33,11 +38,17 @@ describe('FilesService', () => {
       deleteMany: jest.fn().mockResolvedValue(undefined),
     };
 
+    events = {
+      emitToChannel: jest.fn(),
+      emitToUser: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FilesService,
         { provide: PrismaService, useValue: prisma },
         { provide: S3Service, useValue: s3 },
+        { provide: EventsGateway, useValue: events },
         {
           provide: JwtService,
           useValue: { sign: jest.fn(), verify: jest.fn() },
@@ -58,7 +69,11 @@ describe('FilesService', () => {
 
   describe('uploadFile', () => {
     it('should upload to S3 and create message + attachment', async () => {
-      const mockMessage = { id: 'msg1' };
+      const mockMessage = {
+        id: 'msg1',
+        channelId: 'channel1',
+        senderType: 'agent',
+      };
       const mockAttachment = {
         id: 'att1',
         filename: 'file.txt',
@@ -90,7 +105,48 @@ describe('FilesService', () => {
           }),
         }),
       );
+      expect(events.emitToChannel).toHaveBeenCalledWith(
+        'channel1',
+        'message:created',
+        expect.objectContaining<Record<string, unknown>>({
+          id: 'msg1',
+          attachments: [mockAttachment],
+        }),
+      );
       expect(result).toEqual(mockAttachment);
+    });
+
+    it('should emit to the owning user for user uploads', async () => {
+      const mockMessage = {
+        id: 'msg2',
+        channelId: 'channel1',
+        senderType: 'user',
+      };
+      const mockAttachment = {
+        id: 'att2',
+        filename: 'photo.png',
+        storageKey: 'uploads/456-photo.png',
+      };
+      prisma.message.create.mockResolvedValue(mockMessage);
+      prisma.attachment.create.mockResolvedValue(mockAttachment);
+
+      await service.uploadFile(
+        Buffer.from('img'),
+        'photo.png',
+        'image/png',
+        'channel1',
+        'user',
+        'user-1',
+      );
+
+      expect(events.emitToUser).toHaveBeenCalledWith(
+        'user-1',
+        'message:created',
+        expect.objectContaining<Record<string, unknown>>({
+          id: 'msg2',
+          attachments: [mockAttachment],
+        }),
+      );
     });
   });
 

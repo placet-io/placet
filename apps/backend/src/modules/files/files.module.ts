@@ -4,9 +4,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FilesController } from './files.controller';
 import { FilesAgentController } from './files-agent.controller';
 import { FilesService } from './files.service';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [
+    EventsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

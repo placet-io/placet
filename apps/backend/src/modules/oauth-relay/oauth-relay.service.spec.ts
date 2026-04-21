@@ -1,5 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { OAuthRelayService } from './oauth-relay.service';
+import { OAuthFlowState, OAuthRelayService } from './oauth-relay.service';
+
+type OAuthRelayServiceTestAccess = {
+  pending: Map<string, OAuthFlowState>;
+};
+
+function getPendingStates(
+  service: OAuthRelayService,
+): Map<string, OAuthFlowState> {
+  return (service as unknown as OAuthRelayServiceTestAccess).pending;
+}
 
 describe('OAuthRelayService', () => {
   let service: OAuthRelayService;
@@ -17,11 +27,11 @@ describe('OAuthRelayService', () => {
       service.register('state-abc', 'channel-123', 'github');
 
       const result = service.consume('state-abc');
-      expect(result).toEqual({
-        channelId: 'channel-123',
-        provider: 'github',
-        createdAt: expect.any(Number),
-      });
+
+      expect(result).not.toBeNull();
+      expect(result?.channelId).toBe('channel-123');
+      expect(result?.provider).toBe('github');
+      expect(typeof result?.createdAt).toBe('number');
     });
 
     it('should return null for unknown state', () => {
@@ -39,7 +49,7 @@ describe('OAuthRelayService', () => {
       service.register('state-expired', 'ch-2', 'provider');
 
       // Manually expire it by manipulating the internal map
-      const pending = (service as any).pending as Map<string, any>;
+      const pending = getPendingStates(service);
       const entry = pending.get('state-expired')!;
       entry.createdAt = Date.now() - 11 * 60 * 1000; // 11 min ago
 
@@ -52,7 +62,7 @@ describe('OAuthRelayService', () => {
       service.register('fresh', 'ch-a', 'p');
       service.register('stale', 'ch-b', 'p');
 
-      const pending = (service as any).pending as Map<string, any>;
+      const pending = getPendingStates(service);
       const staleEntry = pending.get('stale')!;
       staleEntry.createdAt = Date.now() - 11 * 60 * 1000;
 

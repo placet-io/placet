@@ -12,8 +12,9 @@ import { MessageAttachments } from './message-attachments';
 import { FilePreviewModal } from './file-preview-modal';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format-date';
-import type { Attachment, DeliveryStatus, Review } from '@placet/shared';
+import type { Attachment, Review } from '@placet/shared';
 import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
+import type { ChatDeliveryStatus } from '@/lib/hooks/use-messages';
 
 interface MessageBubbleProps {
   messageId: string;
@@ -27,7 +28,7 @@ interface MessageBubbleProps {
   review?: Review | null;
   metadata?: Record<string, unknown> | null;
   attachments?: Attachment[];
-  deliveryStatus?: DeliveryStatus | null;
+  deliveryStatus?: ChatDeliveryStatus | null;
   iterationGroupId?: string | null;
   iteration?: number | null;
   iterationTotal?: number;
@@ -436,6 +437,19 @@ export const MessageBubble = memo(function MessageBubble({
                   </Button>
                 </div>
               )}
+              {isUser && deliveryStatus === 'unsent' && (
+                <span className="text-xs text-destructive">Not sent</span>
+              )}
+              {isUser && deliveryStatus === 'unsent' && onRetryDelivery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1.5 text-xs text-destructive hover:text-destructive"
+                  onClick={() => void onRetryDelivery(messageId)}
+                >
+                  Resend
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground">{time}</span>
               {!isUser && (
                 <div className="hidden group-hover/msg:flex items-center gap-0.5">
@@ -460,7 +474,7 @@ export const MessageBubble = memo(function MessageBubble({
                   )}
                 </div>
               )}
-              {isUser && deliveryStatus && (
+              {isUser && deliveryStatus && deliveryStatus !== 'unsent' && (
                 <span
                   className={cn(
                     'inline-flex',

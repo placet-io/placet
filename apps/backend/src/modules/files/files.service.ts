@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import archiver from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class FilesService {
@@ -14,6 +15,7 @@ export class FilesService {
     private readonly config: ConfigService,
     private readonly jwt: JwtService,
     private readonly s3: S3Service,
+    private readonly events: EventsGateway,
   ) {}
 
   async uploadFile(
@@ -40,7 +42,7 @@ export class FilesService {
       },
     });
 
-    return this.prisma.attachment.create({
+    const attachment = await this.prisma.attachment.create({
       data: {
         messageId: message.id,
         channelId,
@@ -52,6 +54,14 @@ export class FilesService {
         storageKey,
       },
     });
+
+    const eventData = { ...message, attachments: [attachment] };
+    this.events.emitToChannel(channelId, 'message:created', eventData);
+    if (senderType === 'user' && senderId) {
+      this.events.emitToUser(senderId, 'message:created', eventData);
+    }
+
+    return attachment;
   }
 
   /**

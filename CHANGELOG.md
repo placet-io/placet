@@ -5,31 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] — 2026-04-21
 
 ### Added
 
-- **OAuth relay module** *(experimental)* — new `OAuthRelayModule` enables agents to initiate browser-based OAuth flows through Placet as a relay; includes `GET /api/v1/oauth/callback` endpoint that receives authorization codes from external OAuth providers and forwards them to the originating agent channel via Socket.IO (`oauth:code` event); pending flows are state-tracked with 10-minute TTL and automatic cleanup
+- **OAuth relay module** _(experimental)_ — new `OAuthRelayModule` enables agents to initiate browser-based OAuth flows through Placet as a relay; includes `GET /api/v1/oauth/callback` endpoint that receives authorization codes from external OAuth providers and forwards them to the originating agent channel via Socket.IO (`oauth:code` event); pending flows are state-tracked with 10-minute TTL and automatic cleanup
 - **`oauth:start` WebSocket event** — agents emit `oauth:start` with `channelId`, `state`, `provider`, and `authUrl`; Placet registers the state for callback resolution and forwards the event to the user's frontend for browser redirect
 - **OAuth relay documentation** — new `connections/oauth-relay` docs page added to navigation
 - **Inline HTML rendering enabled by default** — `useChatSettings` hook now defaults `inlineHtml` to `true` (was `false`); existing users with localStorage override are unaffected
 - **Nginx upload limit increased** — `client_max_body_size` set to `100m` in AIO nginx config to support large file uploads (images, videos, zips)
-- Added tag support for agents in chat list and settings.
-- Introduced collapsible groups in chat list for better organization.
-- Implemented view mode toggle between flat and grouped views.
-- Enhanced chat settings to allow editing of agent tags.
-- Updated UI components for improved accessibility and usability.
-- Added copy functionality for messages in message bubbles.
-- Improved markdown rendering in chat messages with user-specific styles.
-- Updated Docker Compose configuration for external Traefik integration.
+- **Agent tags & grouped chat list** — tag support for agents in chat list and settings; collapsible tag-based groups; flat/grouped view mode toggle
+- **Copy message** — copy-to-clipboard button added to message bubbles
+- **Pending messages with `clientId` deduplication** — `sendMessage` generates a UUID `clientId`, optimistically inserts a local bubble, persists unconfirmed messages to `localStorage` under `placet:pending-messages:<channelId>`, and reconciles against server state on reconnect; server stores `clientId` in message metadata so retries are idempotent
+- **"Unsent" message state & Resend button** — messages that fail to deliver show a "Not sent" label and a Resend button in the chat bubble; retrying resubmits the original text with the same `clientId`
+- **Phone portrait guard** — new `PhonePortraitGuard` component wraps the app layout and shows a "please rotate your device" overlay on phones (≤ 767 px) in landscape orientation; portrait and desktop viewports are unaffected
+- **Concurrent streaming bubbles** — each streaming delta carries an isolated `streamId`; `StreamingBubble` renders one typewriter bubble per active stream, enabling multiple simultaneous agent responses without interference; replaces the single shared streaming buffer
+- **Inline HTML Attachments documentation** — added section to `docs/concepts/agents.mdx` covering iframe sandbox constraints and best practices for self-contained HTML attachments
 
 ### Fixed
 
 - **Command palette cursor position** — selecting a slash command that accepts args now correctly moves the cursor to the end of the inserted text via `requestAnimationFrame` + `setSelectionRange`; previously the cursor could remain at position 0
+- **File upload `message:created` broadcast** — `FilesService.uploadFile` now emits `message:created` via `EventsGateway` after creating the attachment record; previously file-only messages sent via `POST /api/v1/files/store` were silently dropped from WebSocket feeds
+- **Quoted-reply scroll pinning** — `MessageList` detects quoted-reply messages (starting with `> **…:**`) and skips the 40%-pin behavior, keeping normal bottom-follow to prevent earlier messages appearing to vanish
 
 ### Changed
 
 - **EventsGateway dependency** — gateway now injects `OAuthRelayService` (via `forwardRef`) to register OAuth flow states when `oauth:start` events arrive from agents
+- **Chat header & input sticky positioning** — `chat-header` and `message-input` now use `sticky top-0` / `sticky bottom-0` with `z-20` and `shrink-0`; prevents them from scrolling out of view on constrained mobile viewports
+- **Streaming architecture** — `use-messages` replaces the single `streamingContent: string | null` state with a `streamingMessages: StreamingMessage[]` array; `MessageList` props updated accordingly (`streamingContent` → `streamingMessages`)
 
 ## [0.8.0] — 2026-04-16
 

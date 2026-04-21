@@ -40,7 +40,7 @@ export const ChatHeader = forwardRef<ChatHeaderHandle, ChatHeaderProps>(function
   }, [agentId]);
 
   return (
-    <div className="border-b border-border/50 bg-card/95 backdrop-blur z-10">
+    <div className="sticky top-0 z-20 shrink-0 border-b border-border/50 bg-card/95 backdrop-blur">
       <div className="h-16 flex items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-3 min-w-0">
           <Button

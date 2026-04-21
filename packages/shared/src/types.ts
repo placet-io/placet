@@ -310,6 +310,7 @@ export const CreateUserMessageSchema = z
     channelId: z.string().min(1),
     text: z.string().optional(),
     attachmentIds: z.array(z.string()).optional(),
+    clientId: z.string().min(1).optional(),
   })
   .refine((d) => d.text || (d.attachmentIds && d.attachmentIds.length > 0), {
     message: 'Message must contain at least text or attachmentIds',

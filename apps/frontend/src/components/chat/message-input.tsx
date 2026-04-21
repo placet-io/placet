@@ -185,7 +185,12 @@ export const MessageInput = memo(function MessageInput({
   const canSend = pendingFile ? !uploading : !!text.trim();
 
   return (
-    <div className={cn('bg-card', className)}>
+    <div
+      className={cn(
+        'sticky bottom-0 z-20 shrink-0 border-t border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90',
+        className,
+      )}
+    >
       {/* Quote preview (hidden when file is pending) */}
       {quotedMessage && !pendingFile && (
         <div className="mx-4 mt-2 flex items-center gap-2 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
