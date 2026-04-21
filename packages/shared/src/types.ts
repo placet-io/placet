@@ -290,6 +290,8 @@ export const CreateAgentMessageSchema = z
     textAttachments: z.array(TextAttachmentSchema).optional(),
     /** Message ID of the previous iteration this message follows up on. */
     iterationOf: z.string().optional(),
+    /** Idempotency key supplied by the agent. Safe retries reuse the same id. */
+    clientId: z.string().optional(),
   })
   .refine(
     (d) =>

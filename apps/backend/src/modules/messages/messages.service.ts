@@ -242,6 +242,23 @@ export class MessagesService {
   async createFromAgent(userId: string, dto: CreateMessageDto) {
     const agent = await this.assertOwnership(dto.channelId, userId);
 
+    // Idempotency: if the agent re-sends with the same clientId (e.g. after a
+    // transient network error retry), return the existing message instead of
+    // creating a duplicate row.
+    if (dto.clientId) {
+      const existing = await this.prisma.message.findFirst({
+        where: {
+          channelId: dto.channelId,
+          senderType: 'agent',
+          metadata: { path: ['clientId'], equals: dto.clientId },
+        },
+        include: { attachments: true },
+      });
+      if (existing) {
+        return this.enrichTextAttachments(existing);
+      }
+    }
+
     // ── Iteration chain handling ──
     let iterationGroupId: string | undefined;
     let iteration: number | undefined;
@@ -284,6 +301,7 @@ export class MessagesService {
     const metadata: Record<string, unknown> = {
       ...(dto.metadata ?? {}),
       ...(dto.webhookUrl ? { webhookUrl: dto.webhookUrl } : {}),
+      ...(dto.clientId ? { clientId: dto.clientId } : {}),
     };
 
     // Auto-set metadata.plugin from review.payload.plugin so the frontend

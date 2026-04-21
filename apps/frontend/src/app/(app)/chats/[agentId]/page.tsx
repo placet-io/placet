@@ -14,39 +14,6 @@ import { useMessages } from '@/lib/hooks/use-messages';
 import { useCommands } from '@/lib/hooks/use-commands';
 import { useSocket } from '@/lib/contexts/socket-context';
 
-/** Prevent iOS/Android from scrolling the page when the virtual keyboard opens. */
-function useStableViewport(containerRef: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const update = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      const keyboardOpen = window.innerHeight - vv.height > 50;
-      if (keyboardOpen) {
-        // Use the visual viewport on mobile keyboard open and clamp offsets to
-        // avoid Safari reporting negative or stale positions during animation.
-        container.style.height = `${Math.min(window.innerHeight, vv.height)}px`;
-        container.style.transform = `translateY(${Math.max(0, vv.offsetTop)}px)`;
-      } else {
-        container.style.height = '';
-        container.style.transform = '';
-      }
-    };
-
-    update();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    window.addEventListener('resize', update);
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-    };
-  }, [containerRef]);
-}
-
 export default function ChatThreadPage() {
   const params = useParams<{ agentId: string }>();
   const agentId = params.agentId;
@@ -56,8 +23,6 @@ export default function ChatThreadPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null);
-
-  useStableViewport(containerRef);
 
   const { agents, clearUnread } = useAgentsContext();
   const { markRead } = useSocket();

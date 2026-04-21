@@ -65,7 +65,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="fixed inset-0 overflow-hidden flex flex-col">
+      <body
+        className="fixed left-0 top-0 w-full overflow-hidden flex flex-col"
+        style={{ height: 'var(--app-height, 100dvh)' }}
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

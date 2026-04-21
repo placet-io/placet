@@ -2,6 +2,7 @@
 
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useAppViewport } from '@/lib/hooks/use-app-viewport';
 
 function getShouldBlockLandscape() {
   if (typeof window === 'undefined') return false;
@@ -13,6 +14,8 @@ function getShouldBlockLandscape() {
 
 export function PhonePortraitGuard({ children }: { children: React.ReactNode }) {
   const [blocked, setBlocked] = useState(false);
+
+  useAppViewport();
 
   useEffect(() => {
     const update = () => {
