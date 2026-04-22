@@ -15,6 +15,7 @@ interface ChatListItemProps {
   lastMessageTime?: string;
   unreadCount?: number;
   tag?: string | null;
+  hideTag?: boolean;
   isActive?: boolean;
 }
 
@@ -27,6 +28,7 @@ export const ChatListItem = memo(function ChatListItem({
   lastMessageTime,
   unreadCount = 0,
   tag,
+  hideTag = false,
   isActive = false,
 }: ChatListItemProps) {
   return (
@@ -40,7 +42,7 @@ export const ChatListItem = memo(function ChatListItem({
       <AgentAvatar name={name} avatarUrl={avatarUrl} size="md" className="shrink-0" />
 
       <div className="min-w-0 flex-1">
-        {tag && (
+        {tag && !hideTag && (
           <Badge variant="secondary" className="h-4 px-1.5 text-xs font-medium leading-none mb-0.5">
             {tag}
           </Badge>

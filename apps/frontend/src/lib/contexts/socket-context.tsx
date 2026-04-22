@@ -19,6 +19,14 @@ interface SocketContextValue {
   connected: boolean;
   activeChannel: string | null;
   notificationsEnabled: boolean;
+  /** True when the browser exposes the Notification + Push APIs at all. */
+  notificationsSupported: boolean;
+  /**
+   * True when running on iOS Safari in a regular browser tab (not the
+   * installed PWA). iOS only exposes Web Push for home-screen PWAs, so the
+   * settings UI shows a hint asking the user to "Add to Home Screen" first.
+   */
+  iosRequiresInstall: boolean;
   subscribe: (channelId: string) => void;
   unsubscribe: (channelId: string) => void;
   markRead: (channelId: string) => void;
@@ -110,6 +118,28 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => typeof Notification !== 'undefined' && Notification.permission === 'granted',
   );
+  // Detect capability on the client after mount (avoid SSR `window` access).
+  const [notificationsSupported, setNotificationsSupported] = useState(false);
+  const [iosRequiresInstall, setIosRequiresInstall] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hasNotification = 'Notification' in window;
+    const hasSW = 'serviceWorker' in navigator;
+    const hasPush = 'PushManager' in window;
+    setNotificationsSupported(hasNotification && hasSW && hasPush);
+
+    // iOS Safari exposes Web Push only for installed PWAs. Detect iOS and
+    // whether we're running in standalone (home-screen) mode.
+    const ua = navigator.userAgent || '';
+    const isIos =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' &&
+        (navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints! > 1);
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setIosRequiresInstall(isIos && !standalone);
+  }, []);
   const mountedRef = useRef(true);
   const activeChannelRef = useRef<string | null>(null);
   const sockRef = useRef<Socket | null>(null);
@@ -331,10 +361,18 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (Notification.permission === 'denied') return;
-    Notification.requestPermission().then((perm) => {
-      setNotificationsEnabled(perm === 'granted');
-      if (perm === 'granted') void subscribeToPush();
-    });
+    // Must call requestPermission() synchronously inside the gesture handler
+    // on iOS — awaiting another promise first loses the "user-activation"
+    // flag and the prompt silently fails. The promise we return here is
+    // unchained; its `.then` runs after the browser has shown the dialog.
+    const result = Notification.requestPermission();
+    // Older Safari versions only accept the callback form. Support both.
+    if (result && typeof result.then === 'function') {
+      result.then((perm) => {
+        setNotificationsEnabled(perm === 'granted');
+        if (perm === 'granted') void subscribeToPush();
+      });
+    }
   }, []);
 
   // Register Service Worker on mount
@@ -381,6 +419,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         connected,
         activeChannel,
         notificationsEnabled,
+        notificationsSupported,
+        iosRequiresInstall,
         subscribe,
         unsubscribe,
         markRead,

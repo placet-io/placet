@@ -49,7 +49,7 @@ export default function InboxDetailPage({ params }: { params: Promise<{ messageI
 
   if (loading || fallbackLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-card rounded-t-3xl lg:rounded-b-3xl shadow-sm border border-border/50 border-b-0 lg:border-b">
+      <div className="flex flex-1 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -59,7 +59,7 @@ export default function InboxDetailPage({ params }: { params: Promise<{ messageI
 
   if (!resolved) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-card rounded-t-3xl lg:rounded-b-3xl shadow-sm border border-border/50 border-b-0 lg:border-b">
+      <div className="flex flex-1 flex-col items-center justify-center">
         <CheckCircle2 className="h-10 w-10 text-muted-foreground/40 mb-3" />
         <p className="text-sm font-medium text-foreground">Review not found</p>
         <p className="text-xs text-muted-foreground mt-1">It may have been completed or expired.</p>

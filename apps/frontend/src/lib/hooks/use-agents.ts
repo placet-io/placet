@@ -33,6 +33,30 @@ export function useAgents() {
     void fetchAgents();
   }, [fetchAgents]);
 
+  // Background refresh: poll every 60 s while the tab is visible, and refetch
+  // immediately whenever the tab becomes visible again (handles sleep / tab
+  // switch / iOS PWA resume). The heartbeat is cheap and keeps the sidebar's
+  // last-message + unread-count in sync even if a socket event was missed.
+  useEffect(() => {
+    const refresh = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      void fetchAgents();
+    };
+    const intervalId = setInterval(refresh, 60_000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const onFocus = () => refresh();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchAgents]);
+
   // Listen for real-time messages to update sidebar (last message + unread)
   // Keep a ref to activeChannel so the socket handler never sees a stale value
   const activeRef = useRef(activeChannel);

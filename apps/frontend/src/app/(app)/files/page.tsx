@@ -157,7 +157,7 @@ export default function FilesPage() {
   const previewFile = files.find((f) => f.id === previewFileId);
 
   return (
-    <div className="flex-1 h-full overflow-y-auto bg-card rounded-t-3xl lg:rounded-b-3xl shadow-sm border border-border/50 border-b-0 lg:border-b p-4 md:p-8">
+    <div className="flex-1 h-full overflow-y-auto bg-card lg:rounded-2xl shadow-xs border border-border/50 border-t-0 border-b-0 lg:border p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-2 mb-6">

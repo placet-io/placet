@@ -94,6 +94,11 @@ export const MessageBubble = memo(function MessageBubble({
   const isSwipingRef = useRef(false);
   const directionLockedRef = useRef(false);
   const lastDeltaRef = useRef(0);
+  // Long-press selection state for mobile — shows the action icons (Copy/Reply)
+  // inline with the timestamp until the user taps elsewhere.
+  const [selected, setSelected] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
 
   const handlePreview = useCallback((att: Attachment) => {
     setPreviewAttachment(att);
@@ -152,6 +157,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text);
+    setSelected(false);
   }, [text]);
 
   const handlePluginReviewRespond = useCallback(
@@ -194,11 +200,35 @@ export const MessageBubble = memo(function MessageBubble({
       lastDeltaRef.current = 0;
       if (swipeRef.current) swipeRef.current.style.transition = 'none';
       if (replyIconRef.current) replyIconRef.current.style.transition = 'none';
+
+      // Arm long-press timer — if the finger stays roughly still for 500 ms
+      // and no swipe was initiated, we enter the "selected" state which
+      // reveals the Copy/Reply action icons. Light haptic feedback on
+      // devices that support it.
+      longPressFiredRef.current = false;
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = setTimeout(() => {
+        if (!isSwipingRef.current) {
+          longPressFiredRef.current = true;
+          setSelected(true);
+          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            try {
+              navigator.vibrate?.(20);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }, 500);
     },
     [onReply],
   );
 
   const handleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
     if (!touchStartRef.current) return;
     const metThreshold = lastDeltaRef.current >= SWIPE_THRESHOLD;
 
@@ -230,6 +260,11 @@ export const MessageBubble = memo(function MessageBubble({
       if (!directionLockedRef.current && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
         directionLockedRef.current = true;
         isSwipingRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+        // Any significant finger movement cancels the long-press gesture.
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
       }
       if (!isSwipingRef.current) return;
       e.preventDefault();
@@ -251,14 +286,38 @@ export const MessageBubble = memo(function MessageBubble({
     return () => el.removeEventListener('touchmove', handler);
   }, [onReply]);
 
+  // When the user long-pressed a message, we enter a "selected" state that
+  // reveals the Copy/Reply action icons on mobile. Any tap elsewhere (or on
+  // this same bubble after a short delay) dismisses the selection.
+  useEffect(() => {
+    if (!selected) return;
+    const root = swipeRef.current;
+    const dismiss = (e: Event) => {
+      if (!root) return setSelected(false);
+      if (e.target instanceof Node && root.contains(e.target)) return;
+      setSelected(false);
+    };
+    // Defer attachment by a frame so the originating pointerup doesn't
+    // immediately dismiss the state we just set.
+    const t = setTimeout(() => {
+      document.addEventListener('pointerdown', dismiss, true);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('pointerdown', dismiss, true);
+    };
+  }, [selected]);
+
   return (
     <>
       <div className="overflow-x-clip" data-message-id={messageId}>
         <div
           ref={swipeRef}
           className={cn(
-            'group/msg flex gap-3 max-w-[92%] sm:max-w-[80%] relative',
-            isUser && 'ml-auto flex-row-reverse',
+            'group/msg flex gap-3 relative',
+            isUser
+              ? 'ml-auto flex-row-reverse max-w-[92%] sm:max-w-[80%]'
+              : 'max-w-[95%] sm:max-w-[90%]',
           )}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -302,38 +361,21 @@ export const MessageBubble = memo(function MessageBubble({
             <div className="flex items-start gap-1 max-w-full">
               <div
                 className={cn(
-                  'px-4 py-2.5 rounded-2xl text-base leading-relaxed min-w-0 break-words',
+                  'text-base leading-relaxed min-w-0 break-words',
                   isUser
-                    ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                    : 'bg-muted text-foreground rounded-tl-sm',
+                    ? 'px-4 py-2.5 rounded-2xl rounded-tr-sm bg-card text-foreground shadow-xs'
+                    : 'text-foreground',
                   review && 'md:min-w-[360px] lg:min-w-[420px] xl:min-w-[480px]',
                 )}
               >
                 {quotedName && quotedText && (
                   <div
                     className={cn(
-                      'rounded-lg px-2.5 py-1.5 mb-1.5 border-l-2',
-                      isUser
-                        ? 'bg-primary-foreground/15 border-primary-foreground/40'
-                        : 'bg-background/60 border-primary/40',
+                      'rounded-lg px-2.5 py-1.5 mb-1.5 border-l-2 bg-muted/60 border-primary/40',
                     )}
                   >
-                    <p
-                      className={cn(
-                        'text-xs font-semibold',
-                        isUser ? 'text-primary-foreground/80' : 'text-primary',
-                      )}
-                    >
-                      {quotedName}
-                    </p>
-                    <p
-                      className={cn(
-                        'text-xs truncate',
-                        isUser ? 'text-primary-foreground/70' : 'text-muted-foreground',
-                      )}
-                    >
-                      {quotedText}
-                    </p>
+                    <p className="text-xs font-semibold text-primary">{quotedName}</p>
+                    <p className="text-xs truncate text-muted-foreground">{quotedText}</p>
                   </div>
                 )}
                 {hasText && (
@@ -348,11 +390,11 @@ export const MessageBubble = memo(function MessageBubble({
                               isUser={isUser}
                             />
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-primary to-transparent pointer-events-none" />
+                          <div className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-card to-transparent pointer-events-none" />
                         </div>
                         <button
                           type="button"
-                          className="flex items-center gap-1 text-xs text-primary-foreground/80 hover:text-primary-foreground mt-1"
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-1"
                           onClick={() => setExpanded(true)}
                         >
                           <ChevronDown size={12} />
@@ -413,9 +455,18 @@ export const MessageBubble = memo(function MessageBubble({
               </div>
             </div>
 
-            <div className={cn('flex items-center gap-1 mt-1', isUser ? 'mr-1' : 'ml-1')}>
+            <div className={cn('flex items-center gap-2 mt-1 h-5', isUser ? 'mr-1' : 'ml-1')}>
               {isUser && (
-                <div className="hidden group-hover/msg:flex items-center gap-0.5">
+                <div
+                  className={cn(
+                    'flex items-center gap-0.5 transition-opacity duration-150',
+                    // Desktop: reveal on hover of the bubble row.
+                    // Mobile: reveal only when the bubble is long-press "selected".
+                    selected
+                      ? 'opacity-100 pointer-events-auto'
+                      : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto',
+                  )}
+                >
                   {onReply && (
                     <Button
                       variant="ghost"
@@ -450,9 +501,16 @@ export const MessageBubble = memo(function MessageBubble({
                   Resend
                 </Button>
               )}
-              <span className="text-xs text-muted-foreground">{time}</span>
+              <span className="text-xs text-muted-foreground leading-none">{time}</span>
               {!isUser && (
-                <div className="hidden group-hover/msg:flex items-center gap-0.5">
+                <div
+                  className={cn(
+                    'flex items-center gap-0.5 transition-opacity duration-150',
+                    selected
+                      ? 'opacity-100 pointer-events-auto'
+                      : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto',
+                  )}
+                >
                   <Button
                     variant="ghost"
                     size="icon-sm"

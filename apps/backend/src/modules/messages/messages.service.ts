@@ -244,13 +244,16 @@ export class MessagesService {
 
     // Idempotency: if the agent re-sends with the same clientId (e.g. after a
     // transient network error retry), return the existing message instead of
-    // creating a duplicate row.
+    // creating a duplicate row. `clientId` is a dedicated, indexed column so
+    // this works identically on PostgreSQL and SQLite (unlike a JSON path
+    // filter, which has provider-specific quirks and has hit engine bugs in
+    // Prisma v7's driver-adapter query compiler).
     if (dto.clientId) {
       const existing = await this.prisma.message.findFirst({
         where: {
           channelId: dto.channelId,
           senderType: 'agent',
-          metadata: { path: ['clientId'], equals: dto.clientId },
+          clientId: dto.clientId,
         },
         include: { attachments: true },
       });
@@ -297,7 +300,9 @@ export class MessagesService {
       ? this.normaliseReviewExpiry(dto.review as Record<string, unknown>)
       : undefined;
 
-    // Store message-level webhookUrl in metadata if provided
+    // Store message-level webhookUrl in metadata if provided.
+    // Note: `clientId` is persisted to the dedicated column below, not into
+    // metadata, so idempotency lookups can use an indexed equality query.
     const metadata: Record<string, unknown> = {
       ...(dto.metadata ?? {}),
       ...(dto.webhookUrl ? { webhookUrl: dto.webhookUrl } : {}),
@@ -353,6 +358,7 @@ export class MessagesService {
           metadata: Object.keys(metadata).length
             ? (metadata as Prisma.InputJsonValue)
             : undefined,
+          ...(dto.clientId ? { clientId: dto.clientId } : {}),
           ...(iterationGroupId != null ? { iterationGroupId, iteration } : {}),
         },
         include: { attachments: true },
@@ -494,7 +500,7 @@ export class MessagesService {
         senderType: 'user',
         senderId: userId,
         ...(text ? { text } : {}),
-        ...(clientId ? { metadata: { clientId } } : {}),
+        ...(clientId ? { clientId } : {}),
       },
       include: { attachments: true },
     });

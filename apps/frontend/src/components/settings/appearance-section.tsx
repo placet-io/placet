@@ -17,7 +17,8 @@ const THEMES = [
 export const AppearanceSection = memo(function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const { settings, update } = useChatSettings();
-  const { notificationsEnabled, requestNotifications } = useSocket();
+  const { notificationsEnabled, notificationsSupported, iosRequiresInstall, requestNotifications } =
+    useSocket();
 
   const notificationsDenied =
     typeof Notification !== 'undefined' && Notification.permission === 'denied';
@@ -83,13 +84,19 @@ export const AppearanceSection = memo(function AppearanceSection() {
           <div>
             <p className="text-sm font-medium text-foreground">Browser notifications</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {notificationsDenied
-                ? 'Notifications have been blocked. Please enable them in your browser settings.'
-                : 'Get notified when an agent sends a new message while the tab is in the background.'}
+              {iosRequiresInstall
+                ? 'On iOS, notifications only work when Placet is installed to the home screen. Open Safari → Share → "Add to Home Screen", then open Placet from the home screen and enable notifications here.'
+                : !notificationsSupported
+                  ? 'This browser does not support push notifications.'
+                  : notificationsDenied
+                    ? 'Notifications have been blocked. Please enable them in your browser settings.'
+                    : 'Get notified when an agent sends a new message while the tab is in the background.'}
             </p>
           </div>
-          {notificationsDenied ? (
-            <span className="text-xs text-muted-foreground italic">Blocked</span>
+          {iosRequiresInstall || !notificationsSupported ? (
+            <span className="text-xs text-muted-foreground italic shrink-0">Unavailable</span>
+          ) : notificationsDenied ? (
+            <span className="text-xs text-muted-foreground italic shrink-0">Blocked</span>
           ) : (
             <button
               type="button"

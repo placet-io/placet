@@ -98,7 +98,7 @@ export const InboxList = memo(function InboxList({
   return (
     <div
       className={cn(
-        'flex h-full w-full lg:w-[320px] xl:w-[380px] shrink-0 flex-col bg-card rounded-t-3xl lg:rounded-b-3xl overflow-hidden shadow-sm border border-border/50 border-b-0 lg:border-b',
+        'flex h-full w-full lg:w-[320px] xl:w-[380px] shrink-0 flex-col bg-card lg:rounded-r-2xl lg:rounded-l-none lg:border-l-0 overflow-hidden shadow-xs border border-border/50 border-b-0 border-t-0 lg:border-t lg:border-b',
         className,
       )}
     >

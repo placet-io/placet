@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] — 2026-04-22
+
+### Added
+
+- **Live status presence on chat header** — compact dot+text on mobile (no pill) and a full badge on tablet/desktop; shows last-seen threshold after 5 min of agent inactivity
+- **Mobile long-press message actions** — holding a message bubble for 500 ms on touch devices reveals inline Copy + Reply icons (with haptic feedback where supported); existing swipe-to-reply gesture is preserved and takes precedence as soon as horizontal movement is detected
+- **Auto-refresh for agents & inbox lists** — `useAgents` and `useInboxReviews` now poll every 60 s while the tab is visible and refetch immediately on `visibilitychange` / `focus`; keeps the sidebar's last-message / unread counts and the inbox list in sync even after socket events are missed (tab sleep, iOS PWA resume, network blips)
+- **iOS PWA support for Web Push** — webmanifest now declares `start_url`, `scope`, and `id`, which iOS ≥ 16.4 requires to enable push subscriptions for home-screen installs; `SocketContext` exposes `notificationsSupported` and `iosRequiresInstall` flags; Settings → Browser notifications surfaces clear copy guiding iOS users through Safari → Share → Add to Home Screen, and disables the toggle when push is unavailable
+
+### Changed
+
+- **Chat header density on mobile** — header height reduced to `h-14` on mobile (`h-16` on ≥ sm); agent name is now top-aligned with the avatar; status moves below the name as a plain muted row; copy-ID button hidden on mobile and only visible on tablet/desktop to reduce clutter
+- **iOS status-bar colour** — root layout adds `appleWebApp` metadata (`statusBarStyle: 'default'`) so installed PWAs honour the media-queried `viewport.themeColor` (`#f2f1ee` light / `#1a1a19` dark) instead of falling back to the manifest's single static value
+- **Message bubble action rail** — hover Copy / Reply row now reserves a stable `h-5` slot and fades via `opacity` + `pointer-events` instead of toggling `display`; eliminates the vertical jitter that shifted surrounding messages on hover; spacing between icons and timestamp increased
+- **Push permission prompt flow** — `requestNotifications` keeps `Notification.requestPermission()` synchronous inside the user-gesture handler (no awaited work first), which iOS Safari requires to actually show the prompt; supports both the promise and legacy callback forms
+
+### Fixed
+
+- **React hydration / purity** — `StatusBadge` moved `Date.now()` out of the render body into effect-managed state, satisfying `react-hooks/purity` and preventing inconsistent server/client renders of the "Last seen X ago" label
+
 ## [0.9.1] — 2026-04-21
 
 ### Fixed
