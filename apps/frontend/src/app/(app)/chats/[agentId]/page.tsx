@@ -85,7 +85,7 @@ export default function ChatThreadPage() {
   return (
     <div
       ref={containerRef}
-      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-3xl lg:border lg:border-border/50 lg:shadow-sm"
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden"
     >
       <ChatHeader
         ref={headerRef}
@@ -94,6 +94,7 @@ export default function ChatThreadPage() {
         avatarUrl={agentAvatarUrl}
         description={agent?.description}
         status={agent?.status}
+        statusSince={agent?.statusSince}
         showSettings={showSettings}
         onToggleSettings={handleToggleSettings}
       />

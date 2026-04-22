@@ -12,8 +12,9 @@ const NAV_ITEMS = [
   { href: '/files', icon: Folder, label: 'Files' },
   { href: '/logs', icon: Terminal, label: 'Logs' },
   { href: '/status', icon: Activity, label: 'Status' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
 ] as const;
+
+const SETTINGS_ITEM = { href: '/settings', icon: Settings, label: 'Settings' } as const;
 
 function NavIcon({
   href,
@@ -57,11 +58,16 @@ function NavIcon({
   );
 }
 
-export const IconBar = memo(function IconBar() {
+export const IconBar = memo(function IconBar({ merged = false }: { merged?: boolean }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex h-full w-16 md:w-20 shrink-0 flex-col items-center bg-card rounded-3xl py-6 shadow-sm border border-border/50">
+    <nav
+      className={cn(
+        'flex h-full w-16 md:w-20 shrink-0 flex-col items-center bg-card py-6 shadow-xs border border-border/50',
+        merged ? 'rounded-t-2xl lg:rounded-l-2xl lg:rounded-r-none lg:border-r-0' : 'rounded-2xl',
+      )}
+    >
       {/* Logo */}
       <div className="mb-8">
         <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-primary shadow-sm">
@@ -85,6 +91,18 @@ export const IconBar = memo(function IconBar() {
             isActive={pathname === href || pathname.startsWith(`${href}/`)}
           />
         ))}
+      </div>
+
+      {/* Settings pinned to bottom */}
+      <div className="mt-4 flex w-full flex-col items-center">
+        <NavIcon
+          href={SETTINGS_ITEM.href}
+          icon={SETTINGS_ITEM.icon}
+          label={SETTINGS_ITEM.label}
+          isActive={
+            pathname === SETTINGS_ITEM.href || pathname.startsWith(`${SETTINGS_ITEM.href}/`)
+          }
+        />
       </div>
     </nav>
   );

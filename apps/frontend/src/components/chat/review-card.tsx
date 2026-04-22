@@ -769,7 +769,7 @@ export const ReviewCard = memo(function ReviewCard({
   const TypeIcon = TYPE_ICON[review.type as keyof typeof TYPE_ICON] ?? CircleDot;
 
   return (
-    <div className="mt-2 rounded-xl border border-border bg-background/50 p-3 space-y-2">
+    <div className="mt-2 rounded-xl border border-border bg-card shadow-xs p-3 space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">

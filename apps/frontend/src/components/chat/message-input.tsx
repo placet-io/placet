@@ -79,7 +79,7 @@ export const MessageInput = memo(function MessageInput({
 
   // Auto-resize textarea up to 3 lines
   const LINE_HEIGHT = 24; // text-base 16px * 1.5
-  const PADDING_Y = 20; // py-2.5 = 10 + 10
+  const PADDING_Y = 8; // py-1 = 4 + 4
   const MAX_HEIGHT = LINE_HEIGHT * 3 + PADDING_Y;
 
   useEffect(() => {
@@ -187,64 +187,68 @@ export const MessageInput = memo(function MessageInput({
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-20 shrink-0 border-t border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90',
+        'sticky bottom-0 z-20 shrink-0 bg-background/80 backdrop-blur px-2 py-2 sm:px-4 sm:py-4',
         className,
       )}
     >
-      {/* Quote preview (hidden when file is pending) */}
-      {quotedMessage && !pendingFile && (
-        <div className="mx-4 mt-2 flex items-center gap-2 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
-          <div className="flex-1 min-w-0 border-l-2 border-primary/40 pl-2">
-            <p className="text-xs font-medium text-muted-foreground">{quotedMessage.senderName}</p>
-            <p className="text-xs text-foreground truncate">{quotedMessage.text || 'Attachment'}</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={onClearQuote}
-          >
-            <X size={14} />
-          </Button>
-        </div>
-      )}
-
-      {/* File preview */}
-      {pendingFile && (
-        <div className="mx-4 mt-2 flex items-center gap-2.5 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt={pendingFile.name}
-              className="h-10 w-10 rounded-lg object-cover shrink-0"
-            />
-          ) : (
-            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-              {pendingFile.type.startsWith('video/') ? (
-                <FileIcon size={16} className="text-muted-foreground" />
-              ) : (
-                <FileIcon size={16} className="text-muted-foreground" />
-              )}
+      <div className="mx-auto w-full max-w-4xl">
+        {/* Quote preview (hidden when file is pending) */}
+        {quotedMessage && !pendingFile && (
+          <div className="mb-2 flex items-center gap-2 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
+            <div className="flex-1 min-w-0 border-l-2 border-primary/40 pl-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {quotedMessage.senderName}
+              </p>
+              <p className="text-xs text-foreground truncate">
+                {quotedMessage.text || 'Attachment'}
+              </p>
             </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate">{pendingFile.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {(pendingFile.size / 1024).toFixed(0)} KB
-            </p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={onClearQuote}
+            >
+              <X size={14} />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={handleClearFile}
-          >
-            <X size={14} />
-          </Button>
-        </div>
-      )}
+        )}
 
-      <div className="p-2 sm:p-4">
+        {/* File preview */}
+        {pendingFile && (
+          <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-muted/50 border border-border/50 px-3 py-2">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={pendingFile.name}
+                className="h-10 w-10 rounded-lg object-cover shrink-0"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                {pendingFile.type.startsWith('video/') ? (
+                  <FileIcon size={16} className="text-muted-foreground" />
+                ) : (
+                  <FileIcon size={16} className="text-muted-foreground" />
+                )}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate">{pendingFile.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {(pendingFile.size / 1024).toFixed(0)} KB
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={handleClearFile}
+            >
+              <X size={14} />
+            </Button>
+          </div>
+        )}
+
         <div className="relative">
           <SlashCommandMenu
             commands={commands}
@@ -255,69 +259,72 @@ export const MessageInput = memo(function MessageInput({
           />
           <form
             onSubmit={handleSubmit}
-            className="relative flex items-center gap-2 bg-muted/50 rounded-3xl p-1.5 sm:p-2 border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all"
+            className="relative flex flex-col gap-2 bg-card rounded-2xl px-3 pt-3 pb-2 shadow-xs border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all"
           >
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={disabled || uploading || !!quotedMessage}
-              className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
-              onClick={handleFileSelect}
-            >
-              <Paperclip size={20} />
-            </Button>
 
-            {/* Syntax highlight overlay for matched commands */}
-            {matchedCommand && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-3xl p-1.5 sm:p-2"
-              >
-                {/* Spacer for the paperclip button */}
-                <div className="shrink-0 w-10 h-10" />
-                <div className="flex-1 min-h-[32px] sm:min-h-[40px] text-base py-1.5 sm:py-2.5 whitespace-pre-wrap break-words">
+            <div className="relative">
+              {/* Syntax highlight overlay for matched commands */}
+              {matchedCommand && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 text-base whitespace-pre-wrap break-words py-1 pl-5"
+                >
                   <span className="text-primary font-medium">{matchedCommand.command}</span>
                   <span className="text-foreground">
                     {text.slice(matchedCommand.command.length)}
                   </span>
                 </div>
+              )}
+
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
+                disabled={disabled}
+                rows={1}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="sentences"
+                spellCheck={false}
+                inputMode="text"
+                enterKeyHint="send"
+                className={cn(
+                  'w-full min-h-[28px] bg-transparent border-none outline-none text-base placeholder:text-muted-foreground resize-none py-1 pl-5 scrollbar-hide',
+                  matchedCommand ? 'text-transparent caret-foreground' : 'text-foreground',
+                )}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={disabled || uploading || !!quotedMessage}
+                  className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={handleFileSelect}
+                >
+                  <Paperclip size={20} />
+                </Button>
               </div>
-            )}
 
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={pendingFile ? 'Add a message (optional)…' : 'Write a message...'}
-              disabled={disabled}
-              rows={1}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="sentences"
-              spellCheck={false}
-              inputMode="text"
-              enterKeyHint="send"
-              className={cn(
-                'flex-1 min-h-[32px] sm:min-h-[40px] bg-transparent border-none outline-none text-base placeholder:text-muted-foreground resize-none py-1.5 sm:py-2.5 scrollbar-hide',
-                matchedCommand ? 'text-transparent caret-foreground' : 'text-foreground',
-              )}
-            />
-
-            <Button
-              type="submit"
-              size="icon"
-              disabled={disabled || !canSend}
-              className="shrink-0 rounded-full"
-            >
-              {uploading ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-              ) : (
-                <Send size={18} />
-              )}
-            </Button>
+              <Button
+                type="submit"
+                size="icon"
+                disabled={disabled || !canSend}
+                className="shrink-0 rounded-full"
+              >
+                {uploading ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                ) : (
+                  <Send size={18} />
+                )}
+              </Button>
+            </div>
           </form>
         </div>
       </div>

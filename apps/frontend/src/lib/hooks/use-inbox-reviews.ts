@@ -37,6 +37,30 @@ export function useInboxReviews() {
     void fetchReviews();
   }, [fetchReviews]);
 
+  // Background refresh: poll every 60 s while the tab is visible, and refetch
+  // when it becomes visible again. Mirrors the behaviour of `useAgents` so
+  // the inbox stays in sync with the backend even if a socket event was
+  // missed (e.g. after resume from sleep / iOS PWA foreground).
+  useEffect(() => {
+    const refresh = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      void fetchReviews();
+    };
+    const intervalId = setInterval(refresh, 60_000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const onFocus = () => refresh();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchReviews]);
+
   // Listen for real-time review completions to remove from list
   useEffect(() => {
     if (!socket || !connected) return;

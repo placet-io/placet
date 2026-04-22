@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -34,16 +34,10 @@ type ViewMode = 'flat' | 'grouped';
 
 const VIEW_MODE_KEY = 'placet:chat-list-view';
 
-function getInitialViewMode(): ViewMode {
-  if (typeof window === 'undefined') return 'flat';
-  try {
-    const stored = localStorage.getItem(VIEW_MODE_KEY);
-    if (stored === 'grouped') return 'grouped';
-  } catch {
-    /* ignore */
-  }
-  return 'flat';
-}
+// NOTE: We intentionally do NOT read localStorage during initial useState to
+// avoid React hydration mismatches (#418) — the server always renders with
+// the 'flat' default, and we hydrate the persisted value from localStorage
+// in a post-mount effect below.
 
 /** Tag group header with collapsible child items. */
 function CollapsibleGroup({
@@ -61,18 +55,18 @@ function CollapsibleGroup({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 pt-2 pb-1 hover:bg-muted/50 rounded-lg transition-colors cursor-pointer"
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/50 rounded-lg transition-colors cursor-pointer"
       >
-        <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary text-xs font-semibold uppercase">
+        <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary text-xs font-semibold uppercase leading-none">
           {tag.charAt(0)}
         </span>
-        <span className="flex-1 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="flex-1 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-none">
           {tag}
         </span>
         {open ? (
-          <ChevronDown size={14} className="text-muted-foreground" />
+          <ChevronDown size={14} className="text-muted-foreground shrink-0" />
         ) : (
-          <ChevronRight size={14} className="text-muted-foreground" />
+          <ChevronRight size={14} className="text-muted-foreground shrink-0" />
         )}
       </button>
       {open &&
@@ -91,6 +85,7 @@ function CollapsibleGroup({
             lastMessageTime={agent.lastMessageTime}
             unreadCount={agent.unreadCount}
             tag={agent.tag}
+            hideTag
             isActive={agent.id === activeAgentId}
           />
         ))}
@@ -115,7 +110,20 @@ export const ChatList = memo(function ChatList({
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  const [viewMode, setViewMode] = useState<ViewMode>('flat');
+
+  // Hydrate persisted view mode from localStorage after mount (avoids
+  // SSR/CSR hydration mismatches — see note above VIEW_MODE_KEY).
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(VIEW_MODE_KEY);
+      if (stored === 'grouped' || stored === 'flat') {
+        setViewMode(stored);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const toggleViewMode = useCallback(() => {
     setViewMode((prev) => {
@@ -162,7 +170,7 @@ export const ChatList = memo(function ChatList({
   return (
     <div
       className={cn(
-        'flex h-full w-full lg:w-[320px] xl:w-[380px] shrink-0 flex-col bg-card rounded-t-3xl lg:rounded-b-3xl overflow-hidden shadow-sm border border-border/50 border-b-0 lg:border-b',
+        'flex h-full w-full lg:w-[320px] xl:w-[380px] shrink-0 flex-col bg-card lg:rounded-r-2xl lg:rounded-l-none lg:border-l-0 overflow-hidden shadow-xs border border-border/50 border-b-0 border-t-0 lg:border-t lg:border-b',
         className,
       )}
     >

@@ -413,7 +413,7 @@ export const MessageList = memo(function MessageList({
       onScroll={handleScroll}
       className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
     >
-      <div className="flex flex-col min-h-full p-6 gap-4">
+      <div className="flex flex-col min-h-full p-6 gap-4 w-full max-w-4xl mx-auto">
         {/* Push messages to the bottom when there are few */}
         <div className="flex-1" />
 

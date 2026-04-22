@@ -22,12 +22,29 @@ export const viewport: Viewport = {
   maximumScale: 1,
   viewportFit: 'cover',
   interactiveWidget: 'resizes-visual',
+  // Paint the iOS status bar / safe-area with the app background in each
+  // color scheme (instead of the webmanifest's single theme_color, which
+  // used to bleed a primary tint into the notch area on mobile).
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f2f1ee' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1a19' },
+  ],
 };
 
 export const metadata: Metadata = {
   title: 'Placet',
   description: 'Chat-based agent inbox for AI-human interaction',
   manifest: '/favicons/site.webmanifest',
+  // iOS standalone / add-to-home-screen mode: `default` respects the
+  // `theme-color` meta (set per color scheme in `viewport` above) for the
+  // status-bar background. Using `black-translucent` would make the bar
+  // transparent but cause content to flow under the notch — we want a
+  // solid bg that matches the app surface in both light and dark mode.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Placet',
+  },
   icons: {
     icon: [
       { url: '/favicons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -56,7 +73,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-background`}
     >
       <head>
         <script
@@ -66,7 +83,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className="fixed left-0 top-0 w-full overflow-hidden flex flex-col"
+        className="fixed left-0 top-0 w-full overflow-hidden flex flex-col bg-background"
         style={{ height: 'var(--app-height, 100dvh)' }}
       >
         <Providers>{children}</Providers>

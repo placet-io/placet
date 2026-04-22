@@ -1,12 +1,12 @@
 'use client';
 
-import { memo, useCallback, useEffect, useState } from 'react';
+import { isValidElement, memo, useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { Maximize2 } from 'lucide-react';
+import rehypeHighlight from 'rehype-highlight';
+import { Check, Copy, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
 /** Matches a storage file path: /&lt;cuid&gt; */
 const STORAGE_FILE_RE = /^\/([a-z0-9]{20,})$/i;
 
@@ -35,6 +35,7 @@ export const MarkdownContent = memo(function MarkdownContent({
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
         components={{
           // Keep links safe: open in new tab, add noopener
           a: ({ children, href, node: _node, ...props }) => (
@@ -77,14 +78,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             const str = String(children);
             if (str.endsWith('\n') || codeClassName) {
               return (
-                <code
-                  className={cn(
-                    'text-[13px] font-mono',
-                    isUser ? 'text-inherit' : 'text-foreground',
-                    codeClassName,
-                  )}
-                  {...props}
-                >
+                <code className={cn('text-[13px] font-mono', codeClassName)} {...props}>
                   {children}
                 </code>
               );
@@ -104,22 +98,12 @@ export const MarkdownContent = memo(function MarkdownContent({
               </code>
             );
           },
-          // Pre block wrapper
-          pre: ({ children, node: _node, ...props }) => (
-            <pre
-              className={cn(
-                'rounded-lg p-3 overflow-x-auto text-[13px] my-2',
-                isUser ? 'bg-primary-foreground/10' : 'bg-foreground/[0.07] border border-border',
-              )}
-              {...props}
-            >
-              {children}
-            </pre>
-          ),
+          // Pre block wrapper — rendered as a CodeBlock with language header + copy button
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           // Tables
           table: ({ children, node: _node, ...props }) => (
-            <div className="overflow-x-auto my-2 -mx-1">
-              <table className="min-w-[360px] text-sm border-collapse" {...props}>
+            <div className="overflow-x-auto my-2 max-w-full">
+              <table className="text-sm border-collapse" {...props}>
                 {children}
               </table>
             </div>
@@ -228,6 +212,132 @@ export const MarkdownContent = memo(function MarkdownContent({
     </div>
   );
 });
+
+// ---------------------------------------------------------------------------
+// CodeBlock — <pre> wrapper with language label + copy button as overlays
+//
+// Matches the original "clean" look (single rounded card, no extra header
+// chrome) but with a uniformly dark background in both light and dark mode.
+// The language and copy button are absolutely positioned inside the same
+// card as subtle overlays that fade in on hover.
+// ---------------------------------------------------------------------------
+
+// Pretty names for common highlight.js language identifiers.
+const LANGUAGE_LABELS: Record<string, string> = {
+  js: 'JavaScript',
+  jsx: 'JSX',
+  ts: 'TypeScript',
+  tsx: 'TSX',
+  javascript: 'JavaScript',
+  typescript: 'TypeScript',
+  py: 'Python',
+  python: 'Python',
+  rb: 'Ruby',
+  rs: 'Rust',
+  rust: 'Rust',
+  go: 'Go',
+  java: 'Java',
+  kt: 'Kotlin',
+  cs: 'C#',
+  cpp: 'C++',
+  c: 'C',
+  sh: 'Shell',
+  bash: 'Bash',
+  zsh: 'Zsh',
+  yml: 'YAML',
+  yaml: 'YAML',
+  json: 'JSON',
+  md: 'Markdown',
+  markdown: 'Markdown',
+  html: 'HTML',
+  css: 'CSS',
+  scss: 'SCSS',
+  sql: 'SQL',
+  dockerfile: 'Dockerfile',
+  xml: 'XML',
+  diff: 'Diff',
+  graphql: 'GraphQL',
+  toml: 'TOML',
+  ini: 'INI',
+};
+
+function formatLanguageLabel(lang: string | undefined): string | null {
+  if (!lang) return null;
+  const lower = lang.toLowerCase();
+  return LANGUAGE_LABELS[lower] ?? lang;
+}
+
+/** Extracts language id and raw text from the <code> child of a <pre>. */
+function extractCodeMeta(children: React.ReactNode): {
+  language: string | undefined;
+  text: string;
+} {
+  let codeEl: React.ReactElement | null = null;
+  if (isValidElement(children)) {
+    codeEl = children as React.ReactElement;
+  } else if (Array.isArray(children)) {
+    codeEl = children.find((c): c is React.ReactElement => isValidElement(c)) ?? null;
+  }
+
+  let language: string | undefined;
+  let text = '';
+  if (codeEl) {
+    const props = codeEl.props as {
+      className?: string;
+      children?: React.ReactNode;
+    };
+    const match = /language-([^\s]+)/.exec(props.className ?? '');
+    if (match) language = match[1];
+    text =
+      typeof props.children === 'string'
+        ? props.children
+        : Array.isArray(props.children)
+          ? props.children.map((c) => (typeof c === 'string' ? c : '')).join('')
+          : String(props.children ?? '');
+  }
+  if (text.endsWith('\n')) text = text.slice(0, -1);
+  return { language, text };
+}
+
+function CodeBlock({ children }: { children: React.ReactNode }) {
+  const { language, text } = extractCodeMeta(children);
+  const label = formatLanguageLabel(language);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard may be unavailable (insecure contexts); fail silently.
+    }
+  }, [text]);
+
+  return (
+    <div className="group/code relative my-2">
+      <pre className="rounded-lg p-3 overflow-x-auto text-[13px] bg-[#0d1117] text-[#c9d1d9] border border-[#1f2937]">
+        {children}
+      </pre>
+      <div className="pointer-events-none absolute top-1.5 right-1.5 flex items-center gap-1.5">
+        {label && (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]/80">
+            {label}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="pointer-events-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-[#8b949e] hover:bg-[#21262d] hover:text-[#c9d1d9]"
+          aria-label="Copy code"
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Inline storage media component — resolves file type via HEAD request

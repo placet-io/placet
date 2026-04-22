@@ -97,7 +97,7 @@ export const InboxDetail = memo(function InboxDetail({
   };
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-card rounded-t-3xl lg:rounded-b-3xl overflow-hidden shadow-sm border border-border/50 border-b-0 lg:border-b">
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
         <Button
@@ -299,7 +299,7 @@ export const InboxDetail = memo(function InboxDetail({
 
       {/* ── Sticky review card at bottom ── */}
       {review && !responded && (
-        <div className="shrink-0 border-t border-border/50 bg-card p-4">
+        <div className="shrink-0 p-4">
           <ReviewCard review={review} messageId={message.id} onRespond={handleRespond} />
         </div>
       )}
