@@ -306,6 +306,7 @@ export class MessagesService {
     const metadata: Record<string, unknown> = {
       ...(dto.metadata ?? {}),
       ...(dto.webhookUrl ? { webhookUrl: dto.webhookUrl } : {}),
+      ...(dto.clientId ? { clientId: dto.clientId } : {}),
     };
 
     // Auto-set metadata.plugin from review.payload.plugin so the frontend

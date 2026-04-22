@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **React hydration / purity** — `StatusBadge` moved `Date.now()` out of the render body into effect-managed state, satisfying `react-hooks/purity` and preventing inconsistent server/client renders of the "Last seen X ago" label
 
+
 ## [0.9.1] — 2026-04-21
 
 ### Fixed
