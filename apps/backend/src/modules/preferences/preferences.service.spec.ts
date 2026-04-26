@@ -36,7 +36,11 @@ describe('PreferencesService', () => {
     it('should return default if not found', async () => {
       prisma.userPreferences.findUnique.mockResolvedValue(null);
       const result = await service.get('u1');
-      expect(result).toEqual({ userId: 'u1', theme: 'system' });
+      expect(result).toEqual({
+        userId: 'u1',
+        theme: 'system',
+        managementDashboard: false,
+      });
     });
   });
 
