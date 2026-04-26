@@ -480,6 +480,40 @@ export default function AgentSettingsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-3 h-9">
+                    <span
+                      className="text-sm"
+                      title="Master switch for tool allow/deny + approval prompts"
+                    >
+                      Tool policy enabled
+                    </span>
+                    <Switch
+                      checked={Boolean(advanced.policy_enabled ?? true)}
+                      onCheckedChange={(v) =>
+                        setAdvanced((a) => ({ ...a, policy_enabled: Boolean(v) }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-3 h-9">
+                    <span
+                      className="text-sm"
+                      title="Bypass approval prompts for cron-triggered tool calls"
+                    >
+                      Skip policy for cron
+                    </span>
+                    <Switch
+                      checked={Boolean(advanced.policy_skip_cron)}
+                      onCheckedChange={(v) =>
+                        setAdvanced((a) => ({ ...a, policy_skip_cron: Boolean(v) }))
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </ManageCard>
           </ManageSection>
