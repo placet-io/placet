@@ -114,6 +114,13 @@ export const AgentSchema = z.object({
   lastActiveAt: z.string().nullish(),
   commands: z.array(AgentCommandSchema).nullish(),
   tag: z.string().nullish(),
+  /** Facio management API base URL (e.g. https://facio.example.com). */
+  managementUrl: z.string().url().nullish(),
+  /** Masked (`***`) when the agent has a management API key configured. */
+  managementApiKey: z.string().nullish(),
+  /** True for HITL sub-channels; hidden from the management dashboard. */
+  isSubagent: z.boolean().optional(),
+  parentAgentId: z.string().nullish(),
   createdAt: z.string(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
@@ -177,6 +184,7 @@ export type ApiLog = z.infer<typeof ApiLogSchema>;
 export const UserPreferencesSchema = z.object({
   userId: z.string(),
   theme: ThemeSchema,
+  managementDashboard: z.boolean(),
   updatedAt: z.string(),
 });
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>;
@@ -235,8 +243,55 @@ export const UpdateAgentSchema = z.object({
   webhookHeaders: z.record(z.string(), z.string()).nullable().optional(),
   webhookAuth: WebhookAuthSchema.nullable().optional(),
   tag: z.string().max(64).nullable().optional(),
+  managementUrl: z.string().url().nullable().optional(),
+  managementApiKey: z.string().min(1).nullable().optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
+
+export const ManagementCredentialsSchema = z.object({
+  url: z.string().url(),
+  apiKey: z.string().min(1),
+});
+export type ManagementCredentials = z.infer<typeof ManagementCredentialsSchema>;
+
+export const SetManagementSchema = z.object({
+  channelId: z.string().min(1),
+  url: z.string().url().nullable(),
+  apiKey: z.string().min(1).nullable(),
+});
+export type SetManagementRequest = z.infer<typeof SetManagementSchema>;
+
+export const SetSubagentSchema = z
+  .object({
+    channelId: z.string().min(1),
+    isSubagent: z.boolean(),
+    /** Parent channel id when `isSubagent` is true; ignored otherwise. */
+    parentChannelId: z.string().min(1).nullable().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.isSubagent && !val.parentChannelId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentChannelId'],
+        message: 'parentChannelId is required when isSubagent is true',
+      });
+    }
+    if (!val.isSubagent && val.parentChannelId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentChannelId'],
+        message: 'parentChannelId must be null when isSubagent is false',
+      });
+    }
+    if (val.parentChannelId && val.parentChannelId === val.channelId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentChannelId'],
+        message: 'A channel cannot be its own parent',
+      });
+    }
+  });
+export type SetSubagentRequest = z.infer<typeof SetSubagentSchema>;
 
 export const SetTagSchema = z.object({
   channelId: z.string().min(1),
@@ -249,12 +304,42 @@ export const UpdateAgentCommandsSchema = z.object({
 });
 export type UpdateAgentCommandsRequest = z.infer<typeof UpdateAgentCommandsSchema>;
 
-export const SetWebhookSchema = z.object({
-  url: z.string().url(),
-  channelId: z.string().min(1),
-  headers: z.record(z.string(), z.string()).optional(),
-  auth: WebhookAuthSchema.optional(),
-});
+export const SetWebhookSchema = z
+  .object({
+    url: z.string().url(),
+    channelId: z.string().min(1),
+    headers: z.record(z.string(), z.string()).optional(),
+    auth: WebhookAuthSchema.optional(),
+    /** Optional Facio management creds to register together with the main webhook. */
+    management: ManagementCredentialsSchema.optional(),
+    /** True if this channel is a HITL sub-channel (hidden from management UI). */
+    isSubagent: z.boolean().optional(),
+    /** Channel id of the parent agent when `isSubagent` is true. */
+    parentChannelId: z.string().min(1).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.isSubagent === true && !val.parentChannelId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentChannelId'],
+        message: 'parentChannelId is required when isSubagent is true',
+      });
+    }
+    if (val.isSubagent === false && val.parentChannelId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentChannelId'],
+        message: 'parentChannelId must not be set when isSubagent is false',
+      });
+    }
+    if (val.parentChannelId && val.parentChannelId === val.channelId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['parentChannelId'],
+        message: 'A channel cannot be its own parent',
+      });
+    }
+  });
 export type SetWebhookRequest = z.infer<typeof SetWebhookSchema>;
 
 export const DeleteWebhookSchema = z.object({
@@ -336,6 +421,7 @@ export type PresignUploadRequest = z.infer<typeof PresignUploadSchema>;
 
 export const UpdatePreferencesSchema = z.object({
   theme: ThemeSchema.optional(),
+  managementDashboard: z.boolean().optional(),
 });
 export type UpdatePreferencesRequest = z.infer<typeof UpdatePreferencesSchema>;
 

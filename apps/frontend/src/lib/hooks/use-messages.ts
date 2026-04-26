@@ -383,24 +383,43 @@ export function useMessages(channelId: string | null) {
     [addOrReplaceMessage, channelId, removePendingMessage],
   );
 
-  const uploadFile = useCallback(
-    async (file: File, text?: string) => {
-      if (!channelId) return;
-      const formData = new FormData();
-      formData.append('channelId', channelId);
-      if (text) formData.append('text', text);
-      formData.append('file', file);
+  const uploadFiles = useCallback(
+    async (files: File[], text?: string) => {
+      if (!channelId || files.length === 0) return;
 
-      const res = await fetch('/api/files/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ message: res.statusText }));
-        throw new Error((body as Record<string, string>).message ?? 'Upload failed');
+      // Step 1: upload each file individually as an orphan attachment.
+      // Sequential to stay within per-request multipart limits and to surface
+      // partial failures clearly (earlier files remain stored on failure of a later one).
+      const attachmentIds: string[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('channelId', channelId);
+        formData.append('file', file);
+
+        const res = await fetch('/api/files/store', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ message: res.statusText }));
+          throw new Error((body as Record<string, string>).message ?? 'Upload failed');
+        }
+        const attachment = (await res.json()) as { id: string };
+        attachmentIds.push(attachment.id);
       }
-      // Re-fetch messages to pick up the new file message
+
+      // Step 2: create one message referencing all uploaded attachments.
+      await api<Message>('/api/messages', {
+        method: 'POST',
+        body: JSON.stringify({
+          channelId,
+          ...(text ? { text } : {}),
+          attachmentIds,
+        }),
+      });
+
+      // Re-fetch to pick up the new message with its attachments
       await fetchMessages();
     },
     [channelId, fetchMessages],
@@ -463,7 +482,7 @@ export function useMessages(channelId: string | null) {
     progress,
     refetch: fetchMessages,
     sendMessage,
-    uploadFile,
+    uploadFiles,
     loadOlder,
     respondToReview,
     sendAsMessage,

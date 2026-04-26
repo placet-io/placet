@@ -29,7 +29,15 @@ export const MarkdownContent = memo(function MarkdownContent({
     <div
       className={cn(
         'max-w-none',
-        isUser ? '[&_strong]:font-semibold' : 'prose dark:prose-invert',
+        isUser
+          ? '[&_strong]:font-semibold'
+          : cn(
+              'prose dark:prose-invert',
+              // Tighter vertical rhythm — reduce default typography margins
+              'prose-p:my-1 prose-hr:my-3 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0',
+              'prose-img:my-2 prose-blockquote:my-2 prose-pre:my-2',
+              'prose-headings:mt-3 prose-headings:mb-1',
+            ),
         className,
       )}
     >
@@ -267,6 +275,18 @@ function formatLanguageLabel(lang: string | undefined): string | null {
   return LANGUAGE_LABELS[lower] ?? lang;
 }
 
+/** Recursively flattens a React node tree into its plain text content. */
+function reactNodeToText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(reactNodeToText).join('');
+  if (isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    return reactNodeToText(props.children);
+  }
+  return '';
+}
+
 /** Extracts language id and raw text from the <code> child of a <pre>. */
 function extractCodeMeta(children: React.ReactNode): {
   language: string | undefined;
@@ -288,12 +308,9 @@ function extractCodeMeta(children: React.ReactNode): {
     };
     const match = /language-([^\s]+)/.exec(props.className ?? '');
     if (match) language = match[1];
-    text =
-      typeof props.children === 'string'
-        ? props.children
-        : Array.isArray(props.children)
-          ? props.children.map((c) => (typeof c === 'string' ? c : '')).join('')
-          : String(props.children ?? '');
+    // rehype-highlight wraps code in nested <span> tokens, so we must recurse
+    // to recover the original source text instead of only top-level strings.
+    text = reactNodeToText(props.children);
   }
   if (text.endsWith('\n')) text = text.slice(0, -1);
   return { language, text };

@@ -40,14 +40,21 @@ model Agent {
   lastActiveAt   DateTime? @map("last_active_at")
   commands       Json?     // Slash command metadata from agent [{command, description, acceptsArgs?, argHint?}]
   tag            String?   // Grouping tag for chat list (e.g. "monitoring", "prod"). Agent-settable via x-api-key.
+  managementUrl    String?  @map("management_url")      // Facio /api/v1 base URL, e.g. https://facio.example.com
+  managementApiKey String?  @map("management_api_key")  // Facio management bearer token (masked on read)
+  isSubagent       Boolean  @default(false) @map("is_subagent") // true for HITL sub-channels (hidden from /manage)
+  parentAgentId    String?  @map("parent_agent_id")
   createdAt    DateTime  @default(now()) @map("created_at")
 
   owner          User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parent         Agent?               @relation("AgentSubagents", fields: [parentAgentId], references: [id], onDelete: SetNull)
+  subagents      Agent[]              @relation("AgentSubagents")
   messages       Message[]
   attachments    Attachment[]
   statusHistory  AgentStatusHistory[]
   channelReads   ChannelRead[]
 
+  @@index([parentAgentId], name: "idx_agent_parent")
   @@map("agents")
 }
 
@@ -170,6 +177,7 @@ model ApiLog {
 model UserPreferences {
   userId    String   @id @map("user_id")
   theme     String   @default("system") // 'light' | 'dark' | 'system'
+  managementDashboard Boolean @default(false) @map("management_dashboard")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

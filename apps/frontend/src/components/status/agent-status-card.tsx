@@ -43,9 +43,9 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; dot: string; bg: strin
     },
   };
 
-function formatUptime(statusSince: string | null | undefined): string {
+function formatUptime(statusSince: string | null | undefined, now: number): string {
   if (!statusSince) return '—';
-  const diff = Date.now() - new Date(statusSince).getTime();
+  const diff = now - new Date(statusSince).getTime();
   if (diff < 0) return '—';
   const mins = Math.floor(diff / 60_000);
   if (mins < 60) return `${mins}m`;
@@ -54,6 +54,30 @@ function formatUptime(statusSince: string | null | undefined): string {
   if (hours < 24) return `${hours}h ${remainMins}m`;
   const days = Math.floor(hours / 24);
   return `${days}d ${hours % 24}h`;
+}
+
+// Agents ping their status every ~60s. If we haven't heard anything for
+// substantially longer than that, treat the stored status as stale and
+// surface the row as offline regardless of what it last reported.
+const STALE_AFTER_MS = 3 * 60_000;
+
+function deriveStatus(agent: Agent, now: number): AgentStatus {
+  const raw = (agent.status ?? 'offline') as AgentStatus;
+  if (raw === 'offline') return raw;
+  if (!agent.lastActiveAt) return 'offline';
+  const age = now - new Date(agent.lastActiveAt).getTime();
+  if (age > STALE_AFTER_MS) return 'offline';
+  return raw;
+}
+
+/** Bumps every 30s so derived staleness re-evaluates without a full refetch. */
+function useNow(intervalMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
 }
 
 interface AgentStatusRowProps {
@@ -66,7 +90,8 @@ export const AgentStatusRow = memo(function AgentStatusRow({ agent }: AgentStatu
   const [loading, setLoading] = useState(false);
   const toggle = useCallback(() => setOpen((v) => !v), []);
 
-  const status = (agent.status ?? 'offline') as AgentStatus;
+  const now = useNow();
+  const status = deriveStatus(agent, now);
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.offline;
 
   // Fetch stats when row is first expanded
@@ -137,7 +162,7 @@ export const AgentStatusRow = memo(function AgentStatusRow({ agent }: AgentStatu
           </span>
         </td>
         <td className="px-6 py-3.5 text-muted-foreground">
-          {status !== 'offline' ? formatUptime(agent.statusSince) : '—'}
+          {status !== 'offline' ? formatUptime(agent.statusSince, now) : '—'}
         </td>
         <td className="px-6 py-3.5 text-muted-foreground">
           {agent.lastActiveAt ? formatRelativeTime(agent.lastActiveAt) : 'Never'}
@@ -215,7 +240,7 @@ export const AgentStatusRow = memo(function AgentStatusRow({ agent }: AgentStatu
             </div>
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Uptime: {status !== 'offline' ? formatUptime(agent.statusSince) : '—'}</span>
+            <span>Uptime: {status !== 'offline' ? formatUptime(agent.statusSince, now) : '—'}</span>
             <span>
               Last active: {agent.lastActiveAt ? formatRelativeTime(agent.lastActiveAt) : 'Never'}
             </span>

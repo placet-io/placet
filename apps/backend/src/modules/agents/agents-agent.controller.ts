@@ -32,6 +32,8 @@ import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { SetWebhookDto, DeleteWebhookDto } from './dto/set-webhook.dto';
 import { SetTagDto } from './dto/set-tag.dto';
+import { SetManagementDto } from './dto/set-management.dto';
+import { SetSubagentDto } from './dto/set-subagent.dto';
 import { UpdateCommandsDto } from './dto/update-commands.dto';
 
 @ApiTags('Agents')
@@ -104,10 +106,14 @@ export class AgentsAgentController {
     type: ErrorResponse,
   })
   async setWebhook(@Req() req: RequestWithUser, @Body() dto: SetWebhookDto) {
-    return this.agentsService.update(dto.channelId, req.user.id, {
-      webhookUrl: dto.url,
-      webhookHeaders: dto.headers ?? null,
-      webhookAuth: dto.auth ?? null,
+    return this.agentsService.setWebhookConfig(dto.channelId, req.user.id, {
+      url: dto.url,
+      headers: dto.headers,
+      auth: dto.auth,
+      management: dto.management,
+      isSubagent: dto.isSubagent,
+      parentChannelId:
+        dto.parentChannelId !== undefined ? dto.parentChannelId : undefined,
     });
   }
 
@@ -173,5 +179,56 @@ export class AgentsAgentController {
     return this.agentsService.update(dto.channelId, req.user.id, {
       tag: dto.tag,
     });
+  }
+
+  @Post('setManagement')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Register Facio management credentials for a channel',
+    description:
+      'Stores the Facio `/api/v1/*` base URL and bearer token used by the Placet management dashboard proxy. Pass null values to clear. Only the main channel of a facio instance should carry management creds; HITL sub-channels must omit them and set `isSubagent` via `setWebhook`.',
+  })
+  @ApiOkResponse({
+    description: 'Management credentials updated',
+    type: AgentResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async setManagement(
+    @Req() req: RequestWithUser,
+    @Body() dto: SetManagementDto,
+  ) {
+    return this.agentsService.setManagement(
+      dto.channelId,
+      req.user.id,
+      dto.url,
+      dto.apiKey,
+    );
+  }
+
+  @Post('setSubagent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Flag a channel as HITL sub-channel (or promote back to main)',
+    description:
+      'Marks the channel as a sub-channel of a parent agent (hidden from the management dashboard and grouped under the parent in chat lists) when `isSubagent` is true. Pass `isSubagent: false` to promote the channel back to a top-level agent.',
+  })
+  @ApiOkResponse({
+    description: 'Sub-agent flag updated',
+    type: AgentResponse,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  async setSubagent(@Req() req: RequestWithUser, @Body() dto: SetSubagentDto) {
+    return this.agentsService.setSubagent(
+      dto.channelId,
+      req.user.id,
+      dto.isSubagent,
+      dto.parentChannelId ?? null,
+    );
   }
 }

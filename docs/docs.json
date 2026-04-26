@@ -38,7 +38,8 @@
               "connections/rest-api",
               "connections/websocket",
               "connections/webhooks",
-              "connections/oauth-relay"
+              "connections/oauth-relay",
+              "connections/management-dashboard"
             ]
           },
           {
