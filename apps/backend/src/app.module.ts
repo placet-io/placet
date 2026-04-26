@@ -22,6 +22,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ShareModule } from './modules/share/share.module';
 import { PushModule } from './modules/push/push.module';
 import { OAuthRelayModule } from './modules/oauth-relay/oauth-relay.module';
+import { AgentManagementModule } from './modules/agent-management/agent-management.module';
 import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
 
 @Module({
@@ -113,6 +114,7 @@ import { ApiLoggerInterceptor } from './middleware/api-logger.interceptor';
     ShareModule,
     PushModule,
     OAuthRelayModule,
+    AgentManagementModule,
   ],
   controllers: [AppController],
   providers: [

@@ -3,16 +3,20 @@
 import { memo } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, Inbox, Folder, Terminal, Activity, Settings } from 'lucide-react';
+import { MessageSquare, Inbox, Folder, Terminal, Activity, Settings, Wrench } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { usePreferences } from '@/lib/hooks/use-preferences';
 import { cn } from '@/lib/utils';
 const NAV_ITEMS = [
   { href: '/chats', icon: MessageSquare, label: 'Agents' },
   { href: '/inbox', icon: Inbox, label: 'Inbox' },
   { href: '/files', icon: Folder, label: 'Files' },
-  { href: '/logs', icon: Terminal, label: 'Logs' },
   { href: '/status', icon: Activity, label: 'Status' },
 ] as const;
+
+const MANAGE_ITEM = { href: '/manage', icon: Wrench, label: 'Manage' } as const;
+
+const LOGS_ITEM = { href: '/logs', icon: Terminal, label: 'Logs' } as const;
 
 const SETTINGS_ITEM = { href: '/settings', icon: Settings, label: 'Settings' } as const;
 
@@ -60,6 +64,8 @@ function NavIcon({
 
 export const IconBar = memo(function IconBar({ merged = false }: { merged?: boolean }) {
   const pathname = usePathname();
+  const { preferences } = usePreferences();
+  const showManage = preferences?.managementDashboard === true;
 
   return (
     <nav
@@ -91,10 +97,24 @@ export const IconBar = memo(function IconBar({ merged = false }: { merged?: bool
             isActive={pathname === href || pathname.startsWith(`${href}/`)}
           />
         ))}
+        {showManage && (
+          <NavIcon
+            href={MANAGE_ITEM.href}
+            icon={MANAGE_ITEM.icon}
+            label={MANAGE_ITEM.label}
+            isActive={pathname === MANAGE_ITEM.href || pathname.startsWith(`${MANAGE_ITEM.href}/`)}
+          />
+        )}
       </div>
 
-      {/* Settings pinned to bottom */}
-      <div className="mt-4 flex w-full flex-col items-center">
+      {/* Logs + Settings pinned to bottom */}
+      <div className="mt-4 flex w-full flex-col items-center gap-4">
+        <NavIcon
+          href={LOGS_ITEM.href}
+          icon={LOGS_ITEM.icon}
+          label={LOGS_ITEM.label}
+          isActive={pathname === LOGS_ITEM.href || pathname.startsWith(`${LOGS_ITEM.href}/`)}
+        />
         <NavIcon
           href={SETTINGS_ITEM.href}
           icon={SETTINGS_ITEM.icon}

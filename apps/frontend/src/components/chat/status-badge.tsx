@@ -1,6 +1,18 @@
 'use client';
 
-import { memo, useEffect, useState } from 'react';
+import { memo, useSyncExternalStore } from 'react';
+
+/**
+ * Subscribe to a 60s ticker that returns the current epoch ms on the client
+ * and `0` on the server. Using `useSyncExternalStore` keeps `Date.now()` out
+ * of render and avoids `setState`-in-effect lint violations.
+ */
+function subscribeMinuteTick(callback: () => void): () => void {
+  const id = setInterval(callback, 60_000);
+  return () => clearInterval(id);
+}
+const getClientNow = () => Date.now();
+const getServerNow = () => 0;
 import type { AgentStatus } from '@placet/shared';
 import { cn } from '@/lib/utils';
 
@@ -73,23 +85,13 @@ export const StatusBadge = memo(function StatusBadge({
   statusSince,
   className,
 }: StatusBadgeProps) {
-  const [mounted, setMounted] = useState(false);
-  // `now` is updated inside effects only — keeping `Date.now()` out of the
-  // render body satisfies the `react-hooks/purity` lint rule and prevents
-  // non-deterministic renders.
-  const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    // Mount-gate + periodic re-render to keep "X ago" text current. The
-    // setState calls here are intentional (we need to flip `mounted` and
-    // seed `now` after hydration), so suppress the purity/set-state lint.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // `now` is sourced via an external store so `Date.now()` stays out of the
+  // render body (satisfies `react-hooks/purity`) and we avoid calling
+  // `setState` inside `useEffect` (satisfies `react-hooks/set-state-in-effect`).
+  // Server snapshot returns `0` so the initial render is time-independent and
+  // hydration-safe; after mount the client snapshot kicks in.
+  const now = useSyncExternalStore(subscribeMinuteTick, getClientNow, getServerNow);
+  const mounted = now > 0;
 
   // No status ever reported → render nothing.
   if (!statusSince) return null;

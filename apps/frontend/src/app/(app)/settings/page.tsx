@@ -2,6 +2,7 @@
 
 import { AppearanceSection } from '@/components/settings/appearance-section';
 import { ApiKeysSection } from '@/components/settings/api-keys-section';
+import { ManagementDashboardSection } from '@/components/settings/management-dashboard-section';
 import { PluginsSection } from '@/components/settings/plugins-section';
 import { UserManagementSection } from '@/components/settings/user-management-section';
 import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
@@ -21,6 +22,7 @@ export default function SettingsPage() {
         </div>
 
         <AppearanceSection />
+        <ManagementDashboardSection />
         <PluginsSection />
         <ApiKeysSection />
         <UserManagementSection />

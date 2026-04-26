@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-04-26
+
+### Added
+
+- **Management Dashboard** _(opt-in)_ — new `/manage` section lets operators inspect and configure every owned agent directly from the Placet UI, proxied to the agent's built-in management API (facio or any compatible runtime). The section is gated behind a per-user `managementDashboard` preference (Settings → Management Dashboard) and hidden by default
+  - **Per-agent dashboard** (`/manage/[agentId]`) — live status, uptime, last-active, token/daily usage mini-chart, connected channels (with nested sub-channels for agents that expose them, e.g. Placet HITL sub-agents), active MCP servers with connected/disabled state, and shortcuts into every sub-section
+  - **Usage overview** (`/manage`) — cross-agent daily-token stacked bar chart, health probe per manageable agent, quick-filterable agent list
+  - **Sub-resource editors** — full CRUD for: Credentials (with masked read-back), Cron jobs (cron / every-N-seconds / at-time, with preview of the next few fire times), MCP servers (stdio / sse / http, with live connection check), Channels (free-form JSON config with restart-required indicator), Settings (model overrides, webhook auth, per-provider API keys), Skills (zip upload), Scripts, Workspace (file tree + CodeMirror editor), A2A peers, Sessions browser, Audit timeline
+  - **Backend proxy module** (`apps/backend/src/modules/agent-management/*`) — 16 NestJS controllers under `api/agents/:agentId/manage/*` that stamp the agent's stored bearer on outbound calls (never returned to the browser); per-request ownership check via `JwtAuthGuard` + scoped `findFirst({ownerId})`
+  - **Daily-usage aggregator** (`/api/manage/usage/daily`) — cached (60 s TTL) cross-agent fan-out used by the dashboard charts
+- **Sub-agent modeling** — `Agent.isSubagent` + `Agent.parentAgentId` schema fields and `POST /api/v1/agents/setSubagent` / `setWebhook { isSubagent, parentChannelId }` API surface. Sub-agents inherit their parent's online status link in the UI and do not appear in the top-level manageable list
+- **Management credentials on `Agent`** — new `managementUrl` / `managementApiKey` fields plus `POST /api/v1/agents/setManagement`. The key is masked (`***`) on every read path and is only materialized server-side inside the management proxy
+- **User preferences `managementDashboard` flag** — stored in `User.preferences`, toggled via `PATCH /api/preferences`. Controls visibility of the `/manage` entry in the desktop sidebar
+- **Reusable manage components** — `<ManagePane>`, `<ManageCard>`, `<ManageDataTable>` (sortable, paginated, optional expanded-row renderer), `<MiniBarChart>`, `<StackedDailyBarChart>`, `<AuditTimeline>`, `<CodeEditor>` (CodeMirror with JS/JSON/MD/Python/YAML/HTML/CSS language packs), `<PillSwitch>`, `<Switch>` (base-ui)
+
+### Changed
+
+- **facio Placet channel status ping** — `_status_ping_loop` and `send_status` now iterate every managed channel ID (root + sub-agents registered through the channel registry) and PATCH each one's `lastActiveAt` / `status` individually, so sub-agents in HITL constellations appear online in the UI instead of being stuck on whatever state they had at registration time
+- **Agent overview redesign** — "Connected channels" quick-look now lists every channel as a row with the channel name on the left and the channel type on the right; sub-channels of the Placet channel are rendered as indented rows underneath their parent. "Active tools" lists MCP servers at the top level (server name + connection status + `n tools available`) instead of expanding every tool individually
+- **Mobile chat input + header polish** — chat input no longer overflows on narrow viewports; header reorganized for better touch-target placement
+- **Sidebar reordering + font-size pass** — manage sub-section groups reordered for frequency-of-use; typography tightened across `/manage` for consistency with the rest of the app
+- **Agent status logic** — `pingStatus` now preserves `statusSince` on non-transitions (only stamps a new value when the enum state actually changes), preventing spurious "just transitioned" timestamps on every 60-second ping
+
+### Fixed
+
+- **`managementApiKey` leaked by `GET /api/v1/agents`** — `findAllByOwnerSimple` now routes every result through `maskAgent()`, matching every other read path. Previously an API-key-scoped caller (n8n nodes, CI scripts, integrations) could read the raw management bearer for every agent in the tenant
+- **`ManageDataTable` lost React keys on every row** — the map returned a Fragment `<>` with `key` on the inner `<tr>`, so React iterated the unkeyed Fragment and re-mounted rows on every sort/paginate. Now uses `<Fragment key>` explicitly
+- **"+ New channel" never persisted** — the channels page only mutated local state and never called `PUT /channels/:name`, so the new entry vanished on refresh. The button now awaits the PUT, surfaces errors, and flags restart-required on success
+- **Cron "every" schedule ignored** — the schedule builder sent `{kind:'every', everyMs}` but the API shape is `{every_ms}` (snake_case); jobs would never fire. Fixed to emit `every_ms`
+
 ## [0.9.2] — 2026-04-22
 
 ### Added

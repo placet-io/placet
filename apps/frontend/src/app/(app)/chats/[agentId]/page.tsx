@@ -42,7 +42,7 @@ export default function ChatThreadPage() {
     streamingMessages,
     progress,
     sendMessage,
-    uploadFile,
+    uploadFiles,
     loadOlder,
     respondToReview,
     sendAsMessage,
@@ -131,7 +131,7 @@ export default function ChatThreadPage() {
           />
           <MessageInput
             onSend={handleSend}
-            onUploadFile={uploadFile}
+            onUploadFiles={uploadFiles}
             quotedMessage={quotedMessage}
             onClearQuote={handleClearQuote}
             commands={commands}

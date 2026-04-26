@@ -6,7 +6,7 @@ import { PhonePortraitGuard } from '@/components/layout/phone-portrait-guard';
 import { SocketProvider } from '@/lib/contexts/socket-context';
 import { cn } from '@/lib/utils';
 
-const MERGED_ROUTES = /^\/(chats|inbox)(\/|$)/;
+const MERGED_ROUTES = /^\/(chats|inbox|manage)(\/|$)/;
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

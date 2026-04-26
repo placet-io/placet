@@ -9,14 +9,26 @@ export class PreferencesService {
     const prefs = await this.prisma.userPreferences.findUnique({
       where: { userId },
     });
-    return prefs ?? { userId, theme: 'system' };
+    return prefs ?? { userId, theme: 'system', managementDashboard: false };
   }
 
-  async update(userId: string, data: { theme?: string }) {
+  async update(
+    userId: string,
+    data: { theme?: string; managementDashboard?: boolean },
+  ) {
     return this.prisma.userPreferences.upsert({
       where: { userId },
-      update: { ...(data.theme && { theme: data.theme }) },
-      create: { userId, theme: data.theme ?? 'system' },
+      update: {
+        ...(data.theme && { theme: data.theme }),
+        ...(data.managementDashboard !== undefined && {
+          managementDashboard: data.managementDashboard,
+        }),
+      },
+      create: {
+        userId,
+        theme: data.theme ?? 'system',
+        managementDashboard: data.managementDashboard ?? false,
+      },
     });
   }
 }

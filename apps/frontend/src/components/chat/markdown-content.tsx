@@ -29,7 +29,15 @@ export const MarkdownContent = memo(function MarkdownContent({
     <div
       className={cn(
         'max-w-none',
-        isUser ? '[&_strong]:font-semibold' : 'prose dark:prose-invert',
+        isUser
+          ? '[&_strong]:font-semibold'
+          : cn(
+              'prose dark:prose-invert',
+              // Tighter vertical rhythm — reduce default typography margins
+              'prose-p:my-1 prose-hr:my-3 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0',
+              'prose-img:my-2 prose-blockquote:my-2 prose-pre:my-2',
+              'prose-headings:mt-3 prose-headings:mb-1',
+            ),
         className,
       )}
     >
@@ -267,6 +275,18 @@ function formatLanguageLabel(lang: string | undefined): string | null {
   return LANGUAGE_LABELS[lower] ?? lang;
 }
 
+/** Recursively flattens a React node tree into its plain text content. */
+function reactNodeToText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(reactNodeToText).join('');
+  if (isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    return reactNodeToText(props.children);
+  }
+  return '';
+}
+
 /** Extracts language id and raw text from the <code> child of a <pre>. */
 function extractCodeMeta(children: React.ReactNode): {
   language: string | undefined;
@@ -288,12 +308,9 @@ function extractCodeMeta(children: React.ReactNode): {
     };
     const match = /language-([^\s]+)/.exec(props.className ?? '');
     if (match) language = match[1];
-    text =
-      typeof props.children === 'string'
-        ? props.children
-        : Array.isArray(props.children)
-          ? props.children.map((c) => (typeof c === 'string' ? c : '')).join('')
-          : String(props.children ?? '');
+    // rehype-highlight wraps code in nested <span> tokens, so we must recurse
+    // to recover the original source text instead of only top-level strings.
+    text = reactNodeToText(props.children);
   }
   if (text.endsWith('\n')) text = text.slice(0, -1);
   return { language, text };
@@ -343,6 +360,35 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 // Inline storage media component — resolves file type via HEAD request
 // ---------------------------------------------------------------------------
 
+// Module-scoped cache so each `[file://...]` reference HEADs the file once
+// per page lifetime instead of once per InlineStorageMedia mount. Without
+// this, navigating away/back or scrolling messages with many attachments
+// re-issues the same HEAD per occurrence.
+const mediaTypeCache = new Map<string, 'image' | 'video'>();
+const mediaTypePending = new Map<string, Promise<'image' | 'video'>>();
+
+function resolveMediaType(fileId: string, src: string): Promise<'image' | 'video'> {
+  const cached = mediaTypeCache.get(fileId);
+  if (cached) return Promise.resolve(cached);
+  const pending = mediaTypePending.get(fileId);
+  if (pending) return pending;
+  const p = fetch(src, { method: 'HEAD', credentials: 'include' })
+    .then((res) => {
+      const ct = res.headers.get('content-type') ?? '';
+      const kind: 'image' | 'video' = ct.startsWith('video/') ? 'video' : 'image';
+      mediaTypeCache.set(fileId, kind);
+      mediaTypePending.delete(fileId);
+      return kind;
+    })
+    .catch(() => {
+      mediaTypeCache.set(fileId, 'image');
+      mediaTypePending.delete(fileId);
+      return 'image' as const;
+    });
+  mediaTypePending.set(fileId, p);
+  return p;
+}
+
 function InlineStorageMedia({
   fileId,
   alt,
@@ -353,18 +399,28 @@ function InlineStorageMedia({
   onExpand?: (fileId: string) => void;
 }) {
   const src = `/api/files/${fileId}/download`;
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(
+    () => mediaTypeCache.get(fileId) ?? null,
+  );
+
+  // When `fileId` changes, eagerly read the cache for the new id so we render
+  // synchronously without flashing the loading placeholder. This is a render-
+  // phase derivation rather than an effect-driven setState.
+  const cachedForCurrent = mediaTypeCache.get(fileId) ?? null;
+  if (cachedForCurrent && cachedForCurrent !== mediaType) {
+    setMediaType(cachedForCurrent);
+  }
 
   useEffect(() => {
-    // Determine media type from the content-type header
-    fetch(src, { method: 'HEAD', credentials: 'include' })
-      .then((res) => {
-        const ct = res.headers.get('content-type') ?? '';
-        if (ct.startsWith('video/')) setMediaType('video');
-        else setMediaType('image'); // default to image
-      })
-      .catch(() => setMediaType('image'));
-  }, [src]);
+    if (mediaTypeCache.has(fileId)) return;
+    let cancelled = false;
+    void resolveMediaType(fileId, src).then((kind) => {
+      if (!cancelled) setMediaType(kind);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, src]);
 
   const handleExpand = useCallback(() => {
     onExpand?.(fileId);

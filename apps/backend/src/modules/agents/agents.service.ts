@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
+import { AgentRosterEvents } from './agent-roster-events';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import type {
   AgentStatsResponse,
@@ -33,6 +38,10 @@ const AGENT_SELECT = {
   lastActiveAt: true,
   commands: true,
   tag: true,
+  managementUrl: true,
+  managementApiKey: true,
+  isSubagent: true,
+  parentAgentId: true,
   createdAt: true,
 } as const;
 
@@ -50,19 +59,35 @@ function maskWebhookAuth<T extends { webhookAuth?: unknown }>(agent: T): T {
   return Object.assign({}, agent, { webhookAuth: auth }) as T;
 }
 
+/** Replace the management API key with `***` so it never leaves the server. */
+function maskManagementKey<T extends { managementApiKey?: unknown }>(
+  agent: T,
+): T {
+  if (!agent.managementApiKey) return agent;
+  return Object.assign({}, agent, { managementApiKey: '***' }) as T;
+}
+
+function maskAgent<
+  T extends { webhookAuth?: unknown; managementApiKey?: unknown },
+>(agent: T): T {
+  return maskManagementKey(maskWebhookAuth(agent));
+}
+
 @Injectable()
 export class AgentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3: S3Service,
+    private readonly rosterEvents: AgentRosterEvents,
   ) {}
 
   async findAllByOwnerSimple(ownerId: string) {
-    return this.prisma.agent.findMany({
+    const agents = await this.prisma.agent.findMany({
       where: { ownerId },
       select: AGENT_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+    return agents.map((a) => maskAgent(a));
   }
 
   async findAllByOwner(ownerId: string) {
@@ -114,7 +139,7 @@ export class AgentsService {
     );
 
     return agents.map(({ messages, channelReads: _cr, _count: _c, ...agent }) =>
-      maskWebhookAuth({
+      maskAgent({
         ...agent,
         lastMessage: messages[0]?.text ?? undefined,
         lastMessageTime: messages[0]?.createdAt?.toISOString() ?? undefined,
@@ -144,7 +169,21 @@ export class AgentsService {
       select: AGENT_SELECT,
     });
     if (!agent) throw new NotFoundException('Agent not found');
-    return maskWebhookAuth(agent);
+    return maskAgent(agent);
+  }
+
+  /** Internal: resolve an agent + return its management credentials unmasked. */
+  async getManagementCredentials(
+    id: string,
+    ownerId: string,
+  ): Promise<{ url: string; apiKey: string } | null> {
+    const agent = await this.prisma.agent.findFirst({
+      where: { id, ownerId },
+      select: { managementUrl: true, managementApiKey: true },
+    });
+    if (!agent) throw new NotFoundException('Agent not found');
+    if (!agent.managementUrl || !agent.managementApiKey) return null;
+    return { url: agent.managementUrl, apiKey: agent.managementApiKey };
   }
 
   async create(ownerId: string, dto: CreateAgentDto) {
@@ -159,7 +198,8 @@ export class AgentsService {
       },
       select: AGENT_SELECT,
     });
-    return maskWebhookAuth(agent);
+    this.rosterEvents.emitRosterChanged(ownerId);
+    return maskAgent(agent);
   }
 
   async update(id: string, ownerId: string, dto: UpdateAgentRequest) {
@@ -181,7 +221,123 @@ export class AgentsService {
       },
       select: AGENT_SELECT,
     });
-    return maskWebhookAuth(updated);
+    return maskAgent(updated);
+  }
+
+  /** Register or clear management credentials for a channel. */
+  async setManagement(
+    channelId: string,
+    ownerId: string,
+    url: string | null,
+    apiKey: string | null,
+  ) {
+    await this.findById(channelId, ownerId);
+    const updated = await this.prisma.agent.update({
+      where: { id: channelId },
+      data: { managementUrl: url, managementApiKey: apiKey },
+      select: AGENT_SELECT,
+    });
+    this.rosterEvents.emitRosterChanged(ownerId);
+    return maskAgent(updated);
+  }
+
+  /** Set sub-channel metadata (HITL children of a main channel). */
+  async setSubagent(
+    channelId: string,
+    ownerId: string,
+    isSubagent: boolean,
+    parentChannelId: string | null,
+  ) {
+    await this.findById(channelId, ownerId);
+    if (parentChannelId) {
+      await this.findById(parentChannelId, ownerId);
+      await this.assertNoSubagentCycle(channelId, parentChannelId, ownerId);
+    }
+    const updated = await this.prisma.agent.update({
+      where: { id: channelId },
+      data: { isSubagent, parentAgentId: parentChannelId },
+      select: AGENT_SELECT,
+    });
+    return maskAgent(updated);
+  }
+
+  /**
+   * Walk the parentAgentId chain up from `parentId` to ensure `channelId` does
+   * not appear as an ancestor. Guards against self-parent and cycles.
+   */
+  private async assertNoSubagentCycle(
+    channelId: string,
+    parentId: string,
+    ownerId: string,
+  ): Promise<void> {
+    if (parentId === channelId) {
+      throw new BadRequestException('A channel cannot be its own parent');
+    }
+    const MAX_DEPTH = 16;
+    let cursor: string | null = parentId;
+    const seen = new Set<string>();
+    for (let i = 0; i < MAX_DEPTH && cursor; i++) {
+      if (seen.has(cursor)) {
+        throw new BadRequestException('Sub-agent parent chain is cyclic');
+      }
+      seen.add(cursor);
+      const row: { parentAgentId: string | null } | null =
+        await this.prisma.agent.findFirst({
+          where: { id: cursor, ownerId },
+          select: { parentAgentId: true },
+        });
+      if (!row) return;
+      if (row.parentAgentId === channelId) {
+        throw new BadRequestException(
+          'Sub-agent parent chain would cycle through this channel',
+        );
+      }
+      cursor = row.parentAgentId;
+    }
+  }
+
+  /**
+   * Atomically configure a channel's webhook, optional management credentials,
+   * and optional sub-agent flag in a single Prisma update.
+   */
+  async setWebhookConfig(
+    channelId: string,
+    ownerId: string,
+    dto: {
+      url: string;
+      headers?: Record<string, string>;
+      auth?: unknown;
+      management?: { url: string; apiKey: string };
+      isSubagent?: boolean;
+      parentChannelId?: string | null;
+    },
+  ) {
+    await this.findById(channelId, ownerId);
+    if (dto.parentChannelId) {
+      await this.findById(dto.parentChannelId, ownerId);
+      await this.assertNoSubagentCycle(channelId, dto.parentChannelId, ownerId);
+    }
+    const data: Prisma.AgentUncheckedUpdateInput = {
+      webhookUrl: dto.url,
+      webhookHeaders: jsonOrDbNull(dto.headers ?? null),
+      webhookAuth: jsonOrDbNull(dto.auth ?? null),
+    };
+    if (dto.management) {
+      data.managementUrl = dto.management.url;
+      data.managementApiKey = dto.management.apiKey;
+    }
+    if (dto.isSubagent !== undefined) {
+      data.isSubagent = dto.isSubagent;
+    }
+    if (dto.parentChannelId !== undefined) {
+      data.parentAgentId = dto.parentChannelId;
+    }
+    const updated = await this.prisma.agent.update({
+      where: { id: channelId },
+      data,
+      select: AGENT_SELECT,
+    });
+    return maskAgent(updated);
   }
 
   async updateCommands(id: string, ownerId: string, commands: unknown[]) {
@@ -191,12 +347,13 @@ export class AgentsService {
       data: { commands: commands as Prisma.InputJsonValue },
       select: AGENT_SELECT,
     });
-    return maskWebhookAuth(updated);
+    return maskAgent(updated);
   }
 
   async remove(id: string, ownerId: string) {
     await this.findById(id, ownerId);
     await this.prisma.agent.delete({ where: { id } });
+    this.rosterEvents.emitRosterChanged(ownerId);
     return { deleted: true };
   }
 
@@ -206,32 +363,41 @@ export class AgentsService {
     status: string,
     message?: string,
   ) {
-    await this.findById(agentId, ownerId);
+    const current = await this.findById(agentId, ownerId);
 
     const now = new Date();
+    // Only reset `statusSince` when the status actually transitions. Agents
+    // ping their current status every ~60s as a liveness signal; if we
+    // reset on every ping the uptime tile always shows near-zero. Still
+    // always bump `lastActiveAt` so stale-detection works.
+    const statusChanged = current.status !== status;
+    const statusSince = statusChanged ? now : (current.statusSince ?? now);
 
-    // Update agent's current status + write history entry in parallel
     const [agent] = await Promise.all([
       this.prisma.agent.update({
         where: { id: agentId },
         data: {
           status,
           statusMessage: message ?? null,
-          statusSince: now,
+          statusSince,
           lastActiveAt: now,
         },
         select: AGENT_SELECT,
       }),
-      this.prisma.agentStatusHistory.create({
-        data: {
-          agentId,
-          status,
-          message: message ?? null,
-        },
-      }),
+      // Only record a history row on actual transitions to keep the
+      // timeline meaningful (not flooded with identical keep-alive rows).
+      statusChanged
+        ? this.prisma.agentStatusHistory.create({
+            data: {
+              agentId,
+              status,
+              message: message ?? null,
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
-    return maskWebhookAuth(agent);
+    return maskAgent(agent);
   }
 
   async getStats(
@@ -362,7 +528,7 @@ export class AgentsService {
       data: { avatarUrl: storageKey },
       select: AGENT_SELECT,
     });
-    return maskWebhookAuth(updated);
+    return maskAgent(updated);
   }
 
   async getAvatarStream(id: string, ownerId: string) {
@@ -384,6 +550,6 @@ export class AgentsService {
       data: { avatarUrl: null },
       select: AGENT_SELECT,
     });
-    return maskWebhookAuth(updated);
+    return maskAgent(updated);
   }
 }

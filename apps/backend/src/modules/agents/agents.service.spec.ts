@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { AgentsService } from './agents.service';
+import { AgentRosterEvents } from './agent-roster-events';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
 
@@ -40,6 +41,7 @@ describe('AgentsService', () => {
             deleteMany: jest.fn().mockResolvedValue(undefined),
           },
         },
+        AgentRosterEvents,
       ],
     }).compile();
 
