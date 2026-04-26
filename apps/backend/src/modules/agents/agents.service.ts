@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3Service } from '../../providers/s3.service';
+import { AgentRosterEvents } from './agent-roster-events';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import type {
   AgentStatsResponse,
@@ -77,6 +78,7 @@ export class AgentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3: S3Service,
+    private readonly rosterEvents: AgentRosterEvents,
   ) {}
 
   async findAllByOwnerSimple(ownerId: string) {
@@ -196,6 +198,7 @@ export class AgentsService {
       },
       select: AGENT_SELECT,
     });
+    this.rosterEvents.emitRosterChanged(ownerId);
     return maskAgent(agent);
   }
 
@@ -215,19 +218,13 @@ export class AgentsService {
           webhookAuth: jsonOrDbNull(dto.webhookAuth),
         }),
         ...(dto.tag !== undefined && { tag: dto.tag }),
-        ...(dto.managementUrl !== undefined && {
-          managementUrl: dto.managementUrl,
-        }),
-        ...(dto.managementApiKey !== undefined && {
-          managementApiKey: dto.managementApiKey,
-        }),
       },
       select: AGENT_SELECT,
     });
     return maskAgent(updated);
   }
 
-  /** Register or clear Facio management credentials for a channel. */
+  /** Register or clear management credentials for a channel. */
   async setManagement(
     channelId: string,
     ownerId: string,
@@ -240,6 +237,7 @@ export class AgentsService {
       data: { managementUrl: url, managementApiKey: apiKey },
       select: AGENT_SELECT,
     });
+    this.rosterEvents.emitRosterChanged(ownerId);
     return maskAgent(updated);
   }
 
@@ -355,6 +353,7 @@ export class AgentsService {
   async remove(id: string, ownerId: string) {
     await this.findById(id, ownerId);
     await this.prisma.agent.delete({ where: { id } });
+    this.rosterEvents.emitRosterChanged(ownerId);
     return { deleted: true };
   }
 

@@ -360,6 +360,35 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 // Inline storage media component — resolves file type via HEAD request
 // ---------------------------------------------------------------------------
 
+// Module-scoped cache so each `[file://...]` reference HEADs the file once
+// per page lifetime instead of once per InlineStorageMedia mount. Without
+// this, navigating away/back or scrolling messages with many attachments
+// re-issues the same HEAD per occurrence.
+const mediaTypeCache = new Map<string, 'image' | 'video'>();
+const mediaTypePending = new Map<string, Promise<'image' | 'video'>>();
+
+function resolveMediaType(fileId: string, src: string): Promise<'image' | 'video'> {
+  const cached = mediaTypeCache.get(fileId);
+  if (cached) return Promise.resolve(cached);
+  const pending = mediaTypePending.get(fileId);
+  if (pending) return pending;
+  const p = fetch(src, { method: 'HEAD', credentials: 'include' })
+    .then((res) => {
+      const ct = res.headers.get('content-type') ?? '';
+      const kind: 'image' | 'video' = ct.startsWith('video/') ? 'video' : 'image';
+      mediaTypeCache.set(fileId, kind);
+      mediaTypePending.delete(fileId);
+      return kind;
+    })
+    .catch(() => {
+      mediaTypeCache.set(fileId, 'image');
+      mediaTypePending.delete(fileId);
+      return 'image' as const;
+    });
+  mediaTypePending.set(fileId, p);
+  return p;
+}
+
 function InlineStorageMedia({
   fileId,
   alt,
@@ -370,18 +399,28 @@ function InlineStorageMedia({
   onExpand?: (fileId: string) => void;
 }) {
   const src = `/api/files/${fileId}/download`;
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(
+    () => mediaTypeCache.get(fileId) ?? null,
+  );
+
+  // When `fileId` changes, eagerly read the cache for the new id so we render
+  // synchronously without flashing the loading placeholder. This is a render-
+  // phase derivation rather than an effect-driven setState.
+  const cachedForCurrent = mediaTypeCache.get(fileId) ?? null;
+  if (cachedForCurrent && cachedForCurrent !== mediaType) {
+    setMediaType(cachedForCurrent);
+  }
 
   useEffect(() => {
-    // Determine media type from the content-type header
-    fetch(src, { method: 'HEAD', credentials: 'include' })
-      .then((res) => {
-        const ct = res.headers.get('content-type') ?? '';
-        if (ct.startsWith('video/')) setMediaType('video');
-        else setMediaType('image'); // default to image
-      })
-      .catch(() => setMediaType('image'));
-  }, [src]);
+    if (mediaTypeCache.has(fileId)) return;
+    let cancelled = false;
+    void resolveMediaType(fileId, src).then((kind) => {
+      if (!cancelled) setMediaType(kind);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, src]);
 
   const handleExpand = useCallback(() => {
     onExpand?.(fileId);

@@ -114,7 +114,7 @@ export const AgentSchema = z.object({
   lastActiveAt: z.string().nullish(),
   commands: z.array(AgentCommandSchema).nullish(),
   tag: z.string().nullish(),
-  /** Facio management API base URL (e.g. https://facio.example.com). */
+  /** Agent management API base URL (e.g. https://agent.example.com). */
   managementUrl: z.string().url().nullish(),
   /** Masked (`***`) when the agent has a management API key configured. */
   managementApiKey: z.string().nullish(),
@@ -243,8 +243,9 @@ export const UpdateAgentSchema = z.object({
   webhookHeaders: z.record(z.string(), z.string()).nullable().optional(),
   webhookAuth: WebhookAuthSchema.nullable().optional(),
   tag: z.string().max(64).nullable().optional(),
-  managementUrl: z.string().url().nullable().optional(),
-  managementApiKey: z.string().min(1).nullable().optional(),
+  // Management credentials are intentionally not editable here. Use the
+  // dedicated `setManagement` endpoint so the masked `***` value cannot be
+  // round-tripped back into storage.
 });
 export type UpdateAgentRequest = z.infer<typeof UpdateAgentSchema>;
 
@@ -254,11 +255,22 @@ export const ManagementCredentialsSchema = z.object({
 });
 export type ManagementCredentials = z.infer<typeof ManagementCredentialsSchema>;
 
-export const SetManagementSchema = z.object({
-  channelId: z.string().min(1),
-  url: z.string().url().nullable(),
-  apiKey: z.string().min(1).nullable(),
-});
+export const SetManagementSchema = z
+  .object({
+    channelId: z.string().min(1),
+    url: z.string().url().nullable(),
+    apiKey: z.string().min(1).nullable(),
+  })
+  .superRefine((val, ctx) => {
+    // Either both fields set (configure) or both null (clear). Mixed = invalid.
+    if ((val.url == null) !== (val.apiKey == null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['apiKey'],
+        message: 'url and apiKey must both be provided or both be null',
+      });
+    }
+  });
 export type SetManagementRequest = z.infer<typeof SetManagementSchema>;
 
 export const SetSubagentSchema = z
@@ -310,7 +322,7 @@ export const SetWebhookSchema = z
     channelId: z.string().min(1),
     headers: z.record(z.string(), z.string()).optional(),
     auth: WebhookAuthSchema.optional(),
-    /** Optional Facio management creds to register together with the main webhook. */
+    /** Optional management creds to register together with the main webhook. */
     management: ManagementCredentialsSchema.optional(),
     /** True if this channel is a HITL sub-channel (hidden from management UI). */
     isSubagent: z.boolean().optional(),

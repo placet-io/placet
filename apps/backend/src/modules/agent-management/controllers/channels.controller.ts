@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../../common/types';
 import { ManagementClient } from '../management-client.service';
+import { assertObjectBody } from '../body-validation';
 
 @ApiTags('Agent Management')
 @ApiBearerAuth()
@@ -56,6 +57,7 @@ export class ManageChannelsController {
     @Param('name') name: string,
     @Body() body: Record<string, unknown>,
   ) {
+    assertObjectBody(body, 'Channel configuration');
     return this.client.request({
       agentId,
       ownerId: req.user.id,

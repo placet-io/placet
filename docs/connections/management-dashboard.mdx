@@ -51,12 +51,12 @@ Content-Type: application/json
 }
 ```
 
-| Field              | Type              | Description                                                                                       |
-| ------------------ | ----------------- | ------------------------------------------------------------------------------------------------- |
-| `management.url`   | `string` (URL)    | Base URL of the agent runtime (`/api/v1` is appended automatically).                              |
-| `management.apiKey`| `string`          | Management bearer token. Stored encrypted, returned as `***` to the UI.                           |
-| `isSubagent`       | `boolean`         | `true` marks this channel as a HITL sub-channel that should be hidden from the agent list.       |
-| `parentChannelId`  | `string \| null`  | When `isSubagent` is `true`, the `channelId` of the parent agent owning this HITL channel.        |
+| Field               | Type             | Description                                                                                |
+| ------------------- | ---------------- | ------------------------------------------------------------------------------------------ |
+| `management.url`    | `string` (URL)   | Base URL of the agent runtime (`/api/v1` is appended automatically).                       |
+| `management.apiKey` | `string`         | Management bearer token. Stored encrypted, returned as `***` to the UI.                    |
+| `isSubagent`        | `boolean`        | `true` marks this channel as a HITL sub-channel that should be hidden from the agent list. |
+| `parentChannelId`   | `string \| null` | When `isSubagent` is `true`, the `channelId` of the parent agent owning this HITL channel. |
 
 ### Option B — Dedicated endpoint
 
@@ -84,128 +84,128 @@ Every endpoint listed below lives under `/api/agents/:agentId/manage/` on the Pl
 
 ### Health
 
-| Method | Placet path | Upstream route    | Description               |
+| Method | Placet path | Upstream route | Description               |
 | ------ | ----------- | -------------- | ------------------------- |
 | GET    | `/health`   | `/health`      | Management liveness check |
 
 ### Sessions
 
-| Method | Placet path        | Upstream route        | Description                     |
-| ------ | ------------------ | ------------------ | ------------------------------- |
-| GET    | `/sessions`        | `/sessions`        | List sessions (metadata only)   |
-| GET    | `/sessions/{key}`  | `/sessions/{key}`  | Full history for a session key  |
-| DELETE | `/sessions/{key}`  | `/sessions/{key}`  | Remove a session (cache + file) |
+| Method | Placet path       | Upstream route    | Description                     |
+| ------ | ----------------- | ----------------- | ------------------------------- |
+| GET    | `/sessions`       | `/sessions`       | List sessions (metadata only)   |
+| GET    | `/sessions/{key}` | `/sessions/{key}` | Full history for a session key  |
+| DELETE | `/sessions/{key}` | `/sessions/{key}` | Remove a session (cache + file) |
 
 ### Audit log
 
-| Method | Placet path              | Upstream route              | Description                      |
-| ------ | ------------------------ | ------------------------ | -------------------------------- |
-| GET    | `/audit`                 | `/audit`                 | Filtered event list              |
-| GET    | `/audit/tail`            | `/audit/tail`            | Last N events from today         |
-| GET    | `/audit/stats`           | `/audit/stats`           | Aggregated event counts          |
-| GET    | `/audit/runs/{runId}`    | `/audit/runs/{runId}`    | All events for a single run      |
+| Method | Placet path           | Upstream route        | Description                 |
+| ------ | --------------------- | --------------------- | --------------------------- |
+| GET    | `/audit`              | `/audit`              | Filtered event list         |
+| GET    | `/audit/tail`         | `/audit/tail`         | Last N events from today    |
+| GET    | `/audit/stats`        | `/audit/stats`        | Aggregated event counts     |
+| GET    | `/audit/runs/{runId}` | `/audit/runs/{runId}` | All events for a single run |
 
 ### Token usage
 
-| Method | Placet path          | Upstream route          | Description                       |
-| ------ | -------------------- | -------------------- | --------------------------------- |
-| GET    | `/usage`             | `/usage`             | Aggregated totals + grouped items |
-| GET    | `/usage/runs/{runId}`| `/usage/runs/{runId}`| Single-turn token-usage row       |
+| Method | Placet path           | Upstream route        | Description                       |
+| ------ | --------------------- | --------------------- | --------------------------------- |
+| GET    | `/usage`              | `/usage`              | Aggregated totals + grouped items |
+| GET    | `/usage/runs/{runId}` | `/usage/runs/{runId}` | Single-turn token-usage row       |
 
 ### Credentials
 
-| Method | Placet path            | Upstream route            | Description                 |
-| ------ | ---------------------- | ---------------------- | --------------------------- |
-| GET    | `/credentials`         | `/credentials`         | List keys (values masked)   |
-| GET    | `/credentials/{key}`   | `/credentials/{key}`   | Existence check             |
-| PUT    | `/credentials/{key}`   | `/credentials/{key}`   | Upsert (`{"value": "..."}`) |
-| DELETE | `/credentials/{key}`   | `/credentials/{key}`   | Remove                      |
+| Method | Placet path          | Upstream route       | Description                 |
+| ------ | -------------------- | -------------------- | --------------------------- |
+| GET    | `/credentials`       | `/credentials`       | List keys (values masked)   |
+| GET    | `/credentials/{key}` | `/credentials/{key}` | Existence check             |
+| PUT    | `/credentials/{key}` | `/credentials/{key}` | Upsert (`{"value": "..."}`) |
+| DELETE | `/credentials/{key}` | `/credentials/{key}` | Remove                      |
 
 ### Cron
 
-| Method | Placet path           | Upstream route           | Description          |
-| ------ | --------------------- | --------------------- | -------------------- |
-| GET    | `/cron`               | `/cron`               | List jobs            |
-| POST   | `/cron`               | `/cron`               | Create               |
-| GET    | `/cron/{id}`          | `/cron/{id}`          | Get single job       |
-| PATCH  | `/cron/{id}`          | `/cron/{id}`          | Partial update       |
-| DELETE | `/cron/{id}`          | `/cron/{id}`          | Remove               |
-| POST   | `/cron/{id}/run-now`  | `/cron/{id}/run-now`  | Trigger immediately  |
-| POST   | `/cron/{id}/pause`    | `/cron/{id}/pause`    | Disable              |
-| POST   | `/cron/{id}/resume`   | `/cron/{id}/resume`   | Enable               |
+| Method | Placet path          | Upstream route       | Description         |
+| ------ | -------------------- | -------------------- | ------------------- |
+| GET    | `/cron`              | `/cron`              | List jobs           |
+| POST   | `/cron`              | `/cron`              | Create              |
+| GET    | `/cron/{id}`         | `/cron/{id}`         | Get single job      |
+| PATCH  | `/cron/{id}`         | `/cron/{id}`         | Partial update      |
+| DELETE | `/cron/{id}`         | `/cron/{id}`         | Remove              |
+| POST   | `/cron/{id}/run-now` | `/cron/{id}/run-now` | Trigger immediately |
+| POST   | `/cron/{id}/pause`   | `/cron/{id}/pause`   | Disable             |
+| POST   | `/cron/{id}/resume`  | `/cron/{id}/resume`  | Enable              |
 
 ### MCP servers
 
-| Method | Placet path            | Upstream route            | Description           |
-| ------ | ---------------------- | ---------------------- | --------------------- |
-| GET    | `/mcp`                 | `/mcp`                 | List servers          |
-| POST   | `/mcp`                 | `/mcp`                 | Add a server          |
-| GET    | `/mcp/{name}`          | `/mcp/{name}`          | Get single server     |
-| PATCH  | `/mcp/{name}`          | `/mcp/{name}`          | Edit config           |
-| DELETE | `/mcp/{name}`          | `/mcp/{name}`          | Remove                |
-| POST   | `/mcp/{name}/enable`   | `/mcp/{name}/enable`   | Enable + connect      |
-| POST   | `/mcp/{name}/disable`  | `/mcp/{name}/disable`  | Disable + disconnect  |
-| POST   | `/mcp/{name}/restart`  | `/mcp/{name}/restart`  | Reconnect             |
+| Method | Placet path           | Upstream route        | Description          |
+| ------ | --------------------- | --------------------- | -------------------- |
+| GET    | `/mcp`                | `/mcp`                | List servers         |
+| POST   | `/mcp`                | `/mcp`                | Add a server         |
+| GET    | `/mcp/{name}`         | `/mcp/{name}`         | Get single server    |
+| PATCH  | `/mcp/{name}`         | `/mcp/{name}`         | Edit config          |
+| DELETE | `/mcp/{name}`         | `/mcp/{name}`         | Remove               |
+| POST   | `/mcp/{name}/enable`  | `/mcp/{name}/enable`  | Enable + connect     |
+| POST   | `/mcp/{name}/disable` | `/mcp/{name}/disable` | Disable + disconnect |
+| POST   | `/mcp/{name}/restart` | `/mcp/{name}/restart` | Reconnect            |
 
 ### Workspace
 
-| Method | Placet path           | Upstream route           | Description                          |
-| ------ | --------------------- | --------------------- | ------------------------------------ |
-| GET    | `/workspace/tree`     | `/workspace/tree`     | Directory listing (`?path=&depth=`)  |
-| GET    | `/workspace/file`     | `/workspace/file`     | Read file contents (`?path=`)        |
-| PUT    | `/workspace/file`     | `/workspace/file`     | Write file contents (`?path=`)       |
-| DELETE | `/workspace/file`     | `/workspace/file`     | Delete file (`?path=`)               |
+| Method | Placet path       | Upstream route    | Description                         |
+| ------ | ----------------- | ----------------- | ----------------------------------- |
+| GET    | `/workspace/tree` | `/workspace/tree` | Directory listing (`?path=&depth=`) |
+| GET    | `/workspace/file` | `/workspace/file` | Read file contents (`?path=`)       |
+| PUT    | `/workspace/file` | `/workspace/file` | Write file contents (`?path=`)      |
+| DELETE | `/workspace/file` | `/workspace/file` | Delete file (`?path=`)              |
 
 ### Skills & scripts
 
-| Method | Placet path     | Upstream route     | Description                   |
-| ------ | --------------- | --------------- | ----------------------------- |
-| GET    | `/skills`       | `/skills`       | List workspace `skills/*.md`  |
-| GET    | `/scripts`      | `/scripts`      | List workspace `scripts/*`    |
+| Method | Placet path | Upstream route | Description                  |
+| ------ | ----------- | -------------- | ---------------------------- |
+| GET    | `/skills`   | `/skills`      | List workspace `skills/*.md` |
+| GET    | `/scripts`  | `/scripts`     | List workspace `scripts/*`   |
 
 ### Channels
 
-| Method | Placet path           | Upstream route           | Description                              |
-| ------ | --------------------- | --------------------- | ---------------------------------------- |
-| GET    | `/channels`           | `/channels`           | List channel configs                     |
-| GET    | `/channels/{name}`    | `/channels/{name}`    | Get channel config                       |
-| PUT    | `/channels/{name}`    | `/channels/{name}`    | Upsert channel config (restart required) |
-| DELETE | `/channels/{name}`    | `/channels/{name}`    | Remove channel config (restart required) |
+| Method | Placet path        | Upstream route     | Description                              |
+| ------ | ------------------ | ------------------ | ---------------------------------------- |
+| GET    | `/channels`        | `/channels`        | List channel configs                     |
+| GET    | `/channels/{name}` | `/channels/{name}` | Get channel config                       |
+| PUT    | `/channels/{name}` | `/channels/{name}` | Upsert channel config (restart required) |
+| DELETE | `/channels/{name}` | `/channels/{name}` | Remove channel config (restart required) |
 
 ### Commands
 
-| Method | Placet path          | Upstream route          | Description          |
-| ------ | -------------------- | -------------------- | -------------------- |
-| POST   | `/commands/stop`     | `/commands/stop`     | Execute `/stop`      |
-| POST   | `/commands/restart`  | `/commands/restart`  | Execute `/restart`   |
-| POST   | `/commands/new`      | `/commands/new`      | Execute `/new`       |
-| POST   | `/commands/dream`    | `/commands/dream`    | Execute `/dream`     |
-| GET    | `/commands/status`   | `/commands/status`   | Execute `/status`    |
+| Method | Placet path         | Upstream route      | Description        |
+| ------ | ------------------- | ------------------- | ------------------ |
+| POST   | `/commands/stop`    | `/commands/stop`    | Execute `/stop`    |
+| POST   | `/commands/restart` | `/commands/restart` | Execute `/restart` |
+| POST   | `/commands/new`     | `/commands/new`     | Execute `/new`     |
+| POST   | `/commands/dream`   | `/commands/dream`   | Execute `/dream`   |
+| GET    | `/commands/status`  | `/commands/status`  | Execute `/status`  |
 
 ### Agent Card
 
-| Method | Placet path     | Upstream route     | Description                 |
-| ------ | --------------- | --------------- | --------------------------- |
-| GET    | `/agent-card`   | `/agent-card`   | Live A2A AgentCard JSON     |
+| Method | Placet path   | Upstream route | Description             |
+| ------ | ------------- | -------------- | ----------------------- |
+| GET    | `/agent-card` | `/agent-card`  | Live A2A AgentCard JSON |
 
 ### A2A peers
 
-| Method | Placet path                   | Upstream route                   | Description                       |
-| ------ | ----------------------------- | ----------------------------- | --------------------------------- |
-| GET    | `/a2a/peers`                  | `/a2a/peers`                  | List registered peers             |
-| POST   | `/a2a/peers`                  | `/a2a/peers`                  | Register / overwrite a peer       |
-| DELETE | `/a2a/peers/{alias}`          | `/a2a/peers/{alias}`          | Remove a peer                     |
-| GET    | `/a2a/peers/{alias}/card`     | `/a2a/peers/{alias}/card`     | Fetch the peer Agent Card         |
-| POST   | `/a2a/peers/{alias}/call`     | `/a2a/peers/{alias}/call`     | Send a message through the peer   |
+| Method | Placet path               | Upstream route            | Description                     |
+| ------ | ------------------------- | ------------------------- | ------------------------------- |
+| GET    | `/a2a/peers`              | `/a2a/peers`              | List registered peers           |
+| POST   | `/a2a/peers`              | `/a2a/peers`              | Register / overwrite a peer     |
+| DELETE | `/a2a/peers/{alias}`      | `/a2a/peers/{alias}`      | Remove a peer                   |
+| GET    | `/a2a/peers/{alias}/card` | `/a2a/peers/{alias}/card` | Fetch the peer Agent Card       |
+| POST   | `/a2a/peers/{alias}/call` | `/a2a/peers/{alias}/call` | Send a message through the peer |
 
 ### Error semantics
 
-| Status | Meaning                                                                                        |
-| ------ | ---------------------------------------------------------------------------------------------- |
-| `401`  | Missing/invalid Placet JWT.                                                                    |
-| `404`  | Agent has no management credentials configured.                                                |
-| `502`  | Upstream timed out (15 s) or is unreachable. The frontend hides the dashboard silently.        |
-| other  | Upstream status + body are forwarded verbatim.                                                 |
+| Status | Meaning                                                                                                                                       |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`  | Missing/invalid Placet JWT.                                                                                                                   |
+| `404`  | Agent has no management credentials configured.                                                                                               |
+| `502`  | Upstream timed out (15 s) or is unreachable. The frontend hides the dashboard silently.                                                       |
+| other  | Upstream errors are normalized to `{ error: { code: 'upstream_<status>', message }, upstreamStatus }` and re-emitted at the same HTTP status. |
 
 ---
 

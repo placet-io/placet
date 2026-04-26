@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../../common/types';
 import { ManagementClient } from '../management-client.service';
+import { assertNonEmptyString, assertObjectBody } from '../body-validation';
 
 @ApiTags('Agent Management')
 @ApiBearerAuth()
@@ -38,6 +39,8 @@ export class ManageA2aPeersController {
     @Param('agentId') agentId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    assertObjectBody(body, 'A2A peer body');
+    assertNonEmptyString(body.alias, 'alias');
     return this.client.request({
       agentId,
       ownerId: req.user.id,
@@ -85,6 +88,7 @@ export class ManageA2aPeersController {
     @Param('alias') alias: string,
     @Body() body: Record<string, unknown>,
   ) {
+    assertObjectBody(body, 'A2A peer call body');
     return this.client.request({
       agentId,
       ownerId: req.user.id,

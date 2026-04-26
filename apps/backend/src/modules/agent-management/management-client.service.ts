@@ -13,11 +13,10 @@ export type ManagementHttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 /**
  * Thin HTTP client that forwards a single request to an agent's configured
- * management API (`/api/v1/*`). Today this speaks the facio management
- * protocol, but the client is provider-agnostic: any agent runtime that
- * exposes a compatible bearer-authenticated REST surface works. Handles
- * auth, timeout, SSRF guard, and upstream error propagation. Controllers
- * call into this primitive; there is no wildcard proxy.
+ * management API (`/api/v1/*`). The client is provider-agnostic: any agent
+ * runtime that exposes a compatible bearer-authenticated REST surface works.
+ * Handles auth, timeout, SSRF guard, and upstream error propagation.
+ * Controllers call into this primitive; there is no wildcard proxy.
  */
 @Injectable()
 export class ManagementClient {

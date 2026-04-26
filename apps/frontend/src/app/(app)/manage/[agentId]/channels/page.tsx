@@ -264,6 +264,7 @@ function ChannelCard({
   const [text, setText] = useState(() => JSON.stringify(initial, null, 2));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const parseError = useMemo(() => {
@@ -296,7 +297,6 @@ function ChannelCard({
   }, [agentId, name, text, parseError, onSaved]);
 
   const remove = useCallback(async () => {
-    if (!window.confirm(`Delete channel "${name}"? This cannot be undone.`)) return;
     setDeleting(true);
     setErr(null);
     try {
@@ -308,6 +308,7 @@ function ChannelCard({
       setErr(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setDeleting(false);
+      setConfirmDelete(false);
     }
   }, [agentId, name, onDeleted]);
 
@@ -324,16 +325,40 @@ function ChannelCard({
       }
       actions={
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void remove()}
-            disabled={deleting || saving}
-            className="gap-1.5 text-destructive hover:text-destructive"
-          >
-            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-            Delete
-          </Button>
+          {confirmDelete ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-muted-foreground">Delete?</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => void remove()}
+                disabled={deleting}
+                className="gap-1.5"
+              >
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : null}
+                Yes
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting || saving}
+              className="gap-1.5 text-destructive hover:text-destructive"
+            >
+              <Trash2 size={14} />
+              Delete
+            </Button>
+          )}
           <Button
             variant="default"
             size="sm"

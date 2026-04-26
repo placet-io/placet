@@ -55,6 +55,14 @@ interface SettingsResponse {
 type Basic = Record<string, string>;
 type Advanced = Record<string, number | string | boolean>;
 type ApiKeyDraft = Record<string, string>;
+/**
+ * Per-key intent for the API-keys section. The previous implementation
+ * encoded "user wants this slot cleared" as the literal value `'__CLEAR__'`
+ * in the same map as the in-progress draft secret, which made it possible
+ * to confuse a real secret with the sentinel and forced extra branching
+ * everywhere a draft was read. The intent is now tracked separately.
+ */
+type ApiKeyIntent = 'unchanged' | 'clear';
 
 const BASIC_GROUPS: Array<{
   title: string;
@@ -135,6 +143,7 @@ export default function AgentSettingsPage() {
   const [basic, setBasic] = useState<Basic>({});
   const [advanced, setAdvanced] = useState<Advanced>({});
   const [apiKeyDrafts, setApiKeyDrafts] = useState<ApiKeyDraft>({});
+  const [apiKeyIntents, setApiKeyIntents] = useState<Record<string, ApiKeyIntent>>({});
 
   const hydrate = useCallback((resp: SettingsResponse) => {
     const b: Basic = {};
@@ -144,6 +153,7 @@ export default function AgentSettingsPage() {
     setBasic(b);
     setAdvanced({ ...resp.advanced });
     setApiKeyDrafts({});
+    setApiKeyIntents({});
   }, []);
 
   const load = useCallback(async () => {
@@ -178,8 +188,11 @@ export default function AgentSettingsPage() {
     for (const [, v] of Object.entries(apiKeyDrafts)) {
       if (v !== '') return true;
     }
+    for (const [, intent] of Object.entries(apiKeyIntents)) {
+      if (intent === 'clear') return true;
+    }
     return false;
-  }, [data, basic, advanced, apiKeyDrafts]);
+  }, [data, basic, advanced, apiKeyDrafts, apiKeyIntents]);
 
   const save = async () => {
     if (!data || saving) return;
@@ -199,9 +212,14 @@ export default function AgentSettingsPage() {
         if (data.advanced[k] !== v) body[k] = v;
       }
       const apiKeysToSend: Record<string, string | null> = {};
+      for (const [k, intent] of Object.entries(apiKeyIntents)) {
+        if (intent === 'clear') apiKeysToSend[k] = null;
+      }
       for (const [k, v] of Object.entries(apiKeyDrafts)) {
         if (v === '') continue;
-        apiKeysToSend[k] = v === '__CLEAR__' ? null : v;
+        // A draft secret overrides a pending clear — typing a new value
+        // implicitly cancels the clear request.
+        apiKeysToSend[k] = v;
       }
       if (Object.keys(apiKeysToSend).length) {
         body.api_keys = apiKeysToSend;
@@ -485,7 +503,7 @@ export default function AgentSettingsPage() {
                 <div className="space-y-3">
                   {data.api_keys.map((k) => {
                     const draft = apiKeyDrafts[k.key] ?? '';
-                    const willClear = draft === '__CLEAR__';
+                    const willClear = apiKeyIntents[k.key] === 'clear';
                     return (
                       <div key={k.key} className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
@@ -514,12 +532,16 @@ export default function AgentSettingsPage() {
                               variant="ghost"
                               size="sm"
                               className={cn('h-7 text-sm', willClear && 'text-destructive')}
-                              onClick={() =>
-                                setApiKeyDrafts((d) => ({
-                                  ...d,
-                                  [k.key]: willClear ? '' : '__CLEAR__',
-                                }))
-                              }
+                              onClick={() => {
+                                setApiKeyIntents((m) => ({
+                                  ...m,
+                                  [k.key]: willClear ? 'unchanged' : 'clear',
+                                }));
+                                if (!willClear) {
+                                  // Drop any in-progress draft when arming a clear
+                                  setApiKeyDrafts((d) => ({ ...d, [k.key]: '' }));
+                                }
+                              }}
                             >
                               {willClear ? 'Undo clear' : 'Clear'}
                             </Button>
@@ -528,9 +550,14 @@ export default function AgentSettingsPage() {
                         <Input
                           type="password"
                           value={willClear ? '' : draft}
-                          onChange={(e) =>
-                            setApiKeyDrafts((d) => ({ ...d, [k.key]: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setApiKeyDrafts((d) => ({ ...d, [k.key]: next }));
+                            // Typing a value cancels any pending clear.
+                            if (next && willClear) {
+                              setApiKeyIntents((m) => ({ ...m, [k.key]: 'unchanged' }));
+                            }
+                          }}
                           placeholder={k.has_value ? '•••••• (leave blank to keep)' : k.label}
                           className="h-9 text-sm font-mono"
                           disabled={willClear}

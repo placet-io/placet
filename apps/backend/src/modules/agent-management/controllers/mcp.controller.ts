@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../../common/types';
 import { ManagementClient } from '../management-client.service';
+import { assertNonEmptyString, assertObjectBody } from '../body-validation';
 
 @ApiTags('Agent Management')
 @ApiBearerAuth()
@@ -39,6 +40,8 @@ export class ManageMcpController {
     @Param('agentId') agentId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    assertObjectBody(body, 'MCP server body');
+    assertNonEmptyString(body.name, 'name');
     return this.client.request({
       agentId,
       ownerId: req.user.id,
@@ -71,6 +74,7 @@ export class ManageMcpController {
     @Param('name') name: string,
     @Body() body: Record<string, unknown>,
   ) {
+    assertObjectBody(body, 'MCP server patch');
     return this.client.request({
       agentId,
       ownerId: req.user.id,

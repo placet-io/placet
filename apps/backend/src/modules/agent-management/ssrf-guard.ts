@@ -14,9 +14,9 @@ import { BadRequestException } from '@nestjs/common';
  *
  * The private-address reject list (loopback, RFC1918, CGNAT, ULA, link-local,
  * multicast, metadata IPs) is **opt-in** via `MANAGEMENT_SSRF_GUARD`. By
- * default it is OFF because Placet typically runs alongside facio instances on
+ * default it is OFF because Placet typically runs alongside agent runtimes on
  * the same Docker network or host, where the management URL legitimately
- * points at a private address (`http://facio:7331`, `http://localhost:7331`).
+ * points at a private address (`http://agent:7331`, `http://localhost:7331`).
  *
  * Set `MANAGEMENT_SSRF_GUARD=strict` (also accepts `on`/`true`/`1`) to enable
  * the full reject list — recommended when management URLs are user-controlled

@@ -100,44 +100,46 @@ export default function AgentOverviewPage() {
 
   // Health probe
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     (async () => {
       setHealthLoading(true);
       try {
-        const data = await manageApi<HealthResponse>(agentId, 'health');
-        if (!cancelled) setHealth(data);
+        const data = await manageApi<HealthResponse>(agentId, 'health', { signal });
+        if (!signal.aborted) setHealth(data);
       } catch (e) {
-        if (!cancelled) setHealthError(e instanceof Error ? e.message : 'Unreachable');
+        if (!signal.aborted) setHealthError(e instanceof Error ? e.message : 'Unreachable');
       } finally {
-        if (!cancelled) setHealthLoading(false);
+        if (!signal.aborted) setHealthLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [agentId]);
 
   // Channels + MCP summaries (quick-look cards)
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     (async () => {
       try {
-        const data = await manageApi<ChannelListResponse>(agentId, 'channels');
-        if (!cancelled) setChannels(Object.keys(data.channels ?? {}).sort());
+        const data = await manageApi<ChannelListResponse>(agentId, 'channels', { signal });
+        if (!signal.aborted) setChannels(Object.keys(data.channels ?? {}).sort());
       } catch {
-        if (!cancelled) setChannels([]);
+        if (!signal.aborted) setChannels([]);
       }
     })();
     (async () => {
       try {
-        const data = await manageApi<McpListResponse>(agentId, 'mcp');
-        if (!cancelled) setMcpServers(data.items ?? []);
+        const data = await manageApi<McpListResponse>(agentId, 'mcp', { signal });
+        if (!signal.aborted) setMcpServers(data.items ?? []);
       } catch {
-        if (!cancelled) setMcpServers([]);
+        if (!signal.aborted) setMcpServers([]);
       }
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [agentId]);
 

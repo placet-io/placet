@@ -19,16 +19,16 @@ export function manageApi<T = unknown>(
  * Fan-out aggregation endpoint for the global dashboard. Returns a compact
  * overview of every non-sub-agent registered with management credentials.
  */
-export function manageOverview<T = unknown>(): Promise<T> {
-  return api<T>('/api/agents/manage/overview');
+export function manageOverview<T = unknown>(opts: RequestInit = {}): Promise<T> {
+  return api<T>('/api/agents/manage/overview', opts);
 }
 
 /**
  * Aggregated daily token usage (cached server-side). Returns the sum of
  * prompt+completion tokens per day per agent, for the trailing `days` window.
  */
-export function manageDailyUsage<T = unknown>(days = 14): Promise<T> {
-  return api<T>(`/api/manage/usage/daily?days=${days}`);
+export function manageDailyUsage<T = unknown>(days = 14, opts: RequestInit = {}): Promise<T> {
+  return api<T>(`/api/manage/usage/daily?days=${days}`, opts);
 }
 
 export interface UsageQueryParams {
@@ -47,6 +47,7 @@ export interface UsageQueryParams {
 export function manageAgentUsage<T = unknown>(
   agentId: string,
   params: UsageQueryParams,
+  opts: RequestInit = {},
 ): Promise<T> {
   const qs = new URLSearchParams();
   qs.set('from', params.from);
@@ -55,7 +56,7 @@ export function manageAgentUsage<T = unknown>(
   if (params.model) qs.set('model', params.model);
   if (params.origin) qs.set('origin', params.origin);
   if (params.channel) qs.set('channel', params.channel);
-  return manageApi<T>(agentId, `usage?${qs.toString()}`);
+  return manageApi<T>(agentId, `usage?${qs.toString()}`, opts);
 }
 
 /** Utility: returns [fromISODate, toISODate] for a trailing N-day window. */

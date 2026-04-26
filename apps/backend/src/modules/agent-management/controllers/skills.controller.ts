@@ -17,11 +17,11 @@ import { ManagementClient } from '../management-client.service';
 @ApiTags('Agent Management')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('api/agents/:agentId/manage')
+@Controller('api/agents/:agentId/manage/skills')
 export class ManageSkillsController {
   constructor(private readonly client: ManagementClient) {}
 
-  @Get('skills')
+  @Get()
   @ApiOperation({ summary: 'List workspace + builtin skills' })
   skills(@Req() req: RequestWithUser, @Param('agentId') agentId: string) {
     return this.client.request({
@@ -32,7 +32,7 @@ export class ManageSkillsController {
     });
   }
 
-  @Post('skills')
+  @Post()
   @ApiOperation({ summary: 'Install a skill from a base64-encoded zip' })
   createSkill(
     @Req() req: RequestWithUser,
@@ -60,7 +60,7 @@ export class ManageSkillsController {
     });
   }
 
-  @Delete('skills/:name')
+  @Delete(':name')
   @ApiOperation({ summary: 'Delete a workspace skill directory' })
   deleteSkill(
     @Req() req: RequestWithUser,
@@ -72,17 +72,6 @@ export class ManageSkillsController {
       ownerId: req.user.id,
       method: 'DELETE',
       path: `skills/${encodeURIComponent(name)}`,
-    });
-  }
-
-  @Get('scripts')
-  @ApiOperation({ summary: 'List workspace scripts' })
-  scripts(@Req() req: RequestWithUser, @Param('agentId') agentId: string) {
-    return this.client.request({
-      agentId,
-      ownerId: req.user.id,
-      method: 'GET',
-      path: 'scripts',
     });
   }
 }

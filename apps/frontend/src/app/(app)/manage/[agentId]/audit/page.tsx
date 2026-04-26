@@ -107,6 +107,13 @@ export default function AgentAuditPage() {
   const [now, setNow] = useState(() => Date.now());
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Debounce the search filter — typing in the input refilters every keystroke
+  // over up to 500 audit rows, which is noticeable on slower devices.
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedSearch(search), 150);
+    return () => window.clearTimeout(handle);
+  }, [search]);
   const [eventFilter, setEventFilter] = useState<string>('');
   const [laneFilter, setLaneFilter] = useState<string>('');
   // Default-hide noisy api_request lines — users can opt back in via checkbox.
@@ -157,13 +164,23 @@ export default function AgentAuditPage() {
     void load();
   }, [load]);
 
-  const rows = useMemo(() => events.map(toRow), [events]);
+  const rows = useMemo(
+    () =>
+      events.map((e, i) => {
+        const r = toRow(e, i);
+        // Precompute the lowercase search haystack once per row so the
+        // debounced search filter doesn't rebuild it on every keystroke.
+        const _haystack = `${r.event} ${r.lane} ${r.model} ${r.status} ${r.summary}`.toLowerCase();
+        return { ...r, _haystack };
+      }),
+    [events],
+  );
 
   const eventTypes = useMemo(() => Array.from(new Set(rows.map((r) => r.event))).sort(), [rows]);
   const lanes = useMemo(() => Array.from(new Set(rows.map((r) => r.lane))).sort(), [rows]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return rows.filter((r) => {
       if (!showApiRequests && r.event === 'api_request') return false;
       if (eventFilter && r.event !== eventFilter) return false;
@@ -174,13 +191,10 @@ export default function AgentAuditPage() {
         if (r.lane !== selection.lane) return false;
         if (!(r.ts >= from && r.ts <= to)) return false;
       }
-      if (q) {
-        const hay = `${r.event} ${r.lane} ${r.model} ${r.status} ${r.summary}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+      if (q && !r._haystack.includes(q)) return false;
       return true;
     });
-  }, [rows, search, eventFilter, laneFilter, selection, showApiRequests]);
+  }, [rows, debouncedSearch, eventFilter, laneFilter, selection, showApiRequests]);
 
   const columns: ManageTableColumn<AuditRow>[] = useMemo(
     () => [

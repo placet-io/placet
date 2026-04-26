@@ -91,12 +91,13 @@ export default function ManageOverviewPage() {
 
   useEffect(() => {
     if (manageable.length === 0) return;
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     setProbing(true);
     (async () => {
       const probe = async (agent: (typeof manageable)[number]): Promise<AgentHealth> => {
         try {
-          const data = await manageApi<HealthResponse>(agent.id, 'health');
+          const data = await manageApi<HealthResponse>(agent.id, 'health', { signal });
           return {
             id: agent.id,
             name: agent.name,
@@ -121,7 +122,7 @@ export default function ManageOverviewPage() {
       const workers = Array.from(
         { length: Math.max(1, Math.min(CONCURRENCY, manageable.length)) },
         async () => {
-          while (!cancelled) {
+          while (!signal.aborted) {
             const i = cursor++;
             if (i >= manageable.length) return;
             results[i] = await probe(manageable[i]);
@@ -129,30 +130,30 @@ export default function ManageOverviewPage() {
         },
       );
       await Promise.all(workers);
-      if (cancelled) return;
+      if (signal.aborted) return;
       const map: Record<string, AgentHealth> = {};
       for (const r of results) if (r) map[r.id] = r;
       setHealth(map);
       setProbing(false);
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manageable.map((a) => a.id).join(',')]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        const data = await manageDailyUsage<DailyUsageResponse>(14);
-        if (!cancelled) setDailyUsage(data);
+        const data = await manageDailyUsage<DailyUsageResponse>(14, { signal: controller.signal });
+        if (!controller.signal.aborted) setDailyUsage(data);
       } catch {
-        if (!cancelled) setDailyUsage(null);
+        if (!controller.signal.aborted) setDailyUsage(null);
       }
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 

@@ -12,6 +12,7 @@ import { ManageCronController } from './controllers/cron.controller';
 import { ManageMcpController } from './controllers/mcp.controller';
 import { ManageWorkspaceController } from './controllers/workspace.controller';
 import { ManageSkillsController } from './controllers/skills.controller';
+import { ManageScriptsController } from './controllers/scripts.controller';
 import { ManageChannelsController } from './controllers/channels.controller';
 import { ManageCommandsController } from './controllers/commands.controller';
 import { ManageAgentCardController } from './controllers/agent-card.controller';
@@ -31,6 +32,7 @@ import { ManageSettingsController } from './controllers/settings.controller';
     ManageMcpController,
     ManageWorkspaceController,
     ManageSkillsController,
+    ManageScriptsController,
     ManageChannelsController,
     ManageCommandsController,
     ManageAgentCardController,

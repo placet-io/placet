@@ -1,5 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { AgentsService } from '../agents/agents.service';
+import { AgentRosterEvents } from '../agents/agent-roster-events';
 import { ManagementClient } from './management-client.service';
 
 /**
@@ -40,17 +46,29 @@ interface UsageQueryResponse {
 }
 
 @Injectable()
-export class DailyUsageService {
+export class DailyUsageService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DailyUsageService.name);
   private static readonly TTL_MS = 60_000; // 1 minute cache per (ownerId, days)
   private static readonly MAX_DAYS = 30;
   private static readonly MAX_CACHE_ENTRIES = 256;
   private readonly cache = new Map<string, CacheEntry>();
+  private unsubscribeRoster?: () => void;
 
   constructor(
     private readonly agents: AgentsService,
     private readonly client: ManagementClient,
+    private readonly rosterEvents: AgentRosterEvents,
   ) {}
+
+  onModuleInit(): void {
+    this.unsubscribeRoster = this.rosterEvents.onRosterChanged((ownerId) => {
+      this.bust(ownerId);
+    });
+  }
+
+  onModuleDestroy(): void {
+    this.unsubscribeRoster?.();
+  }
 
   async getDailyUsage(
     ownerId: string,

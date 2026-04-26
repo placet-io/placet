@@ -9,8 +9,7 @@ export interface AuditEvent {
   event?: string;
   origin?: string;
   channel?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [k: string]: any;
+  [k: string]: unknown;
 }
 
 export interface AuditSelection {

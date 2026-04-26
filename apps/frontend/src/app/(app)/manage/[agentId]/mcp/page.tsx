@@ -21,6 +21,55 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { manageApi } from '@/components/manage/manage-api';
 
+/**
+ * Tokenize a shell-ish argv string. Honors single and double quotes (so
+ * `--label "hello world"` becomes `['--label', 'hello world']`) and a
+ * backslash escape inside double quotes (`"a\"b"` → `a"b`). Bare backslashes
+ * outside quotes are passed through. This is intentionally lighter than a
+ * full POSIX parser — no `~` expansion, no env substitution — but it covers
+ * the common case of paths with spaces and quoted JSON args.
+ */
+function parseArgs(input: string): string[] {
+  const out: string[] = [];
+  let buf = '';
+  let quote: '"' | "'" | null = null;
+  let hasToken = false;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (quote === '"' && ch === '\\' && i + 1 < input.length) {
+      buf += input[++i];
+      hasToken = true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+      } else {
+        buf += ch;
+        hasToken = true;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      hasToken = true;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (hasToken) {
+        out.push(buf);
+        buf = '';
+        hasToken = false;
+      }
+      continue;
+    }
+    buf += ch;
+    hasToken = true;
+  }
+  if (hasToken) out.push(buf);
+  return out;
+}
+
 interface MCPServer {
   name: string;
   enabled: boolean;
@@ -373,10 +422,7 @@ function NewServerCard({
       };
       if (transport === 'stdio') {
         body.command = command.trim();
-        body.args = argsText
-          .split(/\s+/)
-          .map((s) => s.trim())
-          .filter(Boolean);
+        body.args = parseArgs(argsText);
       } else {
         body.url = url.trim();
       }
@@ -464,7 +510,8 @@ function NewServerCard({
                 className="h-9 text-sm rounded-md font-mono"
               />
               <p className="text-sm text-muted-foreground">
-                Whitespace-separated. Use quotes are not honored — keep args simple.
+                Whitespace-separated. Single and double quotes group tokens — wrap arguments
+                containing spaces.
               </p>
             </div>
           </>

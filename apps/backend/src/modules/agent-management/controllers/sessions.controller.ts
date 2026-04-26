@@ -20,7 +20,7 @@ export class ManageSessionsController {
   constructor(private readonly client: ManagementClient) {}
 
   @Get()
-  @ApiOperation({ summary: 'List facio sessions' })
+  @ApiOperation({ summary: 'List agent sessions' })
   list(
     @Req() req: RequestWithUser,
     @Param('agentId') agentId: string,

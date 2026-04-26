@@ -238,7 +238,15 @@ export function useMessages(channelId: string | null) {
 
   useEffect(() => {
     if (!channelId) return;
-    writePendingMessages(channelId, pendingMessages);
+    // Debounce the localStorage write — typing in the composer triggers a
+    // pending-message update on every keystroke once the network is offline,
+    // and writing JSON to storage on every key blocks the main thread.
+    const handle = window.setTimeout(() => {
+      writePendingMessages(channelId, pendingMessages);
+    }, 80);
+    return () => {
+      window.clearTimeout(handle);
+    };
   }, [channelId, pendingMessages]);
 
   // ── WebSocket: subscribe to channel + listen for real-time events ──

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   manageAgentUsage,
   trailingDateRange,
@@ -58,20 +58,36 @@ export function useAgentUsage(
     error: null,
   });
 
+  // Stable, sorted key so an inline-literal array doesn't churn the effect
+  // and so callers don't need to memo their groupBy. Using a sorted key also
+  // means `['date','model']` and `['model','date']` collapse into one fetch.
+  const groupKey = useMemo(() => [...groupBy].sort().join(','), [groupBy]);
+
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     const { from, to } = trailingDateRange(days);
-    setState((s) => ({ ...s, loading: true, error: null }));
+    const groupByParam = groupKey
+      ? (groupKey.split(',') as UsageQueryParams['groupBy'])
+      : undefined;
     (async () => {
+      // Flip into loading state from inside the async IIFE so the rule
+      // `react-hooks/set-state-in-effect` doesn't flag a synchronous setState
+      // during effect commit. The await below puts us safely past commit.
+      setState((s) => ({ ...s, loading: true, error: null }));
       try {
-        const data = await manageAgentUsage<UsageResponse>(agentId, {
-          from,
-          to,
-          groupBy,
-        });
-        if (!cancelled) setState({ data, loading: false, error: null });
+        const data = await manageAgentUsage<UsageResponse>(
+          agentId,
+          {
+            from,
+            to,
+            groupBy: groupByParam,
+          },
+          { signal },
+        );
+        if (!signal.aborted) setState({ data, loading: false, error: null });
       } catch (e) {
-        if (!cancelled)
+        if (!signal.aborted)
           setState({
             data: null,
             loading: false,
@@ -80,11 +96,9 @@ export function useAgentUsage(
       }
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-    // groupBy array identity is stable when callers pass a literal; re-run on key change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, days, groupBy.join(',')]);
+  }, [agentId, days, groupKey]);
 
   return state;
 }

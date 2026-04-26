@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../../common/types';
 import { ManagementClient } from '../management-client.service';
+import { assertNonEmptyString } from '../body-validation';
 
 @ApiTags('Agent Management')
 @ApiBearerAuth()
@@ -55,6 +56,7 @@ export class ManageCommandsController {
     @Param('agentId') agentId: string,
     @Body() body: { sessionKey: string },
   ) {
+    assertNonEmptyString(body?.sessionKey, 'sessionKey');
     return this.client.request({
       agentId,
       ownerId: req.user.id,

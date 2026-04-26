@@ -70,6 +70,24 @@ export default function AgentWorkspacePage() {
     setSelected(pathParam ?? null);
   }, [pathParam]);
 
+  // When the URL `?path=` changes (e.g. deep-link navigation, browser back
+  // to a deeper file), expand the parent directories so the selected file
+  // is visible in the tree without forcing the user to click chevrons.
+  useEffect(() => {
+    if (!pathParam) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const dir of parentDirs(pathParam)) {
+        if (!next.has(dir)) {
+          next.add(dir);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pathParam]);
+
   const selectFile = useCallback(
     (path: string | null) => {
       const next = new URLSearchParams();
