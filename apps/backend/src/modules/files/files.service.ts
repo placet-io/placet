@@ -56,9 +56,17 @@ export class FilesService {
     });
 
     const eventData = { ...message, attachments: [attachment] };
-    this.events.emitToChannel(channelId, 'message:created', eventData);
     if (senderType === 'user' && senderId) {
-      this.events.emitToUser(senderId, 'message:created', eventData);
+      // Single broadcast to both channel + user rooms so a JWT client in both
+      // (frontend viewing the chat) receives the event exactly once.
+      this.events.emitToChannelAndUser(
+        channelId,
+        senderId,
+        'message:created',
+        eventData,
+      );
+    } else {
+      this.events.emitToChannel(channelId, 'message:created', eventData);
     }
 
     return attachment;

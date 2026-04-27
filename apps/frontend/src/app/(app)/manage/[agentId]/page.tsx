@@ -16,6 +16,7 @@ import {
   FolderTree,
   KeyRound,
   ScrollText,
+  ShieldCheck,
   Settings,
 } from 'lucide-react';
 import { ManagePane } from '@/components/manage/manage-pane';
@@ -67,6 +68,7 @@ const QUICK_LINKS = [
   { key: 'workspace', label: 'Workspace', description: 'Agent files.', icon: FolderTree },
   { key: 'skills', label: 'Skills', description: 'Custom behaviors.', icon: Sparkles },
   { key: 'scripts', label: 'Scripts', description: 'Startup helpers.', icon: ScrollText },
+  { key: 'policy', label: 'Policy', description: 'Tool allow/deny rules.', icon: ShieldCheck },
   { key: 'settings', label: 'Settings', description: 'Models & defaults.', icon: Settings },
 ] as const;
 

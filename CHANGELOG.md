@@ -5,11 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] — 2026-04-27
+
+### Added
+
+- **Policy runtime toggles in the UI** — the new `policy_enabled` (master switch) and `policy_skip_cron` (cron bypass) flags from the upstream management runtime are now surfaced in two places:
+  - **Policy page** (`/manage/[agentId]/policy`) — a new status card at the top of the page shows two `<Switch>` rows ("Tool policy enabled", "Skip policy for cron jobs") that PATCH directly to `policy/settings` and optimistically reflect the new state. The cron-skip toggle is automatically disabled while the master switch is off
+  - **Settings page** (`/manage/[agentId]/settings`) — two sibling switches in the Advanced → Runtime block (next to "Unified session") let operators flip the same flags as part of the regular settings save flow
+- **`PATCH api/agents/:agentId/manage/policy/settings`** — new backend proxy in `ManagePolicyController` that validates `{enabled?: boolean, skipCron?: boolean}` and forwards through `ManagementClient` to the upstream runtime's `/api/v1/policy/settings` endpoint
+
+- **Tool-policy management page** — new `/manage/[agentId]/policy` section surfaces the persistent allow/deny rule store from the upstream `/api/v1/policy` endpoint (R11). Operators can list every rule (sorted by deny-first then alphabetical), add a new rule with action toggle (allow/deny), tool name (wildcards supported, e.g. `mcp:github:*`), and optional `key=value` parameter constraints, delete a single rule, or clear all rules. Rules show their `added_by` / `added_at` provenance and parameter constraints as inline chips
+  - **Backend proxy** (`apps/backend/src/modules/agent-management/controllers/policy.controller.ts`) — new `ManagePolicyController` mounted at `api/agents/:agentId/manage/policy` with `GET` (list), `POST` (add), `DELETE` (remove rule by body), and `DELETE /all` (clear) — body validation enforces `action ∈ {allow, deny}`, non-empty `tool`, and object-shaped `params`; forwards through `ManagementClient` so the agent's bearer token never reaches the browser
+  - **Sidebar + overview integration** — new "Policy" entry in the manage sidebar (`ShieldCheck` icon) and quick-link card on the per-agent overview page, matching the existing nav pattern
+
+### Changed
+
+- **Tool-policy management UX** — the policy page now uses the shared `ManageDataTable` instead of per-rule cards, with sortable columns, inline edit/delete row actions, and a unified create/edit dialog for rules
+- **Policy dialog mobile layout** — parameter constraints now stack key over value on narrow screens instead of forcing both inputs into one row; the remove action stays accessible without compressing the fields
+- **Management sub-page headers on mobile** — `ManagePane` now lets action buttons wrap onto a second row below the title/subtitle block on small screens, preserving the back button position and preventing header titles from collapsing to `...`
+
+### Fixed
+
+- **Duplicate `message:created` delivery for JWT clients** — `EventsGateway` now emits combined channel+user broadcasts in a single Socket.IO call so a frontend socket subscribed to both rooms receives each persisted message exactly once instead of twice
+- **Duplicate chat bubbles after message persistence** — `useMessages` now de-duplicates both by persisted message id and by `clientId`, replacing optimistic/pre-existing entries with the canonical server message rather than appending a second bubble
+
 ## [0.10.0] — 2026-04-26
 
 ### Added
 
-- **Management Dashboard** _(opt-in)_ — new `/manage` section lets operators inspect and configure every owned agent directly from the Placet UI, proxied to the agent's built-in management API (facio or any compatible runtime). The section is gated behind a per-user `managementDashboard` preference (Settings → Management Dashboard) and hidden by default
+- **Management Dashboard** _(opt-in)_ — new `/manage` section lets operators inspect and configure every owned agent directly from the Placet UI, proxied to the agent's built-in management API. The section is gated behind a per-user `managementDashboard` preference (Settings → Management Dashboard) and hidden by default
   - **Per-agent dashboard** (`/manage/[agentId]`) — live status, uptime, last-active, token/daily usage mini-chart, connected channels (with nested sub-channels for agents that expose them, e.g. Placet HITL sub-agents), active MCP servers with connected/disabled state, and shortcuts into every sub-section
   - **Usage overview** (`/manage`) — cross-agent daily-token stacked bar chart, health probe per manageable agent, quick-filterable agent list
   - **Sub-resource editors** — full CRUD for: Credentials (with masked read-back), Cron jobs (cron / every-N-seconds / at-time, with preview of the next few fire times), MCP servers (stdio / sse / http, with live connection check), Channels (free-form JSON config with restart-required indicator), Settings (model overrides, webhook auth, per-provider API keys), Skills (zip upload), Scripts, Workspace (file tree + CodeMirror editor), A2A peers, Sessions browser, Audit timeline
@@ -22,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **facio Placet channel status ping** — `_status_ping_loop` and `send_status` now iterate every managed channel ID (root + sub-agents registered through the channel registry) and PATCH each one's `lastActiveAt` / `status` individually, so sub-agents in HITL constellations appear online in the UI instead of being stuck on whatever state they had at registration time
+- **Managed-agent channel status ping** — `_status_ping_loop` and `send_status` now iterate every managed channel ID (root + sub-agents registered through the channel registry) and PATCH each one's `lastActiveAt` / `status` individually, so sub-agents in HITL constellations appear online in the UI instead of being stuck on whatever state they had at registration time
 - **Agent overview redesign** — "Connected channels" quick-look now lists every channel as a row with the channel name on the left and the channel type on the right; sub-channels of the Placet channel are rendered as indented rows underneath their parent. "Active tools" lists MCP servers at the top level (server name + connection status + `n tools available`) instead of expanding every tool individually
 - **Mobile chat input + header polish** — chat input no longer overflows on narrow viewports; header reorganized for better touch-target placement
 - **Sidebar reordering + font-size pass** — manage sub-section groups reordered for frequency-of-use; typography tightened across `/manage` for consistency with the rest of the app
@@ -60,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **WebSocket auth race condition** — `EventsGateway` now authenticates connections in a Socket.IO middleware (`server.use(...)`) instead of an async `handleConnection`, so `client.data.userId` is guaranteed to be set before any event handler runs. Previously, agents connecting via API key could emit `subscribe:channel` before the async DB lookup resolved, causing the handler's `if (!userId) return` guard to silently drop the join — with the result that `review:responded` and other channel-scoped events never reached the agent. Auth is now awaited before the connection is accepted. Clients with an invalid/missing key now receive a `connect_error` from the middleware instead of a post-`connect` `disconnect`; the documented requirement ("invalid or missing key → connection closed") is unchanged.
-- **Duplicate agent messages on retry** — `POST /api/v1/messages` (agent endpoint) now accepts an optional `clientId` idempotency key; if the agent retries a timed-out request with the same `clientId`, the backend returns the already-persisted message instead of creating a second row; facio's `PlacetChannel.send()` generates a UUID per call and includes it in every POST, eliminating the double-bubble that appeared after transient network errors
+- **Duplicate agent messages on retry** — `POST /api/v1/messages` (agent endpoint) now accepts an optional `clientId` idempotency key; if the agent retries a timed-out request with the same `clientId`, the backend returns the already-persisted message instead of creating a second row; the default Placet channel send path now generates a UUID per call and includes it in every POST, eliminating the double-bubble that appeared after transient network errors
 
 ## [0.9.0] — 2026-04-21
 

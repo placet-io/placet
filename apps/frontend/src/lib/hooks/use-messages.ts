@@ -121,8 +121,25 @@ export function useMessages(channelId: string | null) {
 
   const addOrReplaceMessage = useCallback((message: Message) => {
     setMessages((prev) => {
+      // De-dup by id (primary): same persisted row arriving twice (e.g. from
+      // multi-room WS delivery) is a no-op.
       if (prev.some((existing) => existing.id === message.id)) {
         return prev;
+      }
+      // De-dup by clientId (defense in depth): if a message with the same
+      // clientId already exists under a different id, replace it rather than
+      // appending — prevents visual duplicates when an optimistic/pre-existing
+      // entry shadows the canonical persisted form.
+      const incomingClientId = getMessageClientId(message.metadata);
+      if (incomingClientId) {
+        const dupIndex = prev.findIndex(
+          (existing) => getMessageClientId(existing.metadata) === incomingClientId,
+        );
+        if (dupIndex !== -1) {
+          const next = prev.slice();
+          next[dupIndex] = message;
+          return next;
+        }
       }
       return [...prev, message];
     });

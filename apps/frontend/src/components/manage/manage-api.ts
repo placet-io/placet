@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 /**
  * Thin wrapper around `api()` that targets the Placet backend's agent
  * management proxy (`/api/agents/:agentId/manage/*`). The proxy forwards
- * the request to the agent's Facio management API with a server-side
+ * the request to the agent's upstream management API with a server-side
  * bearer token — the token never reaches the browser.
  */
 export function manageApi<T = unknown>(

@@ -184,9 +184,9 @@ export class AgentsAgentController {
   @Post('setManagement')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Register Facio management credentials for a channel',
+    summary: 'Register management credentials for a channel',
     description:
-      'Stores the Facio `/api/v1/*` base URL and bearer token used by the Placet management dashboard proxy. Pass null values to clear. Only the main channel of a facio instance should carry management creds; HITL sub-channels must omit them and set `isSubagent` via `setWebhook`.',
+      'Stores the upstream `/api/v1/*` base URL and bearer token used by the Placet management dashboard proxy. Pass null values to clear. Only the main channel of an agent runtime should carry management creds; HITL sub-channels must omit them and set `isSubagent` via `setWebhook`.',
   })
   @ApiOkResponse({
     description: 'Management credentials updated',

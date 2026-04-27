@@ -380,10 +380,15 @@ export class MessagesService {
       ? await this.linkAttachments(message.id, allAttachmentIds, dto.channelId)
       : message;
 
-    // Emit events
+    // Emit events — single broadcast to both rooms so a JWT client in both
+    // (frontend viewing the chat) receives the event exactly once.
     const eventData = { ...final, agentName: agent.name };
-    this.events.emitToChannel(dto.channelId, 'message:created', eventData);
-    this.events.emitToUser(agent.ownerId, 'message:created', eventData);
+    this.events.emitToChannelAndUser(
+      dto.channelId,
+      agent.ownerId,
+      'message:created',
+      eventData,
+    );
     void this.push.sendToUser(agent.ownerId, {
       title: agent.name,
       body: final.text ?? 'Sent an attachment',
@@ -510,9 +515,13 @@ export class MessagesService {
       ? await this.linkAttachments(message.id, attachmentIds, channelId)
       : message;
 
-    // Emit events
-    this.events.emitToChannel(channelId, 'message:created', final);
-    this.events.emitToUser(userId, 'message:created', final);
+    // Emit events — single broadcast to both rooms (see emitToChannelAndUser).
+    this.events.emitToChannelAndUser(
+      channelId,
+      userId,
+      'message:created',
+      final,
+    );
 
     // Chat-level webhook with auth/headers
     const callback = this.buildAgentWebhook(agent);

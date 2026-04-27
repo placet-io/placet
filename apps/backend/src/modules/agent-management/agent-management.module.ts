@@ -18,6 +18,7 @@ import { ManageCommandsController } from './controllers/commands.controller';
 import { ManageAgentCardController } from './controllers/agent-card.controller';
 import { ManageA2aPeersController } from './controllers/a2a-peers.controller';
 import { ManageSettingsController } from './controllers/settings.controller';
+import { ManagePolicyController } from './controllers/policy.controller';
 
 @Module({
   imports: [AgentsModule],
@@ -38,6 +39,7 @@ import { ManageSettingsController } from './controllers/settings.controller';
     ManageAgentCardController,
     ManageA2aPeersController,
     ManageSettingsController,
+    ManagePolicyController,
   ],
   providers: [ManagementClient, DailyUsageService],
 })
