@@ -28,6 +28,8 @@ build/
 
 # OS
 .DS_Store
+._*
+**/._*
 Thumbs.db
 
 # Testing
