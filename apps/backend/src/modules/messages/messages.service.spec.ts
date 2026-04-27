@@ -22,7 +22,11 @@ describe('MessagesService', () => {
     agent: { findFirst: jest.Mock; findMany: jest.Mock };
     $transaction: jest.Mock;
   };
-  let events: { emitToChannel: jest.Mock; emitToUser: jest.Mock };
+  let events: {
+    emitToChannel: jest.Mock;
+    emitToUser: jest.Mock;
+    emitToChannelAndUser: jest.Mock;
+  };
   let webhooks: { dispatch: jest.Mock };
   let push: { sendToUser: jest.Mock };
   let files: { storeText: jest.Mock; getTextContent: jest.Mock };
@@ -45,7 +49,11 @@ describe('MessagesService', () => {
 
       $transaction: jest.fn((cb: (tx: typeof prisma) => unknown) => cb(prisma)),
     };
-    events = { emitToChannel: jest.fn(), emitToUser: jest.fn() };
+    events = {
+      emitToChannel: jest.fn(),
+      emitToUser: jest.fn(),
+      emitToChannelAndUser: jest.fn(),
+    };
     webhooks = { dispatch: jest.fn() };
     push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
     files = { storeText: jest.fn(), getTextContent: jest.fn() };
@@ -76,10 +84,11 @@ describe('MessagesService', () => {
       });
 
       expect(result).toEqual(msg);
-      expect(events.emitToChannel).toHaveBeenCalledWith(
+      expect(events.emitToChannelAndUser).toHaveBeenCalledWith(
         'a1',
+        'u1',
         'message:created',
-        msg,
+        expect.objectContaining({ id: 'm1' }),
       );
     });
 
@@ -169,7 +178,7 @@ describe('MessagesService', () => {
 
       const result = await service.createFromUser('u1', 'a1', 'hi');
       expect(result).toEqual(msg);
-      expect(events.emitToChannel).toHaveBeenCalled();
+      expect(events.emitToChannelAndUser).toHaveBeenCalled();
     });
   });
 

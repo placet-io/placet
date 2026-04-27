@@ -22,6 +22,7 @@ describe('FilesService', () => {
   let events: {
     emitToChannel: jest.Mock;
     emitToUser: jest.Mock;
+    emitToChannelAndUser: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -41,6 +42,7 @@ describe('FilesService', () => {
     events = {
       emitToChannel: jest.fn(),
       emitToUser: jest.fn(),
+      emitToChannelAndUser: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -113,6 +115,8 @@ describe('FilesService', () => {
           attachments: [mockAttachment],
         }),
       );
+      expect(events.emitToUser).not.toHaveBeenCalled();
+      expect(events.emitToChannelAndUser).not.toHaveBeenCalled();
       expect(result).toEqual(mockAttachment);
     });
 
@@ -139,7 +143,8 @@ describe('FilesService', () => {
         'user-1',
       );
 
-      expect(events.emitToUser).toHaveBeenCalledWith(
+      expect(events.emitToChannelAndUser).toHaveBeenCalledWith(
+        'channel1',
         'user-1',
         'message:created',
         expect.objectContaining<Record<string, unknown>>({
@@ -147,6 +152,8 @@ describe('FilesService', () => {
           attachments: [mockAttachment],
         }),
       );
+      expect(events.emitToChannel).not.toHaveBeenCalled();
+      expect(events.emitToUser).not.toHaveBeenCalled();
     });
   });
 

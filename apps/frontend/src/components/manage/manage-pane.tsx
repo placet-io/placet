@@ -35,8 +35,8 @@ export function ManagePane({
   return (
     <div className={cn('relative flex h-full min-h-0 flex-1 flex-col overflow-hidden', className)}>
       <div className="sticky top-0 z-10 shrink-0 border-b border-border/50 bg-background/80 backdrop-blur px-4 md:px-8 py-4 md:py-5">
-        <div className="mx-auto w-full max-w-6xl flex items-start justify-between gap-3">
-          <div className="min-w-0 flex items-start gap-2">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="flex min-w-0 items-start gap-2">
             {backHref && (
               <Link
                 href={backHref}
@@ -55,7 +55,11 @@ export function ManagePane({
               )}
             </div>
           </div>
-          {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 md:flex-nowrap">
+              {actions}
+            </div>
+          )}
         </div>
       </div>
 

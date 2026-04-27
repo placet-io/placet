@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.1] — 2026-04-26
+## [0.10.1] — 2026-04-27
 
 ### Added
 
@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tool-policy management page** — new `/manage/[agentId]/policy` section surfaces the persistent allow/deny rule store from the upstream `/api/v1/policy` endpoint (R11). Operators can list every rule (sorted by deny-first then alphabetical), add a new rule with action toggle (allow/deny), tool name (wildcards supported, e.g. `mcp:github:*`), and optional `key=value` parameter constraints, delete a single rule, or clear all rules. Rules show their `added_by` / `added_at` provenance and parameter constraints as inline chips
   - **Backend proxy** (`apps/backend/src/modules/agent-management/controllers/policy.controller.ts`) — new `ManagePolicyController` mounted at `api/agents/:agentId/manage/policy` with `GET` (list), `POST` (add), `DELETE` (remove rule by body), and `DELETE /all` (clear) — body validation enforces `action ∈ {allow, deny}`, non-empty `tool`, and object-shaped `params`; forwards through `ManagementClient` so the agent's bearer token never reaches the browser
   - **Sidebar + overview integration** — new "Policy" entry in the manage sidebar (`ShieldCheck` icon) and quick-link card on the per-agent overview page, matching the existing nav pattern
+
+### Changed
+
+- **Tool-policy management UX** — the policy page now uses the shared `ManageDataTable` instead of per-rule cards, with sortable columns, inline edit/delete row actions, and a unified create/edit dialog for rules
+- **Policy dialog mobile layout** — parameter constraints now stack key over value on narrow screens instead of forcing both inputs into one row; the remove action stays accessible without compressing the fields
+- **Management sub-page headers on mobile** — `ManagePane` now lets action buttons wrap onto a second row below the title/subtitle block on small screens, preserving the back button position and preventing header titles from collapsing to `...`
+
+### Fixed
+
+- **Duplicate `message:created` delivery for JWT clients** — `EventsGateway` now emits combined channel+user broadcasts in a single Socket.IO call so a frontend socket subscribed to both rooms receives each persisted message exactly once instead of twice
+- **Duplicate chat bubbles after message persistence** — `useMessages` now de-duplicates both by persisted message id and by `clientId`, replacing optimistic/pre-existing entries with the canonical server message rather than appending a second bubble
 
 ## [0.10.0] — 2026-04-26
 
