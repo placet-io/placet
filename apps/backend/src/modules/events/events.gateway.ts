@@ -264,4 +264,22 @@ export class EventsGateway
   emitToUser(userId: string, event: string, data: unknown) {
     this.server.to(`user:${userId}`).emit(event, data);
   }
+
+  /**
+   * Emit to both the channel room and the user room in a single broadcast so
+   * that a JWT client which is in BOTH rooms (frontend viewing the chat)
+   * receives the event exactly once. Two separate `to(room).emit()` calls
+   * deliver the event twice to the same socket; passing both rooms in a
+   * single `to([a, b])` call lets Socket.IO de-duplicate per-socket.
+   */
+  emitToChannelAndUser(
+    channelId: string,
+    userId: string,
+    event: string,
+    data: unknown,
+  ) {
+    this.server
+      .to([`channel:${channelId}`, `user:${userId}`])
+      .emit(event, data);
+  }
 }

@@ -16,6 +16,7 @@ import {
   Sparkles,
   ScrollText,
   Radio,
+  ShieldCheck,
   Settings,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -34,6 +35,7 @@ const AGENT_SECTIONS = [
   { key: 'skills', label: 'Skills', icon: Sparkles },
   { key: 'scripts', label: 'Scripts', icon: ScrollText },
   { key: 'channels', label: 'Channels', icon: Radio },
+  { key: 'policy', label: 'Policy', icon: ShieldCheck },
   { key: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 

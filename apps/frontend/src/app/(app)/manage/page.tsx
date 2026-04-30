@@ -197,7 +197,7 @@ export default function ManageOverviewPage() {
   return (
     <ManagePane
       title="Dashboard"
-      subtitle="Live overview of every registered Facio agent"
+      subtitle="Live overview of every registered managed agent"
       actions={
         probing ? (
           <Loader2 size={16} className="animate-spin text-muted-foreground" />
@@ -261,7 +261,7 @@ export default function ManageOverviewPage() {
             <ManageEmptyState
               icon={Activity}
               title="No agents registered"
-              description="Once an agent runs with a Facio management URL + API token, it will appear here."
+              description="Once an agent has a management URL and API token, it will appear here."
             />
           </ManageCard>
         ) : (
