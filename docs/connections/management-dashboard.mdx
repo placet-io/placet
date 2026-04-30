@@ -114,12 +114,44 @@ Every endpoint listed below lives under `/api/agents/:agentId/manage/` on the Pl
 
 ### Credentials
 
-| Method | Placet path          | Upstream route       | Description                 |
-| ------ | -------------------- | -------------------- | --------------------------- |
-| GET    | `/credentials`       | `/credentials`       | List keys (values masked)   |
-| GET    | `/credentials/{key}` | `/credentials/{key}` | Existence check             |
-| PUT    | `/credentials/{key}` | `/credentials/{key}` | Upsert (`{"value": "..."}`) |
-| DELETE | `/credentials/{key}` | `/credentials/{key}` | Remove                      |
+Generic secrets stored on the agent and made available to skills/tools as `${credentials.KEY}`. The `exposed` flag mirrors `config.tools.exec.exposed_credentials` — when `true` the key is injected as an env var into the shell-exec sandbox.
+
+| Method | Placet path                  | Upstream route               | Description                                                       |
+| ------ | ---------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| GET    | `/credentials`               | `/credentials`               | List keys (values masked) + `exposed` flags                       |
+| POST   | `/credentials`               | `/credentials`               | Create a secret (`{key, value, exposed?}`); `409` when key exists |
+| GET    | `/credentials/{key}`         | `/credentials/{key}`         | Existence check                                                   |
+| PUT    | `/credentials/{key}`         | `/credentials/{key}`         | Upsert (`{"value": "..."}`)                                       |
+| PUT    | `/credentials/{key}/exposed` | `/credentials/{key}/exposed` | Toggle exec-sandbox exposure (`{"exposed": bool}`)                |
+| DELETE | `/credentials/{key}`         | `/credentials/{key}`         | Remove                                                            |
+
+#### LLM provider credentials
+
+Provider API keys live under `config.providers.<name>.api_key`. OAuth-only providers (`github_copilot`, `openai_codex`) report `isOauth: true` and use a token store instead of `api_key`; for those, `POST` / `PUT` return `400` and the OAuth endpoints below must be used.
+
+| Method | Placet path                                 | Upstream route                              | Description                                                 |
+| ------ | ------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| GET    | `/credentials/providers`                    | `/credentials/providers`                    | List providers + `hasValue` / `isOauth` state               |
+| POST   | `/credentials/providers`                    | `/credentials/providers`                    | Set `api_key` (create-only — `409` when already set)        |
+| PUT    | `/credentials/providers/{name}`             | `/credentials/providers/{name}`             | Upsert `api_key` (`{"value": "..."}`)                       |
+| DELETE | `/credentials/providers/{name}`             | `/credentials/providers/{name}`             | Clear `api_key`, or disconnect OAuth for OAuth providers    |
+| POST   | `/credentials/providers/{name}/oauth/start` | `/credentials/providers/{name}/oauth/start` | Begin OAuth device flow (`github_copilot` only — see below) |
+| GET    | `/credentials/providers/{name}/oauth/poll`  | `/credentials/providers/{name}/oauth/poll`  | Poll an in-progress OAuth flow (`?session_id=...`)          |
+
+`POST /oauth/start` returns:
+
+```json
+{
+  "sessionId": "…",
+  "mode": "device",
+  "userCode": "ABCD-1234",
+  "verificationUri": "https://github.com/login/device",
+  "expiresIn": 900,
+  "interval": 5
+}
+```
+
+The agent polls the provider in the background; the client polls `GET /oauth/poll?session_id=…` every `interval` seconds and receives `{status: "pending" | "ok" | "error", error?, account?}`. On `ok` the OAuth token is persisted server-side (no value ever crosses the wire). `openai_codex` is intentionally **not** supported via REST — its OAuth client mandates a fixed `http://localhost:1455/auth/callback` redirect, so use your agent's local CLI to complete the OAuth login.
 
 ### Cron
 
@@ -151,13 +183,13 @@ Every endpoint listed below lives under `/api/agents/:agentId/manage/` on the Pl
 
 Persistent allow/deny rules for tool calls plus runtime toggles for the approval gate. `deny` wins over `allow`; missing rules trigger a one-time approval prompt unless the gate is disabled or skipped for cron callers.
 
-| Method | Placet path        | Upstream route        | Description                                                                       |
-| ------ | ------------------ | --------------------- | --------------------------------------------------------------------------------- |
-| GET    | `/policy`          | `/policy`             | List rules + current `enabled` / `skipCron` flags and on-disk policy file path    |
-| POST   | `/policy`          | `/policy`             | Add a rule (`{action: 'allow' \| 'deny', tool, params?}`)                         |
-| DELETE | `/policy`          | `/policy`             | Remove a single rule (same body shape as `POST`)                                  |
-| DELETE | `/policy/all`      | `/policy/all`         | Clear all rules                                                                   |
-| PATCH  | `/policy/settings` | `/policy/settings`    | Update runtime flags (`{enabled?: boolean, skipCron?: boolean}`)                  |
+| Method | Placet path        | Upstream route     | Description                                                                    |
+| ------ | ------------------ | ------------------ | ------------------------------------------------------------------------------ |
+| GET    | `/policy`          | `/policy`          | List rules + current `enabled` / `skipCron` flags and on-disk policy file path |
+| POST   | `/policy`          | `/policy`          | Add a rule (`{action: 'allow' \| 'deny', tool, params?}`)                      |
+| DELETE | `/policy`          | `/policy`          | Remove a single rule (same body shape as `POST`)                               |
+| DELETE | `/policy/all`      | `/policy/all`      | Clear all rules                                                                |
+| PATCH  | `/policy/settings` | `/policy/settings` | Update runtime flags (`{enabled?: boolean, skipCron?: boolean}`)               |
 
 The `enabled` flag is the master switch for the approval gate — when off, every tool call runs without prompts and the rule list is ignored. `skipCron` lets cron-triggered tool calls bypass the approval prompt while keeping the gate active for interactive callers.
 

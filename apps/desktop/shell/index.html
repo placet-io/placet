@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connect to Placet</title>
+    <link rel="stylesheet" href="connect.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Connect to your Placet server</h1>
+      <p class="subtitle">
+        Enter the URL of your self-hosted Placet instance. You can change this later from the File
+        menu.
+      </p>
+
+      <form id="connect-form" novalidate>
+        <label for="base-url">Server URL</label>
+        <input
+          id="base-url"
+          name="base-url"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          placeholder="https://placet.example.com"
+          required
+          autofocus
+        />
+        <p id="error" class="error" hidden></p>
+        <button id="submit" type="submit">Connect</button>
+      </form>
+    </main>
+
+    <script type="module" src="connect.js"></script>
+  </body>
+</html>

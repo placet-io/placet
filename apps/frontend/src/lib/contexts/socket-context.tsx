@@ -11,6 +11,8 @@ import {
 } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
+import { isDesktopApp, notify, requestNotificationPermission } from '@/lib/native';
+import type { Message } from '@placet/shared';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -411,6 +413,27 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('keydown', handleUserGesture, true);
     };
   }, []);
+
+  // ── Desktop (Tauri): native notifications for new messages ───────────────
+  // The desktop webview can't run the service-worker / Web Push pipeline
+  // we rely on in browsers. Instead, listen on the socket directly and
+  // route to the OS notification center via the Tauri plugin.
+  useEffect(() => {
+    if (!socket || !isDesktopApp()) return;
+    void requestNotificationPermission();
+
+    const handleMessageCreated = (msg: Message) => {
+      if (msg.senderType !== 'agent') return;
+      if (msg.channelId === activeChannelRef.current) return;
+      const body = msg.text?.trim().slice(0, 200) || 'New message';
+      void notify('Placet', body);
+    };
+
+    socket.on('message:created', handleMessageCreated);
+    return () => {
+      socket.off('message:created', handleMessageCreated);
+    };
+  }, [socket]);
 
   return (
     <SocketContext.Provider

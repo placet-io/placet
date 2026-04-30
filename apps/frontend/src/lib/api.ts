@@ -10,6 +10,31 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Extract a human-readable error message from an arbitrary JSON error body.
+ *
+ * Supports several envelope shapes seen across our backends:
+ *   - `{ error: { message: "..." } }`  — agent runtimes + the agent-management proxy
+ *   - `{ message: "..." }`             — Placet's REST handlers
+ *   - `{ detail: "..." }`              — FastAPI / generic
+ *   - `{ error: "..." }`               — short form
+ * Falls back to the HTTP statusText when nothing usable is found.
+ */
+function extractErrorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object') {
+    const b = body as Record<string, unknown>;
+    const err = b.error;
+    if (err && typeof err === 'object') {
+      const m = (err as Record<string, unknown>).message;
+      if (typeof m === 'string' && m.length > 0) return m;
+    }
+    if (typeof err === 'string' && err.length > 0) return err;
+    if (typeof b.message === 'string' && b.message.length > 0) return b.message;
+    if (typeof b.detail === 'string' && b.detail.length > 0) return b.detail;
+  }
+  return fallback || 'Request failed';
+}
+
 // ── Token refresh coordination ──────────────────────────────────
 // Prevents multiple concurrent refresh requests when several API
 // calls fail with 401 simultaneously.
@@ -72,8 +97,8 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }));
-    throw new ApiError(res.status, (body as Record<string, string>).message ?? res.statusText);
+    const body = await res.json().catch(() => null);
+    throw new ApiError(res.status, extractErrorMessage(body, res.statusText));
   }
 
   if (res.status === 204) return undefined as T;

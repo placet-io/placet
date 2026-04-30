@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/remote-schema.json",
+  "identifier": "remote-placet",
+  "description": "IPC permissions granted to the user-configured remote Placet origin so the web frontend can use native notifications via the Tauri plugin.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://**", "http://**"]
+  },
+  "permissions": [
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-request-permission",
+    "notification:allow-is-permission-granted",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit"
+  ]
+}
