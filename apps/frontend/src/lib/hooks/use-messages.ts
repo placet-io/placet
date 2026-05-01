@@ -275,19 +275,50 @@ export function useMessages(channelId: string | null) {
 
     const handleMessageCreated = (msg: Message) => {
       if (msg.channelId !== channelId) return;
-      // Clear streaming/progress state when final message arrives
+      // Clear streaming/progress state when final message arrives.
+      //
+      // Match priority for picking which stream this `message:created`
+      // belongs to (without a match, multiple parallel streams or a missed
+      // streamEnd would leave a streaming bubble alongside the persisted
+      // one — visible as a duplicate that disappears on refresh):
+      //   1. metadata.streamId — exact link if the agent passes it through
+      //   2. content prefix match — accumulated stream content is a prefix
+      //      of the persisted message text
+      //   3. fallback: a stream already marked complete, else the oldest
       setProgress(null);
       setStreamingMessages((prev) => {
         if (prev.length === 0) return prev;
-        const completedStream = prev.find((stream) => stream.complete);
-        const streamToClear = completedStream ?? prev[0];
-        return prev.filter((stream) => stream.streamId !== streamToClear.streamId);
+        const metaStreamId =
+          msg.metadata && typeof msg.metadata === 'object'
+            ? (msg.metadata as Record<string, unknown>).streamId
+            : null;
+        const finalText = msg.text ?? '';
+
+        const matchedById =
+          typeof metaStreamId === 'string'
+            ? prev.find((s) => s.streamId === metaStreamId)
+            : undefined;
+        const matchedByContent =
+          matchedById ??
+          (finalText
+            ? prev.find((s) => s.content.length > 0 && finalText.startsWith(s.content))
+            : undefined);
+        const completed = matchedByContent ?? prev.find((s) => s.complete);
+        const streamToClear = completed ?? prev[0];
+        return prev.filter((s) => s.streamId !== streamToClear.streamId);
       });
       const clientId = getMessageClientId(msg.metadata);
       if (clientId) {
         removePendingMessage({ clientId });
       }
       addOrReplaceMessage(msg);
+      // Keep the channel's read marker fresh while the chat is open. Without
+      // this the server's lastReadAt stays at the moment the chat was
+      // opened, so the next agent list refresh re-introduces an unread
+      // badge for messages that arrived while the user was viewing.
+      if (msg.senderType === 'agent') {
+        markRead(channelId);
+      }
     };
 
     const handleReviewResponded = (msg: Message) => {

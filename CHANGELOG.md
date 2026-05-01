@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Management Dashboard UX** — the credentials flow was streamlined for everyday use across desktop and mobile, and upstream management API errors are surfaced more clearly in the UI.
 
+### Fixed
+
+- **Chat sidebar + message rendering cleanup** — chat ordering now follows latest activity in both flat and grouped sidebar views, active chats keep unread markers cleared while open, streaming bubbles reconcile more reliably with persisted messages, sidebar previews strip raw Markdown syntax, and code blocks keep the same dark-card styling in light and dark mode.
+
 ## [0.10.1] — 2026-04-27
 
 ### Added

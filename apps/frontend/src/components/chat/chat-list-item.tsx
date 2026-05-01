@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { AgentAvatar } from '@/components/shared/agent-avatar';
 import { cn } from '@/lib/utils';
+import { stripMarkdown } from '@/lib/strip-markdown';
 
 interface ChatListItemProps {
   agentId: string;
@@ -57,7 +58,7 @@ export const ChatListItem = memo(function ChatListItem({
         </div>
         <div className="relative flex items-center gap-2">
           <p className={cn('truncate text-sm text-muted-foreground', unreadCount > 0 && 'pr-7')}>
-            {lastMessage ?? description ?? 'No messages yet'}
+            {lastMessage ? stripMarkdown(lastMessage) : (description ?? 'No messages yet')}
           </p>
           {unreadCount > 0 && (
             <Badge className="absolute right-0 h-5 min-w-5 px-1.5 rounded-full text-[11px] font-semibold">
