@@ -8,6 +8,8 @@ const { load } = window.__TAURI__.store;
 
 const form = document.getElementById('connect-form');
 const input = document.getElementById('base-url');
+const apiInput = document.getElementById('api-url');
+const advanced = document.querySelector('details.advanced');
 const button = document.getElementById('submit');
 const errorEl = document.getElementById('error');
 
@@ -53,8 +55,12 @@ form.addEventListener('submit', async (event) => {
   clearError();
 
   let baseUrl;
+  let apiUrl = null;
   try {
     baseUrl = normalize(input.value);
+    if (apiInput && apiInput.value.trim() !== '') {
+      apiUrl = normalize(apiInput.value);
+    }
   } catch (err) {
     showError(err.message);
     return;
@@ -65,14 +71,19 @@ form.addEventListener('submit', async (event) => {
 
   try {
     try {
-      await probe(baseUrl);
+      await probe(apiUrl ?? baseUrl);
     } catch (err) {
-      showError(`Could not reach ${baseUrl}. Check the URL and try again.`);
+      showError(`Could not reach ${apiUrl ?? baseUrl}. Check the URL and try again.`);
       return;
     }
 
     const store = await load('placet.json', { autoSave: true });
     await store.set('baseUrl', baseUrl);
+    if (apiUrl) {
+      await store.set('apiUrl', apiUrl);
+    } else {
+      await store.delete('apiUrl');
+    }
     await store.save();
 
     window.location.replace(baseUrl);
@@ -88,6 +99,11 @@ form.addEventListener('submit', async (event) => {
     const store = await load('placet.json', { autoSave: true });
     const existing = await store.get('baseUrl');
     if (typeof existing === 'string') input.value = existing;
+    const existingApi = await store.get('apiUrl');
+    if (typeof existingApi === 'string' && existingApi !== '') {
+      apiInput.value = existingApi;
+      if (advanced) advanced.open = true;
+    }
   } catch {
     /* first run — nothing to load */
   }

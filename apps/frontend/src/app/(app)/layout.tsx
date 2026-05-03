@@ -18,7 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex h-full overflow-hidden bg-background font-sans">
           <div
             className={cn(
-              'flex w-full pt-[env(safe-area-inset-top)] lg:p-4',
+              'desktop-window-content flex w-full pt-[env(safe-area-inset-top)] lg:p-4',
               merged ? 'lg:gap-0' : 'lg:gap-4',
             )}
           >

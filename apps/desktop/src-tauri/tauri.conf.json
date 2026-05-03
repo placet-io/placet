@@ -10,20 +10,8 @@
     "beforeBuildCommand": ""
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "Placet",
-        "url": "index.html",
-        "width": 1280,
-        "height": 820,
-        "minWidth": 720,
-        "minHeight": 480,
-        "resizable": true,
-        "fullscreen": false,
-        "center": true
-      }
-    ],
+    "windows": [],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null,
       "dangerousDisableAssetCspModification": true
@@ -45,6 +33,7 @@
     "longDescription": "Native desktop shell for self-hosted Placet servers.",
     "macOS": {
       "minimumSystemVersion": "11.0",
+      "signingIdentity": "-",
       "frameworks": []
     },
     "windows": {

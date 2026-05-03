@@ -68,7 +68,14 @@ Or invoke the `disconnect` Tauri command from devtools:
 
 ## Code signing
 
-The CI release workflow ships **unsigned** bundles by default. To sign:
+Local macOS builds use ad-hoc signing (`signingIdentity = "-"`) so the
+generated `.app` bundle has a stable bundle signature for testing from
+`/Applications`. The CI release workflow currently falls back to the same
+ad-hoc signing when Apple Developer secrets are not configured.
+
+Without Developer ID signing and notarization, macOS notifications may not
+register reliably in System Settings. Configure these secrets once an Apple
+Developer account is available:
 
 - macOS: set `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`,

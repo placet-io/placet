@@ -203,6 +203,10 @@ html {
   .animate-highlight {
     animation: msg-highlight 2s ease-out;
   }
+
+  html[data-placet-desktop-os='macos'] .desktop-window-content {
+    padding-top: 28px;
+  }
 }
 
 @keyframes msg-highlight {

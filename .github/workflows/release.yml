@@ -178,12 +178,15 @@ jobs:
         include:
           - os: macos-latest
             target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
             args: '--target universal-apple-darwin'
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
             args: ''
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
             args: ''
     runs-on: ${{ matrix.os }}
     steps:
@@ -199,7 +202,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -220,15 +223,41 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Sync desktop version from release tag
+        run: node scripts/sync-desktop-release-version.mjs "${{ github.ref_name }}"
+
       - name: Generate desktop icons
         working-directory: apps/desktop
         run: npx tauri icon ../frontend/public/favicons/apple-touch-icon.png --output src-tauri/icons
+
+      - name: Configure optional macOS signing
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=0
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Missing optional macOS signing secret: ${name}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "macOS Developer ID signing/notarization skipped. The DMG will use the local ad-hoc signing identity from tauri.conf.json."
+            exit 0
+          fi
+          node -e "const fs=require('fs'); const path='apps/desktop/src-tauri/tauri.conf.json'; const config=JSON.parse(fs.readFileSync(path,'utf8')); config.bundle.macOS.signingIdentity=process.env.APPLE_SIGNING_IDENTITY; fs.writeFileSync(path, JSON.stringify(config,null,2)+'\n');"
 
       - name: Build Tauri bundle
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS code signing (optional — bundles ship unsigned if unset)
+          # macOS Developer ID signing and notarization (optional; skipped when unset)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}

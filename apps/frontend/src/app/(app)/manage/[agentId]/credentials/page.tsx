@@ -457,15 +457,18 @@ export default function AgentCredentialsPage() {
         }}
       />
 
-      <OauthLoginDialog
-        agentId={agentId}
-        provider={oauthLogin}
-        onClose={() => setOauthLogin(null)}
-        onConnected={() => {
-          setOauthLogin(null);
-          void load();
-        }}
-      />
+      {oauthLogin && (
+        <OauthLoginDialog
+          key={oauthLogin.name}
+          agentId={agentId}
+          provider={oauthLogin}
+          onClose={() => setOauthLogin(null)}
+          onConnected={() => {
+            setOauthLogin(null);
+            void load();
+          }}
+        />
+      )}
 
       <ConflictDialog message={conflict} onClose={() => setConflict(null)} />
     </ManagePane>
@@ -1016,7 +1019,7 @@ function OauthLoginDialog({
   onConnected,
 }: {
   agentId: string;
-  provider: ProviderItem | null;
+  provider: ProviderItem;
   onClose: () => void;
   onConnected: () => void;
 }) {
@@ -1025,19 +1028,9 @@ function OauthLoginDialog({
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Reset on open/close
+  // Start OAuth flow when the dialog opens.
   useEffect(() => {
-    if (!provider) {
-      setSession(null);
-      setStatus('starting');
-      setErr(null);
-      setCopied(false);
-      return;
-    }
     let cancelled = false;
-    setStatus('starting');
-    setErr(null);
-    setSession(null);
     (async () => {
       try {
         const resp = await manageApi<OauthStartResponse>(
@@ -1108,11 +1101,11 @@ function OauthLoginDialog({
   }, [session]);
 
   return (
-    <Dialog open={!!provider} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Link2 size={16} /> Connect {provider?.label}
+            <Link2 size={16} /> Connect {provider.label}
           </DialogTitle>
           <DialogDescription>
             Authorize via the provider&apos;s device flow. This dialog updates automatically once
