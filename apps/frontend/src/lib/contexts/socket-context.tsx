@@ -11,6 +11,14 @@ import {
 } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
+import {
+  isDesktopApp,
+  isNotificationPermissionGranted,
+  markDesktopDocument,
+  notify,
+  requestNotificationPermission,
+} from '@/lib/native';
+import type { Message } from '@placet/shared';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,8 +27,10 @@ interface SocketContextValue {
   connected: boolean;
   activeChannel: string | null;
   notificationsEnabled: boolean;
-  /** True when the browser exposes the Notification + Push APIs at all. */
+  /** True when the current platform can deliver chat notifications. */
   notificationsSupported: boolean;
+  /** True when notifications use the desktop shell's OS-native notification plugin. */
+  notificationsNative: boolean;
   /**
    * True when running on iOS Safari in a regular browser tab (not the
    * installed PWA). iOS only exposes Web Push for home-screen PWAs, so the
@@ -30,10 +40,11 @@ interface SocketContextValue {
   subscribe: (channelId: string) => void;
   unsubscribe: (channelId: string) => void;
   markRead: (channelId: string) => void;
-  requestNotifications: () => void;
+  requestNotifications: () => Promise<boolean>;
 }
 
 const SocketContext = createContext<SocketContextValue | null>(null);
+const NATIVE_NOTIFICATIONS_KEY = 'placet:native-notifications-enabled';
 
 function getWsUrl(): string {
   if (typeof window !== 'undefined') {
@@ -115,18 +126,31 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(
-    () => typeof Notification !== 'undefined' && Notification.permission === 'granted',
-  );
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   // Detect capability on the client after mount (avoid SSR `window` access).
   const [notificationsSupported, setNotificationsSupported] = useState(false);
+  const [notificationsNative, setNotificationsNative] = useState(false);
   const [iosRequiresInstall, setIosRequiresInstall] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const desktop = isDesktopApp();
+    markDesktopDocument();
+    setNotificationsNative(desktop);
+    if (desktop) {
+      setNotificationsSupported(true);
+      setIosRequiresInstall(false);
+      void isNotificationPermissionGranted().then((granted) => {
+        const enabledByUser = localStorage.getItem(NATIVE_NOTIFICATIONS_KEY) === 'true';
+        if (mountedRef.current) setNotificationsEnabled(granted && enabledByUser);
+      });
+      return;
+    }
+
     const hasNotification = 'Notification' in window;
     const hasSW = 'serviceWorker' in navigator;
     const hasPush = 'PushManager' in window;
     setNotificationsSupported(hasNotification && hasSW && hasPush);
+    if (hasNotification) setNotificationsEnabled(Notification.permission === 'granted');
 
     // iOS Safari exposes Web Push only for installed PWAs. Detect iOS and
     // whether we're running in standalone (home-screen) mode.
@@ -353,30 +377,40 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   // ── Browser notifications + Push API ──────────────────────────────────────
 
-  const requestNotifications = useCallback(() => {
-    if (typeof Notification === 'undefined') return;
+  const requestNotifications = useCallback(async () => {
+    if (isDesktopApp()) {
+      if (notificationsEnabled) {
+        localStorage.setItem(NATIVE_NOTIFICATIONS_KEY, 'false');
+        setNotificationsEnabled(false);
+        return true;
+      }
+
+      const granted = await requestNotificationPermission();
+      localStorage.setItem(NATIVE_NOTIFICATIONS_KEY, granted ? 'true' : 'false');
+      if (mountedRef.current) setNotificationsEnabled(granted);
+      return granted;
+    }
+
+    if (typeof Notification === 'undefined') return false;
     if (Notification.permission === 'granted') {
       setNotificationsEnabled(true);
       void subscribeToPush();
-      return;
+      return true;
     }
-    if (Notification.permission === 'denied') return;
+    if (Notification.permission === 'denied') return false;
     // Must call requestPermission() synchronously inside the gesture handler
     // on iOS — awaiting another promise first loses the "user-activation"
     // flag and the prompt silently fails. The promise we return here is
     // unchained; its `.then` runs after the browser has shown the dialog.
-    const result = Notification.requestPermission();
-    // Older Safari versions only accept the callback form. Support both.
-    if (result && typeof result.then === 'function') {
-      result.then((perm) => {
-        setNotificationsEnabled(perm === 'granted');
-        if (perm === 'granted') void subscribeToPush();
-      });
-    }
-  }, []);
+    const perm = await Notification.requestPermission();
+    setNotificationsEnabled(perm === 'granted');
+    if (perm === 'granted') void subscribeToPush();
+    return perm === 'granted';
+  }, [notificationsEnabled]);
 
   // Register Service Worker on mount
   useEffect(() => {
+    if (isDesktopApp()) return;
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/sw.js').catch((err) => {
       console.warn('SW registration failed:', err);
@@ -388,6 +422,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   // a user-gesture handler (click / keydown), so we attach a one-shot
   // listener and prompt on the very first interaction.
   useEffect(() => {
+    if (isDesktopApp()) return;
     if (typeof Notification === 'undefined') return;
     if (Notification.permission !== 'default') {
       // Already granted — ensure push subscription is active
@@ -412,6 +447,26 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ── Desktop (Tauri): native notifications for new messages ───────────────
+  // The desktop webview can't run the service-worker / Web Push pipeline
+  // we rely on in browsers. Instead, listen on the socket directly and
+  // route to the OS notification center via the Tauri plugin.
+  useEffect(() => {
+    if (!socket || !isDesktopApp() || !notificationsEnabled) return;
+
+    const handleMessageCreated = (msg: Message) => {
+      if (msg.senderType !== 'agent') return;
+      if (msg.channelId === activeChannelRef.current) return;
+      const body = msg.text?.trim().slice(0, 200) || 'New message';
+      void notify('Placet', body);
+    };
+
+    socket.on('message:created', handleMessageCreated);
+    return () => {
+      socket.off('message:created', handleMessageCreated);
+    };
+  }, [socket, notificationsEnabled]);
+
   return (
     <SocketContext.Provider
       value={{
@@ -420,6 +475,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         activeChannel,
         notificationsEnabled,
         notificationsSupported,
+        notificationsNative,
         iosRequiresInstall,
         subscribe,
         unsubscribe,

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-05-03
+
+### Added
+
+- **LLM provider credentials in the Management Dashboard** — the credentials area now covers both generic secrets and provider-specific credentials, including API keys plus OAuth-based connections for supported LLM providers.
+- **Expanded management policy controls** — the Management Dashboard now exposes the agent's tool-policy configuration more completely, including runtime policy toggles and a dedicated policy page for managing persistent allow/deny rules.
+- **Tauri desktop integration** — Placet now ships with desktop-specific integration, including native notifications inside the app shell and release builds for macOS, Windows, and Linux.
+
+### Changed
+
+- **Management Dashboard UX** — the credentials flow was streamlined for everyday use across desktop and mobile, and upstream management API errors are surfaced more clearly in the UI.
+
+### Fixed
+
+- **Chat sidebar + message rendering cleanup** — chat ordering now follows latest activity in both flat and grouped sidebar views, active chats keep unread markers cleared while open, streaming bubbles reconcile more reliably with persisted messages, sidebar previews strip raw Markdown syntax, and code blocks keep the same dark-card styling in light and dark mode.
+- **Desktop release artifact versions** — macOS and Windows desktop release bundles now synchronize their Tauri, npm, and Cargo versions from the Git release tag before building, so uploaded artifacts use the release version instead of the static development version.
+
+### Notes
+
+- **macOS desktop builds are not Developer ID signed yet** — the current local and CI desktop builds fall back to ad-hoc signing because Apple Developer credentials are not configured. The DMG can be used for testing, but macOS system notifications may not appear reliably in System Settings until Developer ID signing and notarization are enabled.
+
 ## [0.10.1] — 2026-04-27
 
 ### Added

@@ -64,7 +64,12 @@ const QUICK_LINKS = [
   { key: 'channels', label: 'Channels', description: 'Connected surfaces.', icon: Radio },
   { key: 'cron', label: 'Cron', description: 'Scheduled jobs.', icon: Clock },
   { key: 'mcp', label: 'MCP', description: 'External servers.', icon: Boxes },
-  { key: 'credentials', label: 'Credentials', description: 'Provider keys.', icon: KeyRound },
+  {
+    key: 'credentials',
+    label: 'Credentials',
+    description: 'Provider keys & secrets.',
+    icon: KeyRound,
+  },
   { key: 'workspace', label: 'Workspace', description: 'Agent files.', icon: FolderTree },
   { key: 'skills', label: 'Skills', description: 'Custom behaviors.', icon: Sparkles },
   { key: 'scripts', label: 'Scripts', description: 'Startup helpers.', icon: ScrollText },

@@ -137,9 +137,13 @@ export const ChatList = memo(function ChatList({
     });
   }, []);
 
+  // Filter by search. Sort order is established upstream (chats/layout.tsx)
+  // using raw ISO timestamps before `lastMessageTime` is converted to a
+  // human-readable label here, so we just preserve the order.
   const filtered = agents.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()));
 
-  // Group by tag: untagged first, then alphabetical by tag name
+  // Group by tag: untagged first, then alphabetical by tag name. Items
+  // within each group inherit the upstream lastMessageTime ordering.
   const grouped = filtered.reduce<Map<string, AgentListItem[]>>((acc, agent) => {
     const key = agent.tag ?? '';
     if (!acc.has(key)) acc.set(key, []);

@@ -81,6 +81,11 @@ export default function RootLayout({
             __html: `window.__HP_CONFIG__=${runtimeConfig}`,
           }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var placetDesktop=window.__TAURI_INTERNALS__||window.__TAURI__||/\\b(?:PlacetDesktop|Tauri)\\b/i.test(navigator.userAgent);if(placetDesktop)document.documentElement.dataset.placetDesktop='true'}catch{}`,
+          }}
+        />
       </head>
       <body
         className="fixed left-0 top-0 w-full overflow-hidden flex flex-col bg-background"

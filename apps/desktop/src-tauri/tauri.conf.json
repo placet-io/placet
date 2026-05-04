@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Placet",
+  "version": "0.1.0",
+  "identifier": "io.placet.desktop",
+  "build": {
+    "frontendDist": "../shell",
+    "devUrl": null,
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [],
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": null,
+      "dangerousDisableAssetCspModification": true
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app", "msi", "nsis", "deb", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Placet desktop client",
+    "longDescription": "Native desktop shell for self-hosted Placet servers.",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-",
+      "frameworks": []
+    },
+    "windows": {
+      "wix": { "language": "en-US" },
+      "nsis": { "installMode": "perMachine" }
+    }
+  },
+  "plugins": {}
+}

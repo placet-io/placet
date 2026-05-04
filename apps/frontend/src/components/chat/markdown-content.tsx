@@ -333,7 +333,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="group/code relative my-2">
-      <pre className="rounded-lg p-3 overflow-x-auto text-[13px] bg-[#0d1117] text-[#c9d1d9] border border-[#1f2937]">
+      <pre className="rounded-lg p-3 overflow-x-auto text-[13px] bg-[#0d1117] text-[#c9d1d9]">
         {children}
       </pre>
       <div className="pointer-events-none absolute top-1.5 right-1.5 flex items-center gap-1.5">

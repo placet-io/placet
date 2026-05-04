@@ -70,13 +70,22 @@ export function useAgents() {
         prev.map((a) => {
           if (a.id !== msg.channelId) return a;
           const isViewing = activeRef.current === msg.channelId;
+          // Compute new unread count:
+          //   - user messages never count as unread for the user themselves
+          //   - if the chat is currently open, force to 0 (mirrors the
+          //     server-side markRead the chat view triggers per message)
+          //   - otherwise increment from existing count
+          let unreadCount = a.unreadCount ?? 0;
+          if (isViewing) {
+            unreadCount = 0;
+          } else if (msg.senderType === 'agent') {
+            unreadCount = unreadCount + 1;
+          }
           return {
             ...a,
             lastMessage: msg.text ?? '📎 Attachment',
             lastMessageTime: msg.createdAt,
-            // Only increment unread for agent messages when chat is NOT active
-            unreadCount:
-              msg.senderType === 'agent' && !isViewing ? (a.unreadCount ?? 0) + 1 : a.unreadCount,
+            unreadCount,
           };
         }),
       );

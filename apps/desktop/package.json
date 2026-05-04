@@ -1,0 +1,15 @@
+{
+  "name": "@placet/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri desktop shell for Placet (macOS / Windows / Linux)",
+  "scripts": {
+    "dev": "tauri dev",
+    "bundle": "tauri build",
+    "icons": "tauri icon ../frontend/public/favicons/apple-touch-icon.png --output src-tauri/icons",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

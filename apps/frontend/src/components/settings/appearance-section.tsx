@@ -1,12 +1,13 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useTheme } from 'next-themes';
-import { Bell, Monitor, Moon, Sun } from 'lucide-react';
+import { Bell, ExternalLink, Monitor, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useChatSettings } from '@/lib/hooks/use-chat-settings';
 import { useSocket } from '@/lib/contexts/socket-context';
+import { openDesktopNotificationSettings } from '@/lib/native';
 
 const THEMES = [
   { key: 'light', label: 'Light', icon: Sun },
@@ -17,11 +18,44 @@ const THEMES = [
 export const AppearanceSection = memo(function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const { settings, update } = useChatSettings();
-  const { notificationsEnabled, notificationsSupported, iosRequiresInstall, requestNotifications } =
-    useSocket();
+  const [notificationPending, setNotificationPending] = useState(false);
+  const [notificationFeedback, setNotificationFeedback] = useState<string | null>(null);
+  const {
+    notificationsEnabled,
+    notificationsSupported,
+    notificationsNative,
+    iosRequiresInstall,
+    requestNotifications,
+  } = useSocket();
 
   const notificationsDenied =
-    typeof Notification !== 'undefined' && Notification.permission === 'denied';
+    !notificationsNative &&
+    typeof Notification !== 'undefined' &&
+    Notification.permission === 'denied';
+  const notificationTitle = notificationsNative ? 'System notifications' : 'Browser notifications';
+  const notificationDescription = notificationsNative
+    ? 'Use macOS or Windows system notifications when an agent sends a new message.'
+    : iosRequiresInstall
+      ? 'On iOS, notifications only work when Placet is installed to the home screen. Open Safari → Share → "Add to Home Screen", then open Placet from the home screen and enable notifications here.'
+      : !notificationsSupported
+        ? 'This browser does not support push notifications.'
+        : notificationsDenied
+          ? 'Notifications have been blocked. Please enable them in your browser settings.'
+          : 'Get notified when an agent sends a new message while the tab is in the background.';
+
+  async function handleNotificationToggle() {
+    setNotificationPending(true);
+    setNotificationFeedback(null);
+    const ok = await requestNotifications();
+    setNotificationPending(false);
+    if (!ok && !notificationsEnabled) {
+      setNotificationFeedback(
+        notificationsNative
+          ? 'Notifications could not be enabled. Open Placet from Applications and check macOS notification permissions.'
+          : 'Notifications could not be enabled.',
+      );
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -80,18 +114,27 @@ export const AppearanceSection = memo(function AppearanceSection() {
           <Bell size={16} className="text-muted-foreground" />
           <Label className="text-muted-foreground">Notifications</Label>
         </div>
-        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
           <div>
-            <p className="text-sm font-medium text-foreground">Browser notifications</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {iosRequiresInstall
-                ? 'On iOS, notifications only work when Placet is installed to the home screen. Open Safari → Share → "Add to Home Screen", then open Placet from the home screen and enable notifications here.'
-                : !notificationsSupported
-                  ? 'This browser does not support push notifications.'
-                  : notificationsDenied
-                    ? 'Notifications have been blocked. Please enable them in your browser settings.'
-                    : 'Get notified when an agent sends a new message while the tab is in the background.'}
-            </p>
+            <p className="text-sm font-medium text-foreground">{notificationTitle}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{notificationDescription}</p>
+            {notificationFeedback && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className="text-xs text-destructive">{notificationFeedback}</p>
+                {notificationsNative && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="rounded-lg"
+                    onClick={() => void openDesktopNotificationSettings()}
+                  >
+                    <ExternalLink size={12} className="mr-1" />
+                    Open macOS Settings
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
           {iosRequiresInstall || !notificationsSupported ? (
             <span className="text-xs text-muted-foreground italic shrink-0">Unavailable</span>
@@ -102,7 +145,9 @@ export const AppearanceSection = memo(function AppearanceSection() {
               type="button"
               role="switch"
               aria-checked={notificationsEnabled}
-              onClick={requestNotifications}
+              aria-busy={notificationPending}
+              onClick={() => void handleNotificationToggle()}
+              disabled={notificationPending}
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 notificationsEnabled ? 'bg-primary' : 'bg-input'
               }`}
