@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **macOS release DMG pipeline** — release builds now only attempt Developer ID signing when `MACOS_SIGNING_ENABLED=true` and all required Apple signing secrets are present. Otherwise the workflow skips certificate import entirely and falls back to the existing ad-hoc-signed desktop build instead of failing during `security import`.
+- **Windows desktop test bundles** — desktop CI now uses an MSI-compatible numeric test version instead of `0.0.0-test`, avoiding WiX/Tauri failures where MSI prerelease identifiers must be numeric-only.
 
 ## [0.11.0] — 2026-05-03
 

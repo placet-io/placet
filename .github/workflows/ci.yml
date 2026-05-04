@@ -105,7 +105,7 @@ jobs:
         run: npm ci
 
       - name: Sync desktop test version
-        run: node scripts/sync-desktop-release-version.mjs 0.0.0-test
+        run: node scripts/sync-desktop-release-version.mjs 0.0.1
 
       - name: Generate desktop icons
         working-directory: apps/desktop

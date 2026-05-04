@@ -15,7 +15,7 @@ on:
       version:
         description: 'Desktop version to build'
         required: false
-        default: '0.0.0-test'
+        default: '0.0.1'
 
 permissions:
   contents: read
@@ -78,7 +78,7 @@ jobs:
         run: npm ci
 
       - name: Sync desktop test version
-        run: node scripts/sync-desktop-release-version.mjs "${{ github.event.inputs.version || '0.0.0-test' }}"
+        run: node scripts/sync-desktop-release-version.mjs "${{ github.event.inputs.version || '0.0.1' }}"
 
       - name: Generate desktop icons
         working-directory: apps/desktop
