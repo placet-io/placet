@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] — 2026-05-04
+
+### Changed
+
+- **Desktop CI coverage before merge** — pull requests that touch the Tauri desktop app, release workflow, shared icon assets, or desktop version-sync script now build unsigned desktop bundles on macOS and Windows in CI and upload them as workflow artifacts, so desktop packaging can be verified before merging to `main`.
+
+### Fixed
+
+- **macOS release DMG pipeline** — release builds now only attempt Developer ID signing when `MACOS_SIGNING_ENABLED=true` and all required Apple signing secrets are present. Otherwise the workflow skips certificate import entirely and falls back to the existing ad-hoc-signed desktop build instead of failing during `security import`.
+- **Windows desktop test bundles** — desktop CI now uses an MSI-compatible numeric test version instead of `0.0.0-test`, avoiding WiX/Tauri failures where MSI prerelease identifiers must be numeric-only.
+
 ## [0.11.0] — 2026-05-03
 
 ### Added

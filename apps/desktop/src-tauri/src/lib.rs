@@ -1,5 +1,6 @@
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
+#[cfg(target_os = "macos")]
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
@@ -248,7 +249,7 @@ pub fn run() {
             // `initialization_script_for_all_frames` — config-defined
             // windows can't carry init scripts.
             let navigation_app_handle = app.handle().clone();
-            let mut builder = WebviewWindowBuilder::new(app, "main", initial_url)
+            let builder = WebviewWindowBuilder::new(app, "main", initial_url)
                 .title("Placet")
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(720.0, 480.0)
@@ -308,10 +309,10 @@ pub fn run() {
                 .initialization_script_for_all_frames(DESKTOP_INIT_SCRIPT);
 
             #[cfg(target_os = "macos")]
-            {
+            let builder = {
                 use tauri::TitleBarStyle;
-                builder = builder.title_bar_style(TitleBarStyle::Overlay).hidden_title(true);
-            }
+                builder.title_bar_style(TitleBarStyle::Overlay).hidden_title(true)
+            };
 
             let _window = builder.build()?;
 

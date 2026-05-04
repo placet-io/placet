@@ -1,71 +1,28 @@
-name: CI
+name: Desktop
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    paths:
+      - '.github/workflows/desktop.yml'
+      - '.github/workflows/release.yml'
+      - 'apps/desktop/**'
+      - 'apps/frontend/public/favicons/**'
+      - 'scripts/sync-desktop-release-version.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Desktop version to build'
+        required: false
+        default: '0.0.1'
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: Build, Lint & Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma Client
-        run: npx prisma generate
-        working-directory: apps/backend
-
-      - name: Build
-        run: npx turbo build
-
-      - name: Lint
-        run: npx turbo lint
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Test
-        run: npx turbo test
-
-  desktop-changes:
-    name: Detect Desktop Changes
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    outputs:
-      changed: ${{ steps.filter.outputs.changed }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check changed files
-        id: filter
-        run: |
-          changed=false
-          if git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" \
-            | grep -E '^(apps/desktop/|apps/frontend/public/favicons/|scripts/sync-desktop-release-version\.mjs|package(-lock)?\.json|\.github/workflows/(ci|desktop|release)\.yml)$'; then
-            changed=true
-          fi
-          echo "changed=${changed}" >> "$GITHUB_OUTPUT"
-
   desktop:
     name: Build Desktop (${{ matrix.os }})
-    needs: desktop-changes
-    if: needs.desktop-changes.outputs.changed == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -79,6 +36,11 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             rust_targets: x86_64-pc-windows-msvc
+            args: ''
+            artifact_path: apps/desktop/src-tauri/target/release/bundle
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
             args: ''
             artifact_path: apps/desktop/src-tauri/target/release/bundle
     steps:
@@ -101,11 +63,22 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
 
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev
+
       - name: Install npm dependencies
         run: npm ci
 
       - name: Sync desktop test version
-        run: node scripts/sync-desktop-release-version.mjs 0.0.1
+        run: node scripts/sync-desktop-release-version.mjs "${{ github.event.inputs.version || '0.0.1' }}"
 
       - name: Generate desktop icons
         working-directory: apps/desktop
