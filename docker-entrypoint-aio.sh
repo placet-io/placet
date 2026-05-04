@@ -26,18 +26,117 @@ MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
 MINIO_BUCKET="${MINIO_BUCKET:-placet}"
 MCP_PORT="${MCP_PORT:-3002}"
 
+case "${AIO_DEBUG:-false}" in
+  1|true|TRUE|yes|YES|on|ON)
+    AIO_DEBUG=true
+    ;;
+  *)
+    AIO_DEBUG=false
+    ;;
+esac
+
+AIO_STATUS_DIR="/tmp/aio-service-status"
+mkdir -p "$AIO_STATUS_DIR"
+rm -f "$AIO_STATUS_DIR"/*.status 2>/dev/null || true
+AIO_EXIT_FIFO="/tmp/aio-service-exit"
+rm -f "$AIO_EXIT_FIFO"
+mkfifo "$AIO_EXIT_FIFO"
+
 # Track child PIDs for cleanup
 PIDS=""
 
 cleanup() {
+  code="${1:-0}"
+  set +e
   echo "[aio] Shutting down..."
   for pid in $PIDS; do
     kill "$pid" 2>/dev/null || true
   done
-  wait
-  exit 0
+  wait 2>/dev/null || true
+  exit "$code"
 }
-trap cleanup SIGTERM SIGINT
+trap 'cleanup 143' SIGTERM SIGINT
+
+prefix_logs() {
+  service_name="$1"
+  while IFS= read -r line; do
+    printf '[%s] %s\n' "$service_name" "$line"
+  done
+}
+
+start_service() {
+  service_name="$1"
+  shift
+  service_dir="$1"
+  shift
+  fifo="/tmp/aio-${service_name}.log"
+  status_file="${AIO_STATUS_DIR}/${service_name}.status"
+
+  rm -f "$fifo" "$status_file"
+  mkfifo "$fifo"
+
+  echo "[aio] Starting ${service_name}..."
+  if [ "$AIO_DEBUG" = "true" ]; then
+    echo "[aio]   command: (cd ${service_dir} && $*)"
+  fi
+
+  (
+    set +e
+    prefix_logs "$service_name" < "$fifo" &
+    logger_pid="$!"
+
+    (
+      cd "$service_dir" || exit 127
+      "$@"
+    ) > "$fifo" 2>&1 &
+    child_pid="$!"
+
+    trap 'kill "$child_pid" "$logger_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; wait "$logger_pid" 2>/dev/null || true; exit 143' TERM INT
+
+    wait "$child_pid"
+    service_status="$?"
+    wait "$logger_pid" 2>/dev/null || true
+    rm -f "$fifo"
+    printf '%s %s\n' "$service_name" "$service_status" > "$status_file"
+    printf '%s %s\n' "$service_name" "$service_status" > "$AIO_EXIT_FIFO"
+    exit "$service_status"
+  ) &
+
+  service_pid="$!"
+  PIDS="$service_pid $PIDS"
+}
+
+check_service_running() {
+  service_name="$1"
+  status_file="${AIO_STATUS_DIR}/${service_name}.status"
+  if [ -f "$status_file" ]; then
+    read -r failed_name failed_status < "$status_file" || true
+    echo "[aio] ERROR: ${failed_name:-$service_name} exited before it became ready (status ${failed_status:-unknown})."
+    cleanup 1
+  fi
+}
+
+run_setup_command() {
+  if [ "$AIO_DEBUG" = "true" ]; then
+    "$@"
+  else
+    "$@" >/dev/null 2>&1
+  fi
+}
+
+wait_for_any_service_exit() {
+  echo "[aio] All services started. Waiting..."
+  read -r exited_name exited_status < "$AIO_EXIT_FIFO" || true
+  exited_name="${exited_name:-unknown}"
+  exited_status="${exited_status:-1}"
+
+  echo "[aio] Service '${exited_name}' exited with status ${exited_status}; shutting down"
+  cleanup "$exited_status"
+}
+
+if [ "$AIO_DEBUG" = "true" ]; then
+  echo "[aio] Debug logging enabled (AIO_DEBUG=true)"
+fi
 
 # ── Generate JWT_SECRET if not set ────────────────────────────────────────────
 if [ -z "$JWT_SECRET" ] || [ "$JWT_SECRET" = "change-me-in-production" ]; then
@@ -101,21 +200,35 @@ fi
 
 echo "[aio] Starting MinIO on :${MINIO_PORT}..."
 export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
-minio server /data/minio \
-  --address ":${MINIO_PORT}" \
-  --console-address ":${MINIO_CONSOLE_PORT}" \
-  --quiet &
-PIDS="$! $PIDS"
+if [ "$AIO_DEBUG" = "true" ]; then
+  start_service minio /app minio server /data/minio \
+    --address ":${MINIO_PORT}" \
+    --console-address ":${MINIO_CONSOLE_PORT}"
+else
+  start_service minio /app minio server /data/minio \
+    --address ":${MINIO_PORT}" \
+    --console-address ":${MINIO_CONSOLE_PORT}" \
+    --quiet
+fi
 
 # Wait for MinIO to be ready
 echo "[aio] Waiting for MinIO..."
-until mc alias set localminio "http://127.0.0.1:${MINIO_PORT}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+until run_setup_command mc alias set localminio "http://127.0.0.1:${MINIO_PORT}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+  check_service_running minio
   sleep 1
 done
 
 # Create bucket if it doesn't exist
-mc mb --ignore-existing "localminio/${MINIO_BUCKET}" >/dev/null 2>&1
-mc anonymous set download "localminio/${MINIO_BUCKET}" >/dev/null 2>&1
+if ! run_setup_command mc mb --ignore-existing "localminio/${MINIO_BUCKET}"; then
+  echo "[aio] ERROR: failed to create or verify MinIO bucket '${MINIO_BUCKET}'."
+  check_service_running minio
+  cleanup 1
+fi
+if ! run_setup_command mc anonymous set download "localminio/${MINIO_BUCKET}"; then
+  echo "[aio] ERROR: failed to configure MinIO bucket '${MINIO_BUCKET}' policy."
+  check_service_running minio
+  cleanup 1
+fi
 echo "[aio] MinIO ready — bucket '${MINIO_BUCKET}' available"
 
 # ── 3. Start Backend ─────────────────────────────────────────────────────────
@@ -127,14 +240,12 @@ export MINIO_ACCESS_KEY="$MINIO_ROOT_USER"
 export MINIO_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 export MINIO_BUCKET
 
-cd /app/apps/backend
-node dist/src/main.js &
-PIDS="$! $PIDS"
-cd /app
+start_service backend /app/apps/backend node dist/src/main.js
 
 # Wait for backend to be healthy
 echo "[aio] Waiting for backend..."
 until node -e "const h=require('http');h.get('http://127.0.0.1:${BACKEND_PORT}/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" 2>/dev/null; do
+  check_service_running backend
   sleep 1
 done
 echo "[aio] Backend ready"
@@ -153,10 +264,7 @@ export APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:8080}"
 export NEXT_PUBLIC_WS_URL="${NEXT_PUBLIC_WS_URL:-http://localhost:8080}"
 export NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:8080}"
 export HOSTNAME="0.0.0.0"
-cd /app/frontend
-node apps/frontend/server.js &
-PIDS="$! $PIDS"
-cd /app
+start_service frontend /app/frontend node apps/frontend/server.js
 
 echo "[aio] Frontend ready"
 
@@ -166,23 +274,16 @@ echo "[aio] Starting MCP server on :${MCP_PORT}..."
 export PLACET_API_URL="http://127.0.0.1:${BACKEND_PORT}"
 export MCP_PORT
 
-cd /app/packages/mcp-server
-node dist/index.js &
-PIDS="$! $PIDS"
-cd /app
+start_service mcp /app/packages/mcp-server node dist/index.js
 
 echo "[aio] MCP server ready"
 
 # ── 6. Start Nginx (single-port gateway) ─────────────────────────────────────
 
 echo "[aio] Starting nginx on :8080..."
-nginx &
-PIDS="$! $PIDS"
+start_service nginx /app nginx
 echo "[aio] Nginx ready"
 
 # ── 7. Wait for any child to exit ────────────────────────────────────────────
 
-echo "[aio] All services started. Waiting..."
-wait -n 2>/dev/null || wait
-echo "[aio] A service exited — shutting down"
-cleanup
+wait_for_any_service_exit
