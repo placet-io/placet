@@ -231,8 +231,10 @@ jobs:
         run: npx tauri icon ../frontend/public/favicons/apple-touch-icon.png --output src-tauri/icons
 
       - name: Configure optional macOS signing
+        id: macos-signing
         if: matrix.os == 'macos-latest'
         env:
+          MACOS_SIGNING_ENABLED: ${{ vars.MACOS_SIGNING_ENABLED }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -240,6 +242,12 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          if [ "$MACOS_SIGNING_ENABLED" != "true" ]; then
+            echo "macOS Developer ID signing/notarization skipped. Set repository variable MACOS_SIGNING_ENABLED=true to opt in."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           missing=0
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!name}" ]; then
@@ -249,15 +257,30 @@ jobs:
           done
           if [ "$missing" -ne 0 ]; then
             echo "macOS Developer ID signing/notarization skipped. The DMG will use the local ad-hoc signing identity from tauri.conf.json."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
           node -e "const fs=require('fs'); const path='apps/desktop/src-tauri/tauri.conf.json'; const config=JSON.parse(fs.readFileSync(path,'utf8')); config.bundle.macOS.signingIdentity=process.env.APPLE_SIGNING_IDENTITY; fs.writeFileSync(path, JSON.stringify(config,null,2)+'\n');"
 
-      - name: Build Tauri bundle
+      - name: Build unsigned Tauri bundle
+        if: matrix.os != 'macos-latest' || steps.macos-signing.outputs.enabled != 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS Developer ID signing and notarization (optional; skipped when unset)
+        with:
+          projectPath: apps/desktop
+          releaseId: ${{ needs.release.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+      - name: Build signed Tauri bundle
+        if: matrix.os == 'macos-latest' && steps.macos-signing.outputs.enabled == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS Developer ID signing and notarization. These are only passed
+          # when every required secret exists; otherwise Tauri's security import
+          # attempts to import malformed/partial certificate data and fails.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
