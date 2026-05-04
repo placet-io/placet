@@ -112,6 +112,15 @@ Every endpoint listed below lives under `/api/agents/:agentId/manage/` on the Pl
 | GET    | `/usage`              | `/usage`              | Aggregated totals + grouped items |
 | GET    | `/usage/runs/{runId}` | `/usage/runs/{runId}` | Single-turn token-usage row       |
 
+### Settings
+
+Runtime settings exposed by the agent. Browser settings include the new browser tool controls shown in the Management Dashboard: `enable`, `max_named_sessions`, `domain_allowlist`, and `domain_denylist`.
+
+| Method | Placet path | Upstream route | Description                                      |
+| ------ | ----------- | -------------- | ------------------------------------------------ |
+| GET    | `/settings` | `/settings`    | Read editable runtime settings and option lists  |
+| PATCH  | `/settings` | `/settings`    | Apply partial settings updates and restart hints |
+
 ### Credentials
 
 Generic secrets stored on the agent and made available to skills/tools as `${credentials.KEY}`. The `exposed` flag mirrors `config.tools.exec.exposed_credentials` — when `true` the key is injected as an env var into the shell-exec sandbox.
