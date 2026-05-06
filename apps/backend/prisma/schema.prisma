@@ -99,19 +99,58 @@ model Message {
   review           Json? // Review object (see plan)
   metadata         Json? // free-form additional data
   clientId         String?  @map("client_id") // agent-supplied idempotency key (null for user messages)
+  /**
+   * Per-turn streaming identifier. Set when the agent message is the
+   * persistent draft for a streamed turn — the agent posts the first
+   * delta as a normal create, subsequent deltas land via PATCH on the
+   * same row, and the final response marks the row complete. Indexed
+   * with channelId for idempotent upsert lookup.
+   */
+  streamId         String?  @map("stream_id")
+  /**
+   * 'streaming' while deltas are still landing, 'complete' once the
+   * final response is in, 'aborted' when a stream was cut short
+   * (interrupted, server restart with stale draft, …). Null for
+   * non-streamed messages. Drives the frontend's "always render at
+   * bottom while streaming" rule and lets a refresh distinguish
+   * in-flight drafts from completed turns.
+   */
+  streamState      String?  @map("stream_state")
   deliveryStatus   String   @default("sent") @map("delivery_status") // 'sent' | 'webhook_delivered' | 'webhook_failed' | 'agent_received'
   iterationGroupId String?  @map("iteration_group_id") // points to root message ID of the iteration chain (null = standalone)
   iteration        Int? // counter within group (null = standalone, 1 = root, 2+ = follow-ups)
   createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
 
   agent       Agent        @relation(fields: [channelId], references: [id], onDelete: Cascade)
   attachments Attachment[]
 
   @@unique([iterationGroupId, iteration], name: "uq_iteration_group_seq")
+  @@unique([channelId, streamId], name: "uq_messages_channel_stream")
   @@index([channelId, createdAt(sort: Desc)], name: "idx_messages_channel")
   @@index([iterationGroupId], name: "idx_messages_iteration_group")
   @@index([channelId, clientId], name: "idx_messages_client_id")
   @@map("messages")
+}
+
+/**
+ * Persistent status step emitted while an agent turn is running
+ * (e.g. "Reading file foo.ts", "Searching codebase"). Anchored to a
+ * draft message via `(channelId, streamId)` — no FK on Message so that
+ * a status event can be persisted before the first delta has created
+ * the draft row. Ordered per stream by `index`.
+ */
+model MessageStatusEvent {
+  id        String   @id @default(cuid())
+  channelId String   @map("channel_id")
+  streamId  String   @map("stream_id")
+  index     Int
+  text      String
+  toolHint  Boolean  @default(false) @map("tool_hint")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([channelId, streamId, index], name: "idx_status_events_stream")
+  @@map("message_status_events")
 }
 
 model Attachment {

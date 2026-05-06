@@ -18,6 +18,17 @@ export interface MessageResponse {
   senderType: string;
   text?: string;
   status?: string;
+  streamId?: string | null;
+  streamState?: 'streaming' | 'complete' | 'aborted' | null;
+  statusEvents?: Array<{
+    id: string;
+    channelId: string;
+    streamId: string;
+    index: number;
+    text: string;
+    toolHint: boolean;
+    createdAt: string;
+  }>;
   review?: unknown;
   deliveryStatus?: string;
   attachments?: Array<{ id: string; filename: string; mimeType: string }>;

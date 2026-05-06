@@ -5,8 +5,8 @@ import { Loader2, Copy, Check, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './message-bubble';
 import { ShimmerText } from './shimmer-text';
-import { useTypewriter } from '@/lib/hooks/use-typewriter';
-import type { ChatMessage, StreamingMessage } from '@/lib/hooks/use-messages';
+import type { ChatMessage } from '@/lib/hooks/use-messages';
+import type { MessageStatusEvent } from '@placet/shared';
 
 const QUOTED_REPLY_PREFIX = /^> \*\*.+?:\*\* .+?(?:…)?\n\n[\s\S]*$/;
 
@@ -19,11 +19,8 @@ interface MessageListProps {
   loadingOlder?: boolean;
   hasMore?: boolean;
   highlightMessageId?: string | null;
-  streamingMessages?: StreamingMessage[];
-  progress?: {
-    content: string;
-    toolHint: boolean;
-  } | null;
+  orphanStatusByStream?: Record<string, MessageStatusEvent[]>;
+  ephemeralProgress?: { content: string; toolHint: boolean } | null;
   onLoadOlder?: () => void;
   onSetupWebhook?: () => void;
   onReviewRespond?: (
@@ -37,39 +34,6 @@ interface MessageListProps {
   onRetryDelivery?: (messageId: string) => Promise<void>;
 }
 
-const StreamingBubble = memo(function StreamingBubble({
-  stream,
-  agentName,
-  agentAvatarUrl,
-  channelId,
-}: {
-  stream: StreamingMessage;
-  agentName: string;
-  agentAvatarUrl?: string | null;
-  channelId?: string;
-}) {
-  const displayedStreaming = useTypewriter(stream.content);
-
-  return (
-    <MessageBubble
-      messageId={`__streaming__${stream.streamId}`}
-      channelId={channelId}
-      senderType="agent"
-      senderName={agentName}
-      avatarUrl={agentAvatarUrl}
-      text={displayedStreaming ?? stream.content}
-      createdAt={stream.createdAt}
-      status={null}
-      review={null}
-      metadata={null}
-      attachments={[]}
-      deliveryStatus={null}
-      iterationGroupId={null}
-      iteration={null}
-    />
-  );
-});
-
 export const MessageList = memo(function MessageList({
   messages,
   agentName,
@@ -79,8 +43,8 @@ export const MessageList = memo(function MessageList({
   loadingOlder = false,
   hasMore = false,
   highlightMessageId,
-  streamingMessages = [],
-  progress,
+  orphanStatusByStream = {},
+  ephemeralProgress,
   onLoadOlder,
   onSetupWebhook,
   onReviewRespond,
@@ -89,7 +53,18 @@ export const MessageList = memo(function MessageList({
   onRetryDelivery,
 }: MessageListProps) {
   const [copied, setCopied] = useState(false);
-  const latestStreamingContent = streamingMessages[streamingMessages.length - 1]?.content ?? null;
+  // Track the latest text of any streaming draft (used to drive
+  // auto-scroll while the response grows). When no draft is currently
+  // streaming this is `null`, which keeps the streaming-only effects
+  // from firing.
+  const latestStreamingContent = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].streamState === 'streaming') {
+        return messages[i].text ?? '';
+      }
+    }
+    return null;
+  }, [messages]);
 
   // Compute max iteration per group for "Iteration X/Y" display
   const iterationTotals = useMemo(() => {
@@ -287,15 +262,23 @@ export const MessageList = memo(function MessageList({
     });
   }, [latestStreamingContent, scrollFollowContent]);
 
-  // Auto-scroll when progress/status changes (only when at bottom)
+  // Auto-scroll when orphan or ephemeral status changes (only when at bottom)
+  const orphanStatusKey = useMemo(
+    () =>
+      Object.entries(orphanStatusByStream)
+        .map(([sid, evs]) => `${sid}:${evs.length}`)
+        .join('|'),
+    [orphanStatusByStream],
+  );
+  const ephemeralKey = ephemeralProgress?.content ?? '';
   useEffect(() => {
-    if (!progress) return;
+    if (!orphanStatusKey && !ephemeralKey) return;
     if (!isAtBottomRef.current) return;
 
     requestAnimationFrame(() => {
       scrollFollowContent();
     });
-  }, [progress, scrollFollowContent]);
+  }, [orphanStatusKey, ephemeralKey, scrollFollowContent]);
 
   // Preserve scroll position when older messages are prepended
   useEffect(() => {
@@ -463,50 +446,123 @@ export const MessageList = memo(function MessageList({
           </div>
         )}
 
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            messageId={msg.id}
-            channelId={channelId}
-            senderType={msg.senderType as 'agent' | 'user'}
-            senderName={msg.senderType === 'agent' ? agentName : 'You'}
-            avatarUrl={msg.senderType === 'agent' ? agentAvatarUrl : null}
-            text={msg.text ?? ''}
-            createdAt={msg.createdAt}
-            status={msg.status as 'info' | 'success' | 'warning' | 'error' | null | undefined}
-            review={msg.review}
-            metadata={msg.metadata}
-            attachments={msg.attachments}
-            deliveryStatus={msg.deliveryStatus}
-            iterationGroupId={msg.iterationGroupId}
-            iteration={msg.iteration}
-            iterationTotal={
-              msg.iterationGroupId ? iterationTotals.get(msg.iterationGroupId) : undefined
-            }
-            onReviewRespond={onReviewRespond}
-            onReply={onReply}
-            onSendAsMessage={onSendAsMessage}
-            onRetryDelivery={onRetryDelivery}
-          />
-        ))}
+        {/* ── Unified timeline ──
+            Persisted messages and in-flight streaming bubbles are sorted
+            into one timeline keyed by `createdAt`. The streaming bubble
+            is anchored at the agent-side stream-start time so a user
+            interrupt sent mid-stream stays visually below the streamed
+            agent reply. Streaming drafts (`streamState === 'streaming'`)
+            are pinned to the bottom of the timeline regardless of their
+            createdAt, so a later user message never appears below the
+            actively-streaming reply. Live status for a draft is rendered
+            inside that bubble below the partial text; if status events
+            arrive before the draft message exists, an orphan row is
+            rendered at the bottom. */}
+        {(() => {
+          const parseTime = (value: string | null | undefined): number => {
+            if (!value) return Number.POSITIVE_INFINITY;
+            const t = new Date(value).getTime();
+            return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+          };
 
-        {/* Streaming: keep concurrent or segmented responses isolated per stream. */}
-        {streamingMessages.map((stream) => (
-          <StreamingBubble
-            key={stream.streamId}
-            stream={stream}
-            agentName={agentName}
-            agentAvatarUrl={agentAvatarUrl}
-            channelId={channelId}
-          />
-        ))}
+          // Sort strictly by `createdAt`. Streaming drafts are pulled to
+          // the bottom by the `streamState === 'streaming'` filter below,
+          // so we never reorder settled rows when an unrelated update
+          // bumps their `updatedAt` (acknowledge, webhook delivery, …).
+          const sortKey = (m: ChatMessage) => parseTime(m.createdAt);
 
-        {/* Progress/activity indicator */}
-        {progress?.content ? (
-          <div className="pl-0 sm:pl-11">
-            <ShimmerText text={progress.content} className="text-sm font-medium" />
-          </div>
-        ) : null}
+          const isStreaming = (m: ChatMessage) => m.streamState === 'streaming';
+          const settled = messages
+            .filter((m) => !isStreaming(m))
+            .slice()
+            .sort((a, b) => sortKey(a) - sortKey(b));
+          const streamingTail = messages
+            .filter(isStreaming)
+            .slice()
+            .sort((a, b) => sortKey(a) - sortKey(b));
+
+          const renderStatus = (key: string, events: MessageStatusEvent[]) => {
+            if (events.length === 0) return null;
+            const last = events[events.length - 1];
+            return (
+              <div key={key} className="pl-0 sm:pl-11">
+                <ShimmerText text={last.text} className="text-sm font-medium" />
+              </div>
+            );
+          };
+
+          const renderMessage = (msg: ChatMessage) => (
+            <MessageBubble
+              key={msg.id}
+              messageId={msg.id}
+              channelId={channelId}
+              senderType={msg.senderType as 'agent' | 'user'}
+              senderName={msg.senderType === 'agent' ? agentName : 'You'}
+              avatarUrl={msg.senderType === 'agent' ? agentAvatarUrl : null}
+              text={msg.text ?? ''}
+              createdAt={msg.createdAt}
+              status={msg.status as 'info' | 'success' | 'warning' | 'error' | null | undefined}
+              review={msg.review}
+              metadata={msg.metadata}
+              attachments={msg.attachments}
+              deliveryStatus={msg.deliveryStatus}
+              iterationGroupId={msg.iterationGroupId}
+              iteration={msg.iteration}
+              iterationTotal={
+                msg.iterationGroupId ? iterationTotals.get(msg.iterationGroupId) : undefined
+              }
+              statusEvents={msg.statusEvents}
+              streamState={msg.streamState}
+              onReviewRespond={onReviewRespond}
+              onReply={onReply}
+              onSendAsMessage={onSendAsMessage}
+              onRetryDelivery={onRetryDelivery}
+            />
+          );
+
+          const rendered: React.ReactNode[] = [];
+          settled.forEach((m) => rendered.push(renderMessage(m)));
+          // Streaming bubbles render their own live-status row inside the
+          // bubble (below the partial text); no separate timeline row.
+          streamingTail.forEach((m) => rendered.push(renderMessage(m)));
+          // Orphan status: events arrived before the draft message — render
+          // a standalone shimmer row at the bottom.
+          const claimedStreamIds = new Set(
+            messages.map((m) => m.streamId).filter((s): s is string => !!s),
+          );
+          const latestOrphan =
+            streamingTail.length === 0
+              ? Object.entries(orphanStatusByStream)
+                  .filter(
+                    ([streamId, events]) => !claimedStreamIds.has(streamId) && events.length > 0,
+                  )
+                  .sort(([, left], [, right]) => {
+                    const a = parseTime(left[left.length - 1]?.createdAt);
+                    const b = parseTime(right[right.length - 1]?.createdAt);
+                    return b - a;
+                  })[0]
+              : undefined;
+          if (latestOrphan) {
+            const [streamId, events] = latestOrphan;
+            const status = renderStatus(`__orphan_${streamId}__`, events);
+            if (status) rendered.push(status);
+          }
+          // Ephemeral fallback: shown only when neither a streaming draft
+          // nor any persistent orphan status is active for this channel —
+          // i.e. agents that emit `message:progress` without opening a
+          // streaming draft (non-streaming flows) still surface a live
+          // shimmer of "what's being done" until the next message lands.
+          const hasPersistentStatus =
+            streamingTail.some((m) => (m.statusEvents ?? []).length > 0) || !!latestOrphan;
+          if (streamingTail.length === 0 && !hasPersistentStatus && ephemeralProgress?.content) {
+            rendered.push(
+              <div key="__ephemeral_progress__" className="pl-0 sm:pl-11">
+                <ShimmerText text={ephemeralProgress.content} className="text-sm font-medium" />
+              </div>,
+            );
+          }
+          return rendered;
+        })()}
 
         <div ref={bottomRef} />
 

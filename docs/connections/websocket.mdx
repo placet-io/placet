@@ -104,6 +104,30 @@ A new message was posted in a subscribed channel.
 }
 ```
 
+### `message:updated`
+
+An existing message row changed — most commonly because an agent PATCHed the
+draft of a streaming reply (see [Streaming Replies](/connections/rest-api#streaming-replies)).
+The full updated message record is emitted; clients should replace the row by
+`id` in place. Messages with `streamState === "streaming"` are still live drafts;
+once `streamState` flips to `"complete"` the reply is final.
+
+### `message:delta`
+
+A streaming agent reply produced a new chunk. Used for low-latency UI updates
+between the slower PATCH-driven `message:updated` events. Match deltas to the
+draft row by `streamBaseId` (which equals the row's `streamId` column).
+
+```json
+{
+  "channelId": "clxyz456",
+  "delta": " more tokens",
+  "streamBaseId": "stream-abc",
+  "streamId": "stream-abc:2",
+  "streamStartedAt": "2026-04-01T14:30:00.000Z"
+}
+```
+
 ### `review:responded`
 
 A human completed a review (approval, selection, form, etc.). The full message record is emitted, including attachments.

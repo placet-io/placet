@@ -184,6 +184,8 @@ export class EventsGateway
       channelId: string;
       delta: string;
       streamId?: string;
+      streamBaseId?: string;
+      streamStartedAt?: string;
       streamEnd?: boolean;
     },
   ) {
@@ -194,7 +196,12 @@ export class EventsGateway
   @SubscribeMessage('message:progress')
   handleMessageProgress(
     client: Socket,
-    data: { channelId: string; content: string; toolHint?: boolean },
+    data: {
+      channelId: string;
+      content: string;
+      toolHint?: boolean;
+      streamId?: string;
+    },
   ) {
     if (!data?.channelId) return;
     this.server.to(`channel:${data.channelId}`).emit('message:progress', data);

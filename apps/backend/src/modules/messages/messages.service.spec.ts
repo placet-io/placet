@@ -98,6 +98,51 @@ describe('MessagesService', () => {
         service.createFromAgent('u1', { channelId: 'a1', text: 'hello' }),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('should mark an existing stream draft aborted on idempotent abort create', async () => {
+      prisma.agent.findFirst.mockResolvedValue({
+        id: 'a1',
+        ownerId: 'u1',
+        name: 'Facio',
+      });
+      prisma.message.findFirst.mockResolvedValue({
+        id: 'm1',
+        channelId: 'a1',
+        text: 'partial',
+        streamId: 's1',
+        streamState: 'streaming',
+        attachments: [],
+      });
+      const updated = {
+        id: 'm1',
+        channelId: 'a1',
+        text: 'Interrupted.',
+        streamId: 's1',
+        streamState: 'aborted',
+        attachments: [],
+      };
+      prisma.message.update.mockResolvedValue(updated);
+
+      const result = await service.createFromAgent('u1', {
+        channelId: 'a1',
+        text: 'Interrupted.',
+        streamId: 's1',
+        streamState: 'aborted',
+      });
+
+      expect(result).toEqual(updated);
+      expect(prisma.message.update).toHaveBeenCalledWith({
+        where: { id: 'm1' },
+        data: { text: 'Interrupted.', streamState: 'aborted' },
+        include: { attachments: true },
+      });
+      expect(events.emitToChannelAndUser).toHaveBeenCalledWith(
+        'a1',
+        'u1',
+        'message:updated',
+        expect.objectContaining({ id: 'm1', streamState: 'aborted' }),
+      );
+    });
   });
 
   describe('findByAgent', () => {
@@ -107,7 +152,9 @@ describe('MessagesService', () => {
       prisma.message.findMany.mockResolvedValue(messages);
 
       const result = await service.findByAgent('u1', 'a1', { limit: 50 });
-      expect(result.data).toEqual(messages);
+      expect(result.data).toEqual(
+        messages.map((m) => ({ ...m, statusEvents: [] })),
+      );
     });
 
     it('should throw ForbiddenException if not owner', async () => {

@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
@@ -23,8 +24,22 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { RespondReviewDto } from './dto/respond-review.dto';
 
 @Injectable()
-export class MessagesService {
+export class MessagesService implements OnModuleInit {
   private readonly logger = new Logger(MessagesService.name);
+
+  /**
+   * Streams that have been silent for longer than this on startup are
+   * marked `aborted` so the frontend stops pinning them at the bottom.
+   */
+  private static readonly STALE_STREAM_GRACE_MS = 60_000;
+
+  /**
+   * Periodic cleanup is more conservative than the startup sweep: a
+   * long-running agent turn may go many seconds without a text delta
+   * (the message row's `updatedAt` only bumps on text PATCHes, not on
+   * status events), so we wait 5 minutes before reaping.
+   */
+  private static readonly STALE_STREAM_PERIODIC_GRACE_MS = 5 * 60_000;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -33,6 +48,57 @@ export class MessagesService {
     private readonly push: PushService,
     private readonly files: FilesService,
   ) {}
+
+  /**
+   * On startup, clean up stream drafts that the previous backend left in
+   * `'streaming'` state. Anything that hasn't been touched within
+   * `STALE_STREAM_GRACE_MS` is flipped to `'aborted'` so the frontend can
+   * un-pin it. We don't emit WS events here — connected clients will
+   * pick up the new state on the next reload.
+   */
+  async onModuleInit() {
+    const cutoff = new Date(Date.now() - MessagesService.STALE_STREAM_GRACE_MS);
+    const result = await this.prisma.message.updateMany({
+      where: { streamState: 'streaming', updatedAt: { lt: cutoff } },
+      data: { streamState: 'aborted' },
+    });
+    if (result.count > 0) {
+      this.logger.log(
+        `Marked ${result.count} stale streaming draft(s) as aborted`,
+      );
+    }
+  }
+
+  /**
+   * Periodic safety net for streaming drafts that the agent failed to
+   * finalise (e.g. crash, network drop, MessageTool path that never
+   * issued a `complete` PATCH). Without this, stale drafts stay pinned
+   * to the bottom of the timeline and break ordering for follow-up
+   * messages. We emit `message:updated` so connected clients pick up
+   * the new state immediately instead of waiting for a reload.
+   */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async cleanupStaleStreams() {
+    const cutoff = new Date(
+      Date.now() - MessagesService.STALE_STREAM_PERIODIC_GRACE_MS,
+    );
+    const stale = await this.prisma.message.findMany({
+      where: { streamState: 'streaming', updatedAt: { lt: cutoff } },
+      include: { attachments: true },
+    });
+    if (stale.length === 0) return;
+    for (const msg of stale) {
+      const updated = await this.prisma.message.update({
+        where: { id: msg.id },
+        data: { streamState: 'aborted' },
+        include: { attachments: true },
+      });
+      this.events.emitToChannel(msg.channelId, 'message:updated', updated);
+    }
+    this.logger.log(
+      `Marked ${stale.length} stale streaming draft(s) as aborted`,
+    );
+  }
 
   // ── Private helpers ────────────────────────────────────────
 
@@ -131,8 +197,32 @@ export class MessagesService {
       }),
     });
 
+    // Attach status events grouped by streamId. We key on streamId only
+    // (not messageId) because a status event can land before the draft
+    // row exists — see `appendStatusEvent` for the rationale.
+    const streamIds = messages
+      .map((m) => m.streamId)
+      .filter((id): id is string => Boolean(id));
+    const statusEvents =
+      streamIds.length > 0
+        ? await this.prisma.messageStatusEvent.findMany({
+            where: { streamId: { in: streamIds } },
+            orderBy: { index: 'asc' },
+          })
+        : [];
+    const eventsByStream = new Map<string, typeof statusEvents>();
+    for (const ev of statusEvents) {
+      const list = eventsByStream.get(ev.streamId) ?? [];
+      list.push(ev);
+      eventsByStream.set(ev.streamId, list);
+    }
+
     return {
-      data: messages.map((m) => this.sanitizeMessageForClient(m)),
+      data: messages.map((m) => {
+        const sanitized = this.sanitizeMessageForClient(m);
+        const events = m.streamId ? (eventsByStream.get(m.streamId) ?? []) : [];
+        return { ...sanitized, statusEvents: events };
+      }),
       nextCursor:
         messages.length === limit ? messages[messages.length - 1]?.id : null,
     };
@@ -241,6 +331,7 @@ export class MessagesService {
 
   async createFromAgent(userId: string, dto: CreateMessageDto) {
     const agent = await this.assertOwnership(dto.channelId, userId);
+    const requestedStreamState = dto.streamState as string | undefined;
 
     // Idempotency: if the agent re-sends with the same clientId (e.g. after a
     // transient network error retry), return the existing message instead of
@@ -258,6 +349,64 @@ export class MessagesService {
         include: { attachments: true },
       });
       if (existing) {
+        if (
+          requestedStreamState === 'aborted' &&
+          existing.streamState === 'streaming'
+        ) {
+          const updated = await this.prisma.message.update({
+            where: { id: existing.id },
+            data: {
+              text: dto.text,
+              streamState: 'aborted',
+            },
+            include: { attachments: true },
+          });
+          this.events.emitToChannelAndUser(
+            dto.channelId,
+            agent.ownerId,
+            'message:updated',
+            { ...updated, agentName: agent.name },
+          );
+          return this.enrichTextAttachments(updated);
+        }
+        return this.enrichTextAttachments(existing);
+      }
+    }
+
+    // Streaming idempotency: a re-POST of the first delta with the same
+    // `streamId` must return the existing draft, never overwrite it. All
+    // text updates after the first POST go through `updateStreamFromAgent`
+    // (PATCH /api/v1/messages/streams/:streamId).
+    if (dto.streamId) {
+      const existing = await this.prisma.message.findFirst({
+        where: {
+          channelId: dto.channelId,
+          senderType: 'agent',
+          streamId: dto.streamId,
+        },
+        include: { attachments: true },
+      });
+      if (existing) {
+        if (
+          requestedStreamState === 'aborted' &&
+          existing.streamState === 'streaming'
+        ) {
+          const updated = await this.prisma.message.update({
+            where: { id: existing.id },
+            data: {
+              text: dto.text,
+              streamState: 'aborted',
+            },
+            include: { attachments: true },
+          });
+          this.events.emitToChannelAndUser(
+            dto.channelId,
+            agent.ownerId,
+            'message:updated',
+            { ...updated, agentName: agent.name },
+          );
+          return this.enrichTextAttachments(updated);
+        }
         return this.enrichTextAttachments(existing);
       }
     }
@@ -301,12 +450,11 @@ export class MessagesService {
       : undefined;
 
     // Store message-level webhookUrl in metadata if provided.
-    // Note: `clientId` is persisted to the dedicated column below, not into
-    // metadata, so idempotency lookups can use an indexed equality query.
+    // `clientId` / `streamId` live in dedicated indexed columns — we no
+    // longer duplicate them into metadata.
     const metadata: Record<string, unknown> = {
       ...(dto.metadata ?? {}),
       ...(dto.webhookUrl ? { webhookUrl: dto.webhookUrl } : {}),
-      ...(dto.clientId ? { clientId: dto.clientId } : {}),
     };
 
     // Auto-set metadata.plugin from review.payload.plugin so the frontend
@@ -359,6 +507,8 @@ export class MessagesService {
             ? (metadata as Prisma.InputJsonValue)
             : undefined,
           ...(dto.clientId ? { clientId: dto.clientId } : {}),
+          ...(dto.streamId ? { streamId: dto.streamId } : {}),
+          ...(dto.streamState ? { streamState: dto.streamState } : {}),
           ...(iterationGroupId != null ? { iterationGroupId, iteration } : {}),
         },
         include: { attachments: true },
@@ -397,6 +547,105 @@ export class MessagesService {
 
     // Enrich text attachments with inline content for agent API responses
     return this.enrichTextAttachments(final);
+  }
+
+  /**
+   * Update an in-flight streaming agent message identified by
+   * `(channelId, streamId)`. Replaces `text` and optionally flips
+   * `streamState` to `'complete'` when the turn ends. Emits
+   * `message:updated` so the frontend can replace its draft in place.
+   *
+   * If no draft exists for the pair, this is treated as a permission/404
+   * error — the agent should POST first to create the draft.
+   */
+  async updateStreamFromAgent(
+    userId: string,
+    streamId: string,
+    dto: {
+      channelId: string;
+      text: string;
+      complete?: boolean;
+      streamState?: string;
+    },
+  ) {
+    const agent = await this.assertOwnership(dto.channelId, userId);
+
+    const draft = await this.prisma.message.findFirst({
+      where: {
+        channelId: dto.channelId,
+        senderType: 'agent',
+        streamId,
+      },
+      include: { attachments: true },
+    });
+    if (!draft) {
+      throw new NotFoundException(
+        'No streaming draft for this (channelId, streamId)',
+      );
+    }
+
+    const updated = await this.prisma.message.update({
+      where: { id: draft.id },
+      data: {
+        text: dto.text,
+        ...(dto.complete ? { streamState: 'complete' } : {}),
+        ...(dto.streamState === 'aborted' ? { streamState: 'aborted' } : {}),
+      },
+      include: { attachments: true },
+    });
+
+    const eventData = { ...updated, agentName: agent.name };
+    this.events.emitToChannelAndUser(
+      dto.channelId,
+      agent.ownerId,
+      'message:updated',
+      eventData,
+    );
+
+    return this.enrichTextAttachments(updated);
+  }
+
+  /**
+   * Append a persistent status step to an in-flight stream. Status events
+   * are anchored to `(channelId, streamId)` rather than to a Message row,
+   * so the agent can persist progress hints *before* the first delta has
+   * created the draft. The frontend joins them back via streamId on read.
+   *
+   * Index is computed atomically (max+1) inside a transaction so two
+   * concurrent appends can't collide.
+   */
+  async appendStatusEvent(
+    userId: string,
+    streamId: string,
+    dto: { channelId: string; text: string; toolHint?: boolean },
+  ) {
+    const agent = await this.assertOwnership(dto.channelId, userId);
+
+    const event = await this.prisma.$transaction(async (tx) => {
+      const max = await tx.messageStatusEvent.aggregate({
+        where: { channelId: dto.channelId, streamId },
+        _max: { index: true },
+      });
+      const index = (max._max.index ?? -1) + 1;
+      return tx.messageStatusEvent.create({
+        data: {
+          channelId: dto.channelId,
+          streamId,
+          index,
+          text: dto.text,
+          toolHint: dto.toolHint ?? false,
+        },
+      });
+    });
+
+    this.events.emitToChannelAndUser(
+      dto.channelId,
+      agent.ownerId,
+      'message:status',
+      event,
+    );
+
+    return event;
   }
 
   async findByAgent(

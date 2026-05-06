@@ -39,8 +39,8 @@ export default function ChatThreadPage() {
     loading: messagesLoading,
     loadingOlder,
     hasMore,
-    streamingMessages,
-    progress,
+    orphanStatusByStream,
+    ephemeralProgress,
     sendMessage,
     uploadFiles,
     loadOlder,
@@ -120,8 +120,8 @@ export default function ChatThreadPage() {
             loadingOlder={loadingOlder}
             hasMore={hasMore}
             highlightMessageId={highlightMessageId}
-            streamingMessages={streamingMessages}
-            progress={progress}
+            orphanStatusByStream={orphanStatusByStream}
+            ephemeralProgress={ephemeralProgress}
             onLoadOlder={handleLoadOlder}
             onSetupWebhook={handleSetupWebhook}
             onReviewRespond={respondToReview}
