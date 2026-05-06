@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] — 2026-05-06
+
+### Changed
+
+- **Streaming agent replies are now persistent drafts** — every streamed reply is created in the database from its first delta with `streamState='streaming'` and the agent's stable `streamId`, then PATCH-updated as the reply grows and finalised when the turn completes. A page refresh, network blip, or interrupt mid-stream no longer makes the in-progress reply disappear, and a missing final message can no longer leave the chat without a record of what was already streamed.
+- **Streaming reply always rendered last** — the chat now pins messages with `streamState='streaming'` to the bottom of the timeline regardless of their `createdAt`, so a user message sent while the agent is still writing never visually slides above the live response. Once the turn completes the row settles back into chronological order automatically.
+- **Multi-message turns preserved** — agents may continue to emit multiple discrete messages in a single turn (and stream each of them); each gets its own persisted draft keyed by stream id, so explicit non-streamed messages and streamed replies coexist without overwriting each other.
+- **Chat sort order stays stable on background updates** — message rows are sorted strictly by `createdAt` again. Earlier `updatedAt`-based sorting caused settled rows to jump to the bottom whenever an unrelated background write (acknowledge, webhook delivery, …) bumped their `updatedAt`. Streaming pin still uses `streamState`.
+
+### Added
+
+- **`PATCH /api/v1/messages/streams/:streamId`** — agent-facing endpoint to update the persistent draft for an in-progress streamed reply (text, optional `complete=true`). Emits `message:updated` over Socket.IO so connected clients refresh the row in place.
+- **`POST /api/v1/messages/streams/:streamId/status`** — new agent-facing endpoint to append a persistent status step (e.g. _"Reading file foo.ts"_) to an in-flight streamed turn. Status events are anchored to `(channelId, streamId)`, ordered atomically by `index`, and broadcast as `message:status` over Socket.IO. Connected clients render them live below the bubble while streaming and collapse them into a numbered "N steps completed" history once the turn finishes.
+- **`MessageStatusEvent` table** with `(channel_id, stream_id, index)` index storing per-turn status history for collapsed display in the chat bubble.
+- **`Message.streamState='aborted'`** — added to the streaming lifecycle to mark drafts that never reached `complete` (e.g. backend restart with an in-flight turn). On `MessagesService.onModuleInit` any draft still in `streaming` state and untouched for >60s is rolled forward to `aborted` so the frontend stops pinning it at the bottom.
+- **`Message.streamId` / `Message.streamState` / `Message.updatedAt`** columns and the `(channelId, streamId)` unique index so a streamed reply has exactly one persistent row even across retries.
+
+### Removed
+
+- **`createdAt` override via `streamStartedAt`** — the backend no longer rewrites a streamed reply's `createdAt` to the stream's start time. The streaming pin via `streamState='streaming'` already keeps the live bubble at the bottom of the timeline, and forcing `createdAt` backwards interfered with chronological ordering of mid-turn user interrupts.
+- **`metadata.clientId` / `metadata.streamId` mirror copies** — these idempotency keys live exclusively in the dedicated indexed columns now; the JSON copy was a back-compat shim and has been dropped.
+
 ## [0.11.2] — 2026-05-04
 
 ### Added

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -31,6 +32,8 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import type { RequestWithUser } from '../../common/types';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { UpdateStreamDto } from './dto/update-stream.dto';
+import { AppendStatusEventDto } from './dto/append-status-event.dto';
 
 @ApiTags('Messages')
 @ApiSecurity('api-key')
@@ -52,6 +55,54 @@ export class MessagesAgentController {
   })
   create(@Req() req: RequestWithUser, @Body() dto: CreateMessageDto) {
     return this.messagesService.createFromAgent(req.user.id, dto);
+  }
+
+  @Patch('streams/:streamId')
+  @ApiOperation({
+    summary:
+      'Update an in-flight streaming agent message (replace text, optionally mark complete)',
+  })
+  @ApiOkResponse({
+    description: 'Stream draft updated',
+    type: MessageItemResponse,
+  })
+  @ApiNotFoundResponse({
+    description: 'No streaming draft for this stream id',
+    type: ErrorResponse,
+  })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  updateStream(
+    @Req() req: RequestWithUser,
+    @Param('streamId') streamId: string,
+    @Body() dto: UpdateStreamDto,
+  ) {
+    return this.messagesService.updateStreamFromAgent(
+      req.user.id,
+      streamId,
+      dto,
+    );
+  }
+
+  @Post('streams/:streamId/status')
+  @ApiOperation({
+    summary: 'Append a persistent status step to an in-flight streaming turn',
+  })
+  @ApiCreatedResponse({ description: 'Status event appended' })
+  @ApiForbiddenResponse({ description: 'Not your agent', type: ErrorResponse })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid API key',
+    type: ErrorResponse,
+  })
+  appendStatusEvent(
+    @Req() req: RequestWithUser,
+    @Param('streamId') streamId: string,
+    @Body() dto: AppendStatusEventDto,
+  ) {
+    return this.messagesService.appendStatusEvent(req.user.id, streamId, dto);
   }
 
   @Get()

@@ -149,6 +149,37 @@ export const AttachmentSchema = z.object({
 });
 export type Attachment = z.infer<typeof AttachmentSchema>;
 
+export const MessageStreamStateSchema = z.enum([
+  'streaming',
+  'complete',
+  /** Stream interrupted before completion (stale on startup, agent crash, …). */
+  'aborted',
+]);
+export type MessageStreamState = z.infer<typeof MessageStreamStateSchema>;
+
+/**
+ * A persistent status step emitted while an agent turn is running
+ * (e.g. "Reading file foo.ts", "Searching codebase"). Anchored to a
+ * draft message via `(channelId, streamId)` and ordered by `index`.
+ */
+export const MessageStatusEventSchema = z.object({
+  id: z.string(),
+  channelId: z.string(),
+  streamId: z.string(),
+  index: z.number().int(),
+  text: z.string(),
+  toolHint: z.boolean(),
+  createdAt: z.string(),
+});
+export type MessageStatusEvent = z.infer<typeof MessageStatusEventSchema>;
+
+export const AppendStatusEventSchema = z.object({
+  channelId: z.string().min(1),
+  text: z.string().min(1),
+  toolHint: z.boolean().optional(),
+});
+export type AppendStatusEventRequest = z.infer<typeof AppendStatusEventSchema>;
+
 export const MessageSchema = z.object({
   id: z.string(),
   channelId: z.string(),
@@ -161,8 +192,15 @@ export const MessageSchema = z.object({
   deliveryStatus: DeliveryStatusSchema.optional(),
   iterationGroupId: z.string().nullish(),
   iteration: z.number().int().nullish(),
+  /** Per-turn streaming id; null for non-streamed messages. */
+  streamId: z.string().nullish(),
+  /** Streaming lifecycle: 'streaming' while deltas land, 'complete' afterwards. */
+  streamState: MessageStreamStateSchema.nullish(),
   createdAt: z.string(),
+  updatedAt: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
+  /** Persisted status steps for this turn (ordered by `index`). */
+  statusEvents: z.array(MessageStatusEventSchema).optional(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 
@@ -389,6 +427,25 @@ export const CreateAgentMessageSchema = z
     iterationOf: z.string().optional(),
     /** Idempotency key supplied by the agent. Safe retries reuse the same id. */
     clientId: z.string().optional(),
+    /**
+     * Stream identity. When the agent message is the final reply of a streamed
+     * turn, the agent passes the stream's base id so the frontend can match
+     * this persisted message back to the in-flight streaming bubble.
+     */
+    streamId: z.string().optional(),
+    /**
+     * ISO timestamp of the moment the stream started. Used by the backend as
+     * the persisted message's `createdAt`, so a user-interrupt message sent
+     * during streaming stays ordered *after* the streamed agent reply even
+     * after a page reload.
+     */
+    streamStartedAt: z.string().min(1).optional(),
+    /**
+     * Streaming lifecycle marker. The first POST of a streamed turn sets
+     * this to `'streaming'`; the final response omits it (or sets
+     * `'complete'`). Subsequent text updates flow through PATCH.
+     */
+    streamState: MessageStreamStateSchema.optional(),
   })
   .refine(
     (d) =>
@@ -403,6 +460,26 @@ export const CreateAgentMessageSchema = z
     },
   );
 export type CreateAgentMessageRequest = z.infer<typeof CreateAgentMessageSchema>;
+
+/**
+ * Update an in-flight streaming agent message. Each PATCH replaces the
+ * full text (the agent sends the accumulated buffer, not a delta) and
+ * optionally flips `streamState` to `'complete'` when the turn ends.
+ *
+ * Identified by `(channelId, streamId)`. The route is idempotent: if no
+ * draft exists for the pair, the call is treated as a `complete` message
+ * create — this prevents data loss when a delta arrives slightly after
+ * the final POST due to network reordering.
+ */
+export const UpdateAgentStreamSchema = z.object({
+  channelId: z.string().min(1),
+  text: z.string(),
+  /** Mark the stream as finished. Defaults to false (continuing). */
+  complete: z.boolean().optional(),
+  /** Explicit terminal lifecycle state for interrupted streams. */
+  streamState: MessageStreamStateSchema.optional(),
+});
+export type UpdateAgentStreamRequest = z.infer<typeof UpdateAgentStreamSchema>;
 
 export const CreateUserMessageSchema = z
   .object({

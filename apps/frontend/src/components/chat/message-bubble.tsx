@@ -9,10 +9,11 @@ import { PluginRenderer } from '@/components/plugins/plugin-renderer';
 import { ReviewCard } from './review-card';
 import { MarkdownContent } from './markdown-content';
 import { MessageAttachments } from './message-attachments';
+import { ShimmerText } from './shimmer-text';
 import { FilePreviewModal } from './file-preview-modal';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format-date';
-import type { Attachment, Review } from '@placet/shared';
+import type { Attachment, Review, MessageStatusEvent, MessageStreamState } from '@placet/shared';
 import type { PluginAttachmentInfo, PluginReviewContext } from '@placet/shared';
 import type { ChatDeliveryStatus } from '@/lib/hooks/use-messages';
 
@@ -32,6 +33,10 @@ interface MessageBubbleProps {
   iterationGroupId?: string | null;
   iteration?: number | null;
   iterationTotal?: number;
+  /** Persistent status steps emitted while the agent turn was running. */
+  statusEvents?: MessageStatusEvent[];
+  /** Streaming lifecycle marker; controls live vs collapsed status rendering. */
+  streamState?: MessageStreamState | null;
   onReviewRespond?: (
     messageId: string,
     response: Record<string, unknown>,
@@ -69,6 +74,8 @@ export const MessageBubble = memo(function MessageBubble({
   iterationGroupId,
   iteration,
   iterationTotal,
+  statusEvents,
+  streamState,
   onReviewRespond,
   onReply,
   onSendAsMessage,
@@ -99,6 +106,12 @@ export const MessageBubble = memo(function MessageBubble({
   const [selected, setSelected] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
+
+  // Status-history collapse state. Default-collapsed for completed turns;
+  // ignored while streaming (we always show only the latest step live).
+  const [stepsExpanded, setStepsExpanded] = useState(false);
+  const isStreaming = streamState === 'streaming';
+  const hasSteps = !!statusEvents && statusEvents.length > 0;
 
   const handlePreview = useCallback((att: Attachment) => {
     setPreviewAttachment(att);
@@ -411,6 +424,18 @@ export const MessageBubble = memo(function MessageBubble({
                   </>
                 )}
 
+                {hasSteps && isStreaming && (
+                  <div className="mt-2">
+                    <ShimmerText
+                      text={statusEvents![statusEvents!.length - 1].text}
+                      className={cn(
+                        'text-sm font-medium',
+                        statusEvents![statusEvents!.length - 1].toolHint && 'italic',
+                      )}
+                    />
+                  </div>
+                )}
+
                 {hasAttachments && (
                   <MessageAttachments attachments={attachments} onPreview={handlePreview} />
                 )}
@@ -564,6 +589,39 @@ export const MessageBubble = memo(function MessageBubble({
                 </Badge>
               )}
             </div>
+
+            {hasSteps && !isStreaming && (
+              <div className={cn('mt-0.5 max-w-full', isUser ? 'mr-1 text-right' : 'ml-1')}>
+                <button
+                  type="button"
+                  onClick={() => setStepsExpanded((v) => !v)}
+                  className={cn(
+                    'inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground',
+                    isUser && 'flex-row-reverse',
+                  )}
+                >
+                  <ChevronDown
+                    size={12}
+                    className={cn('transition-transform', !stepsExpanded && '-rotate-90')}
+                  />
+                  {statusEvents!.length} step{statusEvents!.length === 1 ? '' : 's'} completed
+                </button>
+                {stepsExpanded && (
+                  <ol
+                    className={cn(
+                      'mt-1 space-y-0.5 text-xs text-muted-foreground list-decimal',
+                      isUser ? 'mr-4 list-inside' : 'ml-4 list-outside',
+                    )}
+                  >
+                    {statusEvents!.map((ev) => (
+                      <li key={ev.id} className={cn(ev.toolHint && 'font-medium')}>
+                        {ev.text}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

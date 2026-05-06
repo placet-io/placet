@@ -47,6 +47,9 @@ export async function cleanupTestData() {
   const testAgentIds = testAgents.map((a) => a.id);
 
   if (testAgentIds.length > 0) {
+    await db.messageStatusEvent.deleteMany({
+      where: { channelId: { in: testAgentIds } },
+    });
     await db.message.deleteMany({
       where: { channelId: { in: testAgentIds } },
     });

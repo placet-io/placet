@@ -77,6 +77,18 @@ See [Review Types](/concepts/agents#review-types) for all available review types
 
 ---
 
+## Streaming Replies
+
+For agents that produce a reply token-by-token, Placet supports a draft-then-update model:
+
+1. **Start the draft** — `POST /api/v1/messages` with `streamId` (a stable id for this turn), `streamState: "streaming"`, and the partial `text` so far. The response contains the persisted message id.
+2. **Append updates** — `PATCH /api/v1/messages/streams/:streamId` with the latest accumulated `text` whenever new tokens arrive. Throttle these to a few per second; the WebSocket `message:delta` event drives instant UI updates between PATCH calls.
+3. **Finalise** — `PATCH /api/v1/messages/streams/:streamId` with the final `text` and `complete: true`. The frontend stops treating the row as a live draft and pins it back into chronological order.
+
+The `(channelId, streamId)` pair is unique, so the first POST is idempotent: a retried POST returns the existing draft rather than creating a duplicate row. Refreshing the chat mid-stream redisplays whatever has been PATCHed so far — the streamed reply never disappears on reload.
+
+---
+
 ## Long-Polling
 
 The simplest way to wait for a human response. Your agent sends a request and blocks until the human responds (or the poll times out).
@@ -290,21 +302,22 @@ curl -X POST "$PLACET_URL/api/v1/messages/$MESSAGE_ID/ack?channel=$CHANNEL_ID" \
 
 For the full API reference with request/response schemas, see the [REST API Reference](/api-reference).
 
-| Method   | Endpoint                     | Description                           |
-| -------- | ---------------------------- | ------------------------------------- |
-| `POST`   | `/api/v1/messages`           | Send a message (with optional review) |
-| `GET`    | `/api/v1/messages`           | List messages (paginated, searchable) |
-| `GET`    | `/api/v1/messages/:id`       | Get a single message                  |
-| `DELETE` | `/api/v1/messages/:id`       | Delete (retract) a message            |
-| `POST`   | `/api/v1/messages/:id/ack`   | Acknowledge receipt                   |
-| `GET`    | `/api/v1/reviews/pending`    | List pending reviews                  |
-| `GET`    | `/api/v1/reviews/:id`        | Get review by message ID              |
-| `GET`    | `/api/v1/reviews/:id/wait`   | Long-poll for review response         |
-| `GET`    | `/api/v1/agents`             | List channels                         |
-| `POST`   | `/api/v1/agents`             | Create a channel                      |
-| `POST`   | `/api/v1/status/ping`        | Report agent heartbeat                |
-| `GET`    | `/api/v1/plugins`            | List installed plugins                |
-| `GET`    | `/api/v1/plugins/:name`      | Get plugin details                    |
-| `POST`   | `/api/v1/files/upload`       | Upload a file                         |
-| `POST`   | `/api/v1/files/store`        | Store a file for later attachment     |
-| `GET`    | `/api/v1/files/:id/download` | Download a file                       |
+| Method   | Endpoint                             | Description                               |
+| -------- | ------------------------------------ | ----------------------------------------- |
+| `POST`   | `/api/v1/messages`                   | Send a message (with optional review)     |
+| `PATCH`  | `/api/v1/messages/streams/:streamId` | Update a streaming draft (text, complete) |
+| `GET`    | `/api/v1/messages`                   | List messages (paginated, searchable)     |
+| `GET`    | `/api/v1/messages/:id`               | Get a single message                      |
+| `DELETE` | `/api/v1/messages/:id`               | Delete (retract) a message                |
+| `POST`   | `/api/v1/messages/:id/ack`           | Acknowledge receipt                       |
+| `GET`    | `/api/v1/reviews/pending`            | List pending reviews                      |
+| `GET`    | `/api/v1/reviews/:id`                | Get review by message ID                  |
+| `GET`    | `/api/v1/reviews/:id/wait`           | Long-poll for review response             |
+| `GET`    | `/api/v1/agents`                     | List channels                             |
+| `POST`   | `/api/v1/agents`                     | Create a channel                          |
+| `POST`   | `/api/v1/status/ping`                | Report agent heartbeat                    |
+| `GET`    | `/api/v1/plugins`                    | List installed plugins                    |
+| `GET`    | `/api/v1/plugins/:name`              | Get plugin details                        |
+| `POST`   | `/api/v1/files/upload`               | Upload a file                             |
+| `POST`   | `/api/v1/files/store`                | Store a file for later attachment         |
+| `GET`    | `/api/v1/files/:id/download`         | Download a file                           |

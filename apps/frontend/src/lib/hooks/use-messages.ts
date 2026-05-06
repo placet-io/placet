@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Message, PaginatedResponse } from '@placet/shared';
+import type { Message, MessageStatusEvent, PaginatedResponse } from '@placet/shared';
 import { api } from '@/lib/api';
 import { useSocket } from '@/lib/contexts/socket-context';
 
@@ -13,6 +13,12 @@ export interface ChatMessage extends Omit<Message, 'deliveryStatus'> {
   deliveryStatus?: ChatDeliveryStatus;
 }
 
+/**
+ * @deprecated Streaming drafts are now first-class persisted messages
+ * with `streamState === 'streaming'` and live directly in `messages`.
+ * The legacy `StreamingMessage` shape is kept for backwards compatibility
+ * with components that still receive an empty array.
+ */
 export interface StreamingMessage {
   streamId: string;
   content: string;
@@ -94,19 +100,46 @@ export function useMessages(channelId: string | null) {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
-  const [progress, setProgress] = useState<{
+  /**
+   * Status events that have arrived (via WS) before the matching agent
+   * draft message exists. Keyed by streamId. Once the draft lands, the
+   * orphan list is merged into the message and the entry is dropped.
+   * This is the only ephemeral state for status — there is no longer a
+   * separate single-slot `progress` field; status events are the single
+   * source of truth and survive a refresh because they're persisted.
+   */
+  const [orphanStatusByStream, setOrphanStatusByStream] = useState<
+    Record<string, MessageStatusEvent[]>
+  >({});
+  /**
+   * Single-slot ephemeral progress used as a fallback for non-streaming
+   * agents that emit `message:progress` but never open a streaming draft
+   * (so the persistent status pipeline is silent for them). Cleared on
+   * the next `message:created` for the channel.
+   */
+  const [ephemeralProgress, setEphemeralProgress] = useState<{
     content: string;
     toolHint: boolean;
   } | null>(null);
+  // Mirror of `orphanStatusByStream` for read access inside socket handlers
+  // — keeping it as a ref means the effect doesn't re-subscribe every time
+  // a status event lands.
+  const orphanStatusRef = useRef<Record<string, MessageStatusEvent[]>>({});
+  useEffect(() => {
+    orphanStatusRef.current = orphanStatusByStream;
+  }, [orphanStatusByStream]);
   const cursorRef = useRef<string | null>(null);
   const retryingPendingIdsRef = useRef<Set<string>>(new Set());
   const { socket, connected, subscribe, unsubscribe, markRead } = useSocket();
 
   const allMessages = useMemo(() => {
     const reconciledPending = reconcilePendingMessages(pendingMessages, messages);
-    return [...messages, ...reconciledPending].sort(
-      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
-    );
+    // Sort strictly by `createdAt`. Streaming drafts are pinned to the
+    // bottom of the rendered timeline by `streamState === 'streaming'`
+    // (see `MessageList`), so we never need to reorder rows when a row
+    // is updated post-creation (acknowledge, webhook delivery, etc.).
+    const keyOf = (m: { createdAt: string }) => new Date(m.createdAt).getTime();
+    return [...messages, ...reconciledPending].sort((left, right) => keyOf(left) - keyOf(right));
   }, [messages, pendingMessages]);
 
   const removePendingMessage = useCallback((match: { id?: string; clientId?: string }) => {
@@ -191,7 +224,8 @@ export function useMessages(channelId: string | null) {
       setLoading(false);
       setHasMore(false);
       setStreamingMessages([]);
-      setProgress(null);
+      setOrphanStatusByStream({});
+      setEphemeralProgress(null);
       cursorRef.current = null;
       return;
     }
@@ -275,48 +309,63 @@ export function useMessages(channelId: string | null) {
 
     const handleMessageCreated = (msg: Message) => {
       if (msg.channelId !== channelId) return;
-      // Clear streaming/progress state when final message arrives.
-      //
-      // Match priority for picking which stream this `message:created`
-      // belongs to (without a match, multiple parallel streams or a missed
-      // streamEnd would leave a streaming bubble alongside the persisted
-      // one — visible as a duplicate that disappears on refresh):
-      //   1. metadata.streamId — exact link if the agent passes it through
-      //   2. content prefix match — accumulated stream content is a prefix
-      //      of the persisted message text
-      //   3. fallback: a stream already marked complete, else the oldest
-      setProgress(null);
-      setStreamingMessages((prev) => {
-        if (prev.length === 0) return prev;
-        const metaStreamId =
-          msg.metadata && typeof msg.metadata === 'object'
-            ? (msg.metadata as Record<string, unknown>).streamId
-            : null;
-        const finalText = msg.text ?? '';
-
-        const matchedById =
-          typeof metaStreamId === 'string'
-            ? prev.find((s) => s.streamId === metaStreamId)
-            : undefined;
-        const matchedByContent =
-          matchedById ??
-          (finalText
-            ? prev.find((s) => s.content.length > 0 && finalText.startsWith(s.content))
-            : undefined);
-        const completed = matchedByContent ?? prev.find((s) => s.complete);
-        const streamToClear = completed ?? prev[0];
-        return prev.filter((s) => s.streamId !== streamToClear.streamId);
-      });
-      const clientId = getMessageClientId(msg.metadata);
+      // Streaming drafts are now persisted from the very first delta, so a
+      // `message:created` for an agent stream may arrive *before* any delta
+      // (the POST returns it). `addOrReplaceMessage` dedups by id; subsequent
+      // PATCH-driven `message:updated` events refresh the same row in place.
+      // If status events for this stream landed before the draft, fold them
+      // in now and drop the orphan entry.
+      let merged = msg;
+      if (msg.streamId) {
+        const orphaned = orphanStatusRef.current[msg.streamId];
+        if (orphaned && orphaned.length > 0) {
+          const existing = msg.statusEvents ?? [];
+          const seen = new Set(existing.map((e) => e.id));
+          merged = {
+            ...msg,
+            statusEvents: [...existing, ...orphaned.filter((e) => !seen.has(e.id))].sort(
+              (a, b) => a.index - b.index,
+            ),
+          };
+          setOrphanStatusByStream((prev) => {
+            const { [msg.streamId!]: _drop, ...rest } = prev;
+            return rest;
+          });
+        }
+      }
+      const clientId = getMessageClientId(merged.metadata);
       if (clientId) {
         removePendingMessage({ clientId });
       }
-      addOrReplaceMessage(msg);
+      // The final agent message has landed — drop the ephemeral progress.
+      setEphemeralProgress(null);
+      addOrReplaceMessage(merged);
       // Keep the channel's read marker fresh while the chat is open. Without
       // this the server's lastReadAt stays at the moment the chat was
       // opened, so the next agent list refresh re-introduces an unread
       // badge for messages that arrived while the user was viewing.
+      if (merged.senderType === 'agent') {
+        markRead(channelId);
+      }
+    };
+
+    const handleMessageUpdated = (msg: Message) => {
+      if (msg.channelId !== channelId) return;
+      // Authoritative replace by id: PATCH from the agent during streaming
+      // and the final `complete` PATCH both flow through this path. The
+      // payload doesn't carry `statusEvents` (those flow via the dedicated
+      // `message:status` channel), so preserve any we've already collected.
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === msg.id);
+        if (idx === -1) return [...prev, msg];
+        const next = prev.slice();
+        next[idx] = { ...msg, statusEvents: prev[idx].statusEvents ?? msg.statusEvents };
+        return next;
+      });
       if (msg.senderType === 'agent') {
+        if (msg.streamState && msg.streamState !== 'streaming') {
+          setEphemeralProgress(null);
+        }
         markRead(channelId);
       }
     };
@@ -337,68 +386,108 @@ export function useMessages(channelId: string | null) {
     };
 
     socket.on('message:created', handleMessageCreated);
+    socket.on('message:updated', handleMessageUpdated);
     socket.on('review:responded', handleReviewResponded);
     socket.on('message:delivery', handleDelivery);
 
+    /**
+     * Delta-driven optimistic text append. The agent emits one
+     * ``message:delta`` per chunk for instant UI update; the server-side
+     * truth catches up via throttled ``message:updated`` events and the
+     * final ``message:created``/PATCH-driven update. Matching the right
+     * draft uses ``streamBaseId`` (the column on `Message`) and falls
+     * back to the legacy per-segment ``streamId`` for older agents that
+     * haven't been redeployed yet.
+     */
     const handleDelta = (data: {
       channelId: string;
       delta: string;
       streamId?: string;
+      streamBaseId?: string;
+      streamStartedAt?: string;
       streamEnd?: boolean;
     }) => {
       if (data.channelId !== channelId) return;
-      const streamId = data.streamId ?? '__default__';
-      if (data.streamEnd) {
-        // Stream segment finished — keep content visible until message:created
-        // arrives to avoid a flash where the bubble disappears and reappears.
-        // Just stop accumulating; handleMessageCreated will clean up.
-        setStreamingMessages((prev) =>
-          prev.map((stream) =>
-            stream.streamId === streamId ? { ...stream, complete: true } : stream,
-          ),
-        );
-        return;
-      }
-      setStreamingMessages((prev) => {
-        const existing = prev.find((stream) => stream.streamId === streamId);
-        if (!existing) {
-          return [
-            ...prev,
-            {
-              streamId,
-              content: data.delta,
-              complete: false,
-              createdAt: new Date().toISOString(),
-            },
-          ];
-        }
+      if (data.streamEnd) return; // segment marker — wait for PATCH/created
+      if (!data.delta) return;
 
-        return prev.map((stream) =>
-          stream.streamId === streamId
-            ? { ...stream, content: `${stream.content}${data.delta}`, complete: false }
-            : stream,
-        );
+      const baseId =
+        data.streamBaseId ??
+        (data.streamId ? data.streamId.split(':').slice(0, -1).join(':') || data.streamId : null);
+      if (!baseId) return;
+
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.streamId === baseId);
+        if (idx === -1) return prev; // draft not POSTed yet — PATCH will catch up
+        const existing = prev[idx];
+        const next = prev.slice();
+        next[idx] = { ...existing, text: (existing.text ?? '') + data.delta };
+        return next;
       });
-      // Clear progress when streaming starts
-      setProgress(null);
     };
 
-    const handleProgress = (data: { channelId: string; content: string; toolHint?: boolean }) => {
-      if (data.channelId !== channelId) return;
-      setProgress({
-        content: data.content,
-        toolHint: !!data.toolHint,
+    /**
+     * Persistent status step (``message:status``). When the matching draft
+     * already exists we append directly to its `statusEvents`; otherwise we
+     * stash the event in `orphanStatusByStream` so it can be folded in once
+     * the draft is created. Idempotent on `id`.
+     */
+    const handleStatusEvent = (event: MessageStatusEvent) => {
+      if (event.channelId !== channelId) return;
+      setEphemeralProgress(null);
+      let attached = false;
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.streamId === event.streamId);
+        if (idx === -1) return prev;
+        attached = true;
+        const existing = prev[idx];
+        const events = existing.statusEvents ?? [];
+        if (events.some((e) => e.id === event.id)) return prev;
+        const next = prev.slice();
+        next[idx] = { ...existing, statusEvents: [...events, event] };
+        return next;
       });
+      if (!attached) {
+        setOrphanStatusByStream((prev) => {
+          const list = prev[event.streamId] ?? [];
+          if (list.some((e) => e.id === event.id)) return prev;
+          return { ...prev, [event.streamId]: [...list, event] };
+        });
+      }
+    };
+
+    /**
+     * Ephemeral progress fallback. Used by agents that emit
+     * `message:progress` but don't open a streaming draft. When the
+     * persistent status pipeline is active for the same turn, the
+     * frontend prefers that one (see `MessageList`); the ephemeral slot
+     * just keeps the UI alive while no persistent state exists yet.
+     */
+    const handleProgress = (data: {
+      channelId: string;
+      content: string;
+      toolHint?: boolean;
+      streamId?: string;
+    }) => {
+      if (data.channelId !== channelId) return;
+      if (data.streamId) {
+        setEphemeralProgress(null);
+        return;
+      }
+      setEphemeralProgress({ content: data.content, toolHint: !!data.toolHint });
     };
 
     socket.on('message:delta', handleDelta);
+    socket.on('message:status', handleStatusEvent);
     socket.on('message:progress', handleProgress);
 
     return () => {
       socket.off('message:created', handleMessageCreated);
+      socket.off('message:updated', handleMessageUpdated);
       socket.off('review:responded', handleReviewResponded);
       socket.off('message:delivery', handleDelivery);
       socket.off('message:delta', handleDelta);
+      socket.off('message:status', handleStatusEvent);
       socket.off('message:progress', handleProgress);
       unsubscribe(channelId);
     };
@@ -535,7 +624,8 @@ export function useMessages(channelId: string | null) {
     hasMore,
     error,
     streamingMessages,
-    progress,
+    orphanStatusByStream,
+    ephemeralProgress,
     refetch: fetchMessages,
     sendMessage,
     uploadFiles,
