@@ -149,7 +149,7 @@ const ADVANCED_NUM_FIELDS: Array<{ key: string; label: string; hint?: string }> 
   { key: 'max_tool_result_chars', label: 'Max tool result chars' },
   { key: 'max_concurrent_requests', label: 'Max concurrent requests' },
   { key: 'max_concurrent_cron_jobs', label: 'Max concurrent cron jobs' },
-  { key: 'dream_interval_h', label: 'Dream interval (h)' },
+  { key: 'reflection_interval_h', label: 'Reflection interval (h)' },
 ];
 
 export default function AgentSettingsPage() {

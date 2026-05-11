@@ -58,6 +58,11 @@ interface ProviderItem {
   isOauth: boolean;
   isLocal: boolean;
   isDirect: boolean;
+  supportsApiBase: boolean;
+  requiresApiBase: boolean;
+  requiresApiKey: boolean;
+  apiBase: string;
+  defaultApiBase: string;
   hasValue: boolean;
   masked: string;
 }
@@ -113,9 +118,12 @@ export default function AgentCredentialsPage() {
     () => [...secrets].sort((a, b) => a.key.localeCompare(b.key)),
     [secrets],
   );
-  // Only show providers with a credential set or OAuth-connected.
+  // Only show providers with a credential, OAuth connection, or explicit API base set.
   const sortedProviders = useMemo(
-    () => providers.filter((p) => p.hasValue).sort((a, b) => a.label.localeCompare(b.label)),
+    () =>
+      providers
+        .filter((p) => p.hasValue || Boolean(p.apiBase))
+        .sort((a, b) => a.label.localeCompare(b.label)),
     [providers],
   );
 
@@ -146,14 +154,14 @@ export default function AgentCredentialsPage() {
             <span className="truncate">{r.label}</span>
             <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-sm font-medium uppercase tracking-wider text-muted-foreground">
               <ShieldCheck size={10} />
-              {r.isOauth ? 'Connected' : 'Set'}
+              {r.isOauth ? 'Connected' : r.hasValue ? 'Set' : 'Base'}
             </span>
           </span>
         ),
       },
       {
         key: 'value',
-        header: 'API key / connection',
+        header: 'Provider config',
         hideOnMobile: true,
         className: 'whitespace-normal',
         cell: (r) =>
@@ -162,14 +170,18 @@ export default function AgentCredentialsPage() {
               <Link2 size={12} /> Connected
             </span>
           ) : (
-            <KeyInputCell
-              hasValue={r.hasValue}
-              onSave={async (value) => {
-                await manageApi(agentId, `credentials/providers/${encodeURIComponent(r.name)}`, {
-                  method: 'PUT',
-                  body: JSON.stringify({ value }),
-                });
-                updateProvider({ ...r, hasValue: true, masked: '***' });
+            <ProviderConfigCell
+              provider={r}
+              onSave={async (payload) => {
+                const next = await manageApi<ProviderItem>(
+                  agentId,
+                  `credentials/providers/${encodeURIComponent(r.name)}`,
+                  {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                  },
+                );
+                updateProvider(next);
               }}
               onError={setError}
             />
@@ -189,13 +201,13 @@ export default function AgentCredentialsPage() {
         className: 'md:w-12 text-right whitespace-nowrap md:!pr-2',
         cell: (r) => (
           <DeleteButton
-            label={r.isOauth ? 'Disconnect' : 'Delete key'}
+            label={r.isOauth ? 'Disconnect' : 'Delete provider'}
             onConfirm={() =>
               manageApi(agentId, `credentials/providers/${encodeURIComponent(r.name)}`, {
                 method: 'DELETE',
               })
             }
-            onDeleted={() => updateProvider({ ...r, hasValue: false, masked: '' })}
+            onDeleted={() => updateProvider({ ...r, hasValue: false, masked: '', apiBase: '' })}
             onError={setError}
           />
         ),
@@ -301,7 +313,7 @@ export default function AgentCredentialsPage() {
             onClick={() => setProviderDialog(true)}
             className="gap-1.5"
           >
-            <Plus size={14} /> New provider key
+            <Plus size={14} /> New provider
           </Button>
         }
       >
@@ -320,15 +332,15 @@ export default function AgentCredentialsPage() {
                     <Link2 size={12} /> Connected
                   </span>
                 ) : (
-                  <KeyInputCell
-                    hasValue={r.hasValue}
-                    onSave={async (value) => {
-                      await manageApi(
+                  <ProviderConfigCell
+                    provider={r}
+                    onSave={async (payload) => {
+                      const next = await manageApi<ProviderItem>(
                         agentId,
                         `credentials/providers/${encodeURIComponent(r.name)}`,
-                        { method: 'PUT', body: JSON.stringify({ value }) },
+                        { method: 'PUT', body: JSON.stringify(payload) },
                       );
-                      updateProvider({ ...r, hasValue: true, masked: '***' });
+                      updateProvider(next);
                     }}
                     onError={setError}
                   />
@@ -338,14 +350,16 @@ export default function AgentCredentialsPage() {
                 </div>
                 <div className="flex justify-end">
                   <DeleteButton
-                    label={r.isOauth ? 'Disconnect' : 'Delete key'}
+                    label={r.isOauth ? 'Disconnect' : 'Delete provider'}
                     variant="full"
                     onConfirm={() =>
                       manageApi(agentId, `credentials/providers/${encodeURIComponent(r.name)}`, {
                         method: 'DELETE',
                       })
                     }
-                    onDeleted={() => updateProvider({ ...r, hasValue: false, masked: '' })}
+                    onDeleted={() =>
+                      updateProvider({ ...r, hasValue: false, masked: '', apiBase: '' })
+                    }
                     onError={setError}
                   />
                 </div>
@@ -448,7 +462,7 @@ export default function AgentCredentialsPage() {
           setProviderDialog(false);
           const p = providers.find((x) => x.name === name);
           setConflict(
-            `${p?.label ?? name} already has a credential set. Edit it directly in the table.`,
+            `${p?.label ?? name} already has provider settings. Edit it directly in the table.`,
           );
         }}
         onStartOauth={(p) => {
@@ -542,6 +556,103 @@ function KeyInputCell({
         Save
       </Button>
     </span>
+  );
+}
+
+function ProviderConfigCell({
+  provider,
+  onSave,
+  onError,
+}: {
+  provider: ProviderItem;
+  onSave: (payload: { value?: string; apiBase?: string | null }) => Promise<void>;
+  onError: (msg: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  const [apiBase, setApiBase] = useState(provider.apiBase ?? '');
+  const [showValue, setShowValue] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setApiBase(provider.apiBase ?? '');
+  }, [provider.name, provider.apiBase]);
+
+  const normalizedApiBase = apiBase.trim().replace(/\/+$/, '');
+  const savedApiBase = (provider.apiBase ?? '').trim().replace(/\/+$/, '');
+  const valueDirty = value.trim().length > 0;
+  const apiBaseDirty = normalizedApiBase !== savedApiBase;
+  const dirty = valueDirty || apiBaseDirty;
+
+  const save = useCallback(async () => {
+    if (!dirty) return;
+    setSaving(true);
+    try {
+      const payload: { value?: string; apiBase?: string | null } = {};
+      if (valueDirty) payload.value = value.trim();
+      if (apiBaseDirty) payload.apiBase = normalizedApiBase || null;
+      await onSave(payload);
+      setValue('');
+      setShowValue(false);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Failed to save provider config');
+    } finally {
+      setSaving(false);
+    }
+  }, [apiBaseDirty, dirty, normalizedApiBase, onError, onSave, value, valueDirty]);
+
+  const apiBasePlaceholder = provider.defaultApiBase
+    ? `Default: ${provider.defaultApiBase}`
+    : 'https://api.example.com/v1';
+
+  return (
+    <div className="w-full space-y-2" onClick={(e) => e.stopPropagation()}>
+      <div className="inline-flex w-full items-center gap-2">
+        <span className="relative flex-1 min-w-0">
+          <Input
+            type={showValue ? 'text' : 'password'}
+            placeholder={provider.hasValue ? '•••••••• (unchanged)' : 'API key'}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="h-8 pr-8 font-mono text-sm"
+            autoComplete="new-password"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && dirty) void save();
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowValue((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            title={showValue ? 'Hide' : 'Show'}
+            tabIndex={-1}
+          >
+            {showValue ? <EyeOff size={12} /> : <Eye size={12} />}
+          </button>
+        </span>
+        <Button
+          variant="default"
+          size="sm"
+          className="h-8 gap-1"
+          onClick={() => void save()}
+          disabled={!dirty || saving}
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+          Save
+        </Button>
+      </div>
+      {provider.supportsApiBase && (
+        <Input
+          type="url"
+          placeholder={apiBasePlaceholder}
+          value={apiBase}
+          onChange={(e) => setApiBase(e.target.value)}
+          className="h-8 font-mono text-sm"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && dirty) void save();
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -834,15 +945,19 @@ function NewProviderDialog({
 }) {
   const [selected, setSelected] = useState<string>('');
   const [value, setValue] = useState('');
+  const [apiBase, setApiBase] = useState('');
   const [showValue, setShowValue] = useState(false);
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Providers without an existing api_key / OAuth connection.
+  // Providers without an existing api_key, OAuth connection, or explicit API base.
   // OAuth providers are included so the user can pick them and either
   // launch the device flow (github_copilot) or see the CLI hint (openai_codex).
   const candidates = useMemo(
-    () => providers.filter((p) => !p.hasValue && (p.isOauth || p.envKey !== '')),
+    () =>
+      providers.filter(
+        (p) => !p.hasValue && !p.apiBase && (p.isOauth || p.envKey !== '' || p.supportsApiBase),
+      ),
     [providers],
   );
 
@@ -850,24 +965,36 @@ function NewProviderDialog({
     if (!open) {
       setSelected('');
       setValue('');
+      setApiBase('');
       setShowValue(false);
       setErr(null);
     }
   }, [open]);
 
   const spec = providers.find((p) => p.name === selected);
-  const canCreate = !!spec && !spec.isOauth && value.length > 0;
+  const normalizedApiBase = apiBase.trim().replace(/\/+$/, '');
+  const hasValue = value.trim().length > 0;
+  const hasApiBase = normalizedApiBase.length > 0;
+  const canCreate =
+    !!spec &&
+    !spec.isOauth &&
+    (hasValue || hasApiBase) &&
+    (!spec.requiresApiKey || hasValue) &&
+    (!spec.requiresApiBase || hasApiBase);
 
   const create = useCallback(async () => {
     if (!canCreate || !spec) return;
     setCreating(true);
     setErr(null);
     try {
-      await manageApi(agentId, 'credentials/providers', {
+      const body: { name: string; value?: string; apiBase?: string } = { name: spec.name };
+      if (hasValue) body.value = value.trim();
+      if (hasApiBase) body.apiBase = normalizedApiBase;
+      const created = await manageApi<ProviderItem>(agentId, 'credentials/providers', {
         method: 'POST',
-        body: JSON.stringify({ name: spec.name, value }),
+        body: JSON.stringify(body),
       });
-      onCreated({ ...spec, hasValue: true, masked: '***' });
+      onCreated(created);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         onConflict(spec.name);
@@ -877,22 +1004,45 @@ function NewProviderDialog({
     } finally {
       setCreating(false);
     }
-  }, [agentId, spec, value, canCreate, onCreated, onConflict]);
+  }, [
+    agentId,
+    spec,
+    hasValue,
+    hasApiBase,
+    normalizedApiBase,
+    value,
+    canCreate,
+    onCreated,
+    onConflict,
+  ]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New provider key</DialogTitle>
+          <DialogTitle>New provider</DialogTitle>
           <DialogDescription>
-            Set the API key for an LLM provider. The key is stored under{' '}
-            <span className="font-mono">config.providers.&lt;name&gt;.api_key</span>.
+            Set the API key and optional API base URL for an LLM provider.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="block text-sm font-medium text-muted-foreground">Provider</label>
-            <Select value={selected} onValueChange={(v) => setSelected(v ?? '')}>
+            <Select
+              value={selected}
+              onValueChange={(v) => {
+                const nextName = v ?? '';
+                const nextProvider = providers.find((p) => p.name === nextName);
+                setSelected(nextName);
+                setValue('');
+                setApiBase(
+                  nextProvider && !nextProvider.requiresApiKey && nextProvider.defaultApiBase
+                    ? nextProvider.defaultApiBase
+                    : '',
+                );
+                setErr(null);
+              }}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="Select a provider…" />
               </SelectTrigger>
@@ -933,6 +1083,20 @@ function NewProviderDialog({
                   {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
+            </div>
+          )}
+          {spec && !spec.isOauth && spec.supportsApiBase && (
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-muted-foreground">
+                API Base URL{spec.requiresApiBase ? '' : ' (optional)'}
+              </label>
+              <Input
+                type="url"
+                placeholder={spec.defaultApiBase || 'https://api.example.com/v1'}
+                value={apiBase}
+                onChange={(e) => setApiBase(e.target.value)}
+                className="h-9 font-mono text-sm"
+              />
             </div>
           )}
           {spec?.isOauth && spec.name === 'github_copilot' && (

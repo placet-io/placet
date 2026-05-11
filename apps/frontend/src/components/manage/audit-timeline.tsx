@@ -12,6 +12,10 @@ export interface AuditEvent {
   [k: string]: unknown;
 }
 
+export function getAuditLane(ev: AuditEvent): string {
+  return (ev.channel || ev.origin || 'system') as string;
+}
+
 export interface AuditSelection {
   /** Lane key that was clicked (channel name, cron, api…). */
   lane: string;
@@ -38,7 +42,7 @@ const MIN_BAR_WIDTH_PCT = 0.6; // % — so a single point is still clickable
 const CLUSTER_GAP_RATIO = 1 / 120; // merge events closer than 1/120th of window
 
 /**
- * Horizontal stacked timeline: one lane per (channel | origin | "other") with
+ * Horizontal stacked timeline: one lane per (channel | origin | "system") with
  * coloured clusters representing audit event bursts. Rightmost edge = now;
  * clicking a cluster fires `onSelect` with lane + time range so the log
  * table below can filter accordingly.
@@ -64,7 +68,7 @@ export function AuditTimeline({
     for (const ev of events) {
       const ts = ev.ts ? Date.parse(ev.ts) : NaN;
       if (!Number.isFinite(ts) || ts < start || ts > anchor) continue;
-      const lane = (ev.channel || ev.origin || 'other') as string;
+      const lane = getAuditLane(ev);
       if (!byLane.has(lane)) byLane.set(lane, []);
       byLane.get(lane)!.push(ev);
     }

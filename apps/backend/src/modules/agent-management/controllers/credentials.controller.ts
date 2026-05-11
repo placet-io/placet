@@ -78,20 +78,35 @@ export class ManageCredentialsController {
   @Post('providers')
   @ApiOperation({
     summary:
-      'Set api_key for a provider (create-only — 409 when api_key already set)',
+      'Set api_key/apiBase for a provider (create-only — 409 when already set)',
   })
   createProvider(
     @Req() req: RequestWithUser,
     @Param('agentId') agentId: string,
-    @Body() body: { name: string; value: string },
+    @Body()
+    body: {
+      name: string;
+      value?: string;
+      apiBase?: string | null;
+      baseUrl?: string | null;
+    },
   ) {
     if (
       !body ||
       typeof body.name !== 'string' ||
-      typeof body.value !== 'string'
+      (body.value !== undefined && typeof body.value !== 'string') ||
+      (body.apiBase !== undefined &&
+        body.apiBase !== null &&
+        typeof body.apiBase !== 'string') ||
+      (body.baseUrl !== undefined &&
+        body.baseUrl !== null &&
+        typeof body.baseUrl !== 'string') ||
+      (body.value === undefined &&
+        body.apiBase === undefined &&
+        body.baseUrl === undefined)
     ) {
       throw new BadRequestException(
-        'Fields "name" and "value" must be strings',
+        'Field "name" must be a string and at least one of "value" or "apiBase" must be provided',
       );
     }
     return this.client.request({
@@ -104,15 +119,30 @@ export class ManageCredentialsController {
   }
 
   @Put('providers/:name')
-  @ApiOperation({ summary: 'Upsert api_key for a provider' })
+  @ApiOperation({ summary: 'Upsert api_key/apiBase for a provider' })
   putProvider(
     @Req() req: RequestWithUser,
     @Param('agentId') agentId: string,
     @Param('name') name: string,
-    @Body() body: { value: string },
+    @Body()
+    body: { value?: string; apiBase?: string | null; baseUrl?: string | null },
   ) {
-    if (!body || typeof body.value !== 'string') {
-      throw new BadRequestException('Field "value" must be a string');
+    if (
+      !body ||
+      (body.value !== undefined && typeof body.value !== 'string') ||
+      (body.apiBase !== undefined &&
+        body.apiBase !== null &&
+        typeof body.apiBase !== 'string') ||
+      (body.baseUrl !== undefined &&
+        body.baseUrl !== null &&
+        typeof body.baseUrl !== 'string') ||
+      (body.value === undefined &&
+        body.apiBase === undefined &&
+        body.baseUrl === undefined)
+    ) {
+      throw new BadRequestException(
+        'At least one of "value" or "apiBase" must be provided',
+      );
     }
     return this.client.request({
       agentId,

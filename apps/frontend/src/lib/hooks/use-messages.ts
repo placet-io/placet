@@ -337,8 +337,15 @@ export function useMessages(channelId: string | null) {
       if (clientId) {
         removePendingMessage({ clientId });
       }
-      // The final agent message has landed — drop the ephemeral progress.
+      // The final agent message has landed — drop live progress. A normal
+      // agent message has no stream row to claim status events emitted just
+      // before delivery (for example the `message` tool's "Sending message"
+      // hint), so clear those orphan rows here.
       setEphemeralProgress(null);
+      if (merged.senderType === 'agent' && !merged.streamId) {
+        orphanStatusRef.current = {};
+        setOrphanStatusByStream({});
+      }
       addOrReplaceMessage(merged);
       // Keep the channel's read marker fresh while the chat is open. Without
       // this the server's lastReadAt stays at the moment the chat was
