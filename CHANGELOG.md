@@ -5,9 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.11.4] — 2026-05-08
+## [0.11.4] — 2026-05-11
 
 ### Changed
+
+- **Management audit correlation filters** — the Audit Log page now surfaces trace, turn, parent-run, and channel-instance identifiers in event details, lets operators filter by those identifiers without adding more table columns, and labels events without a channel or origin as `system` instead of `other`.
+- **Management audit table context** — the Audit Log table now shows the run identifier directly after the timestamp, folds model/tool/MCP-server context into the Event column, and visually distinguishes tool and MCP events without adding sparse table columns.
+- **Reflection command naming** — management command routing and dashboard copy now use `/reflect` and Reflection naming instead of the older Dream terminology.
 
 - **Provider API base management** — the Management Dashboard credentials page now exposes provider API base URLs alongside API keys in setup and edit flows. Local/direct providers that rely on a custom endpoint are available in the provider picker, known local defaults are prefilled where appropriate, and the backend management proxy forwards `apiBase`/`baseUrl` updates to the Facio management API.
 

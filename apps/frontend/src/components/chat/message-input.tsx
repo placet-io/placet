@@ -55,7 +55,7 @@ export const MessageInput = memo(function MessageInput({
     setShowCommands(slashQuery !== null && commands.length > 0);
   }, [slashQuery, commands.length]);
 
-  // Matched command for syntax highlighting (e.g. "/dream-log some-sha")
+  // Matched command for syntax highlighting (e.g. "/reflection-log some-sha")
   const matchedCommand = useMemo(() => {
     if (!text.startsWith('/') || commands.length === 0) return null;
     return commands.find((c) => text === c.command || text.startsWith(c.command + ' ')) ?? null;

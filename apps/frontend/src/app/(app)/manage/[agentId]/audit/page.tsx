@@ -6,6 +6,7 @@ import { Loader2, X, RefreshCw, Search } from 'lucide-react';
 import { ManagePane } from '@/components/manage/manage-pane';
 import {
   AuditTimeline,
+  getAuditLane,
   type AuditEvent,
   type AuditSelection,
 } from '@/components/manage/audit-timeline';
@@ -42,7 +43,10 @@ interface AuditRow {
   key: string;
   ts: number;
   timeLabel: string;
+  runId: string;
   event: string;
+  toolName: string;
+  mcpServer: string;
   lane: string;
   model: string;
   status: string;
@@ -50,8 +54,33 @@ interface AuditRow {
   raw: AuditEvent;
 }
 
+type CorrelationFilterKey = 'traceId' | 'turnId' | 'parentRunId' | 'channelId';
+type CorrelationFilters = Partial<Record<CorrelationFilterKey, string>>;
+type AuditDetailField = {
+  label: string;
+  value: string | undefined;
+  filterKey?: CorrelationFilterKey;
+};
+
+const CORRELATION_LABELS: Record<CorrelationFilterKey, string> = {
+  traceId: 'Trace',
+  turnId: 'Turn',
+  parentRunId: 'Parent',
+  channelId: 'Channel ID',
+};
+
+function getEventString(ev: AuditEvent, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = ev[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
+}
+
 function toRow(ev: AuditEvent, i: number): AuditRow {
   const ts = ev.ts ? Date.parse(ev.ts) : NaN;
+  const toolName = getToolName(ev) ?? '';
+  const mcpServer = getMcpServerName(toolName) ?? '';
   const timeLabel = Number.isFinite(ts)
     ? new Date(ts).toLocaleTimeString(undefined, {
         hour12: false,
@@ -60,14 +89,15 @@ function toRow(ev: AuditEvent, i: number): AuditRow {
         second: '2-digit',
       })
     : '—';
-  const channel = (ev.channel as string | undefined) ?? '';
-  const origin = (ev.origin as string | undefined) ?? '';
   return {
     key: `${ev.ts ?? ''}-${i}`,
     ts: Number.isFinite(ts) ? ts : 0,
     timeLabel,
-    event: (ev.event as string) ?? 'event',
-    lane: channel || origin || 'other',
+    runId: getEventString(ev, 'run_id', 'runId') ?? '',
+    event: mcpServer && ev.event === 'tool_call' ? 'mcp_call' : ((ev.event as string) ?? 'event'),
+    toolName,
+    mcpServer,
+    lane: getAuditLane(ev),
     model: (ev.model as string | undefined) ?? '',
     status: (ev.status as string | undefined) ?? '',
     summary: summarize(ev),
@@ -75,11 +105,53 @@ function toRow(ev: AuditEvent, i: number): AuditRow {
   };
 }
 
+function getToolName(ev: AuditEvent): string | undefined {
+  return getEventString(ev, 'tool_name', 'toolName', 'name');
+}
+
+function isMcpToolName(toolName: string): boolean {
+  return /^mcp[:_]/i.test(toolName);
+}
+
+function getMcpServerName(toolName: string): string | undefined {
+  if (!isMcpToolName(toolName)) return undefined;
+  if (toolName.includes(':')) {
+    const [, server] = toolName.split(':');
+    return server || undefined;
+  }
+  const match = /^mcp_([^_]+)_/.exec(toolName);
+  return match?.[1];
+}
+
+function getEventContext(row: AuditRow): string | undefined {
+  if (row.mcpServer) return row.mcpServer;
+  if (row.toolName) return row.toolName;
+  return row.model || undefined;
+}
+
+function getEventTone(row: AuditRow): 'default' | 'tool' | 'mcp' {
+  if (row.event === 'mcp_call' || row.mcpServer) return 'mcp';
+  if (row.event === 'tool_call' || row.toolName) return 'tool';
+  return 'default';
+}
+
 function summarize(ev: AuditEvent): string {
   const parts: string[] = [];
-  if (ev.run_id || ev.runId) parts.push(`run=${ev.run_id ?? ev.runId}`);
-  if (ev.session_key || ev.sessionKey) parts.push(`session=${ev.session_key ?? ev.sessionKey}`);
-  if (ev.name) parts.push(`tool=${ev.name}`);
+  const runId = getEventString(ev, 'run_id', 'runId');
+  const traceId = getEventString(ev, 'trace_id', 'traceId');
+  const turnId = getEventString(ev, 'turn_id', 'turnId');
+  const parentRunId = getEventString(ev, 'parent_run_id', 'parentRunId');
+  const sessionKey = getEventString(ev, 'session_key', 'sessionKey');
+  if (runId) parts.push(`run=${runId}`);
+  if (traceId) parts.push(`trace=${traceId}`);
+  if (turnId) parts.push(`turn=${turnId}`);
+  if (parentRunId) parts.push(`parent=${parentRunId}`);
+  if (sessionKey) parts.push(`session=${sessionKey}`);
+  const toolName = getToolName(ev);
+  if (toolName) {
+    const serverName = getMcpServerName(toolName);
+    parts.push(serverName ? `mcp=${serverName}` : `tool=${toolName}`);
+  }
   if (ev.model) parts.push(`model=${ev.model}`);
   if (ev.status) parts.push(`status=${ev.status}`);
   if (parts.length > 0) return parts.join(' · ');
@@ -116,6 +188,7 @@ export default function AgentAuditPage() {
   }, [search]);
   const [eventFilter, setEventFilter] = useState<string>('');
   const [laneFilter, setLaneFilter] = useState<string>('');
+  const [correlationFilters, setCorrelationFilters] = useState<CorrelationFilters>({});
   // Default-hide noisy api_request lines — users can opt back in via checkbox.
   const [showApiRequests, setShowApiRequests] = useState(false);
 
@@ -148,6 +221,10 @@ export default function AgentAuditPage() {
       sortBy: backendCol,
       sortDir,
     });
+    for (const key of Object.keys(CORRELATION_LABELS) as CorrelationFilterKey[]) {
+      const value = correlationFilters[key];
+      if (value) params.set(key, value);
+    }
     try {
       const data = await manageApi<ListResponse>(agentId, `audit?${params.toString()}`);
       setEvents(Array.isArray(data.items) ? data.items : []);
@@ -158,7 +235,7 @@ export default function AgentAuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [agentId, windowMs, sortKey, sortDir, SORT_COLUMN]);
+  }, [agentId, windowMs, sortKey, sortDir, SORT_COLUMN, correlationFilters]);
 
   useEffect(() => {
     void load();
@@ -170,7 +247,8 @@ export default function AgentAuditPage() {
         const r = toRow(e, i);
         // Precompute the lowercase search haystack once per row so the
         // debounced search filter doesn't rebuild it on every keystroke.
-        const _haystack = `${r.event} ${r.lane} ${r.model} ${r.status} ${r.summary}`.toLowerCase();
+        const _haystack =
+          `${r.timeLabel} ${r.runId} ${r.event} ${r.toolName} ${r.mcpServer} ${r.lane} ${r.model} ${r.status} ${r.summary}`.toLowerCase();
         return { ...r, _haystack };
       }),
     [events],
@@ -206,11 +284,22 @@ export default function AgentAuditPage() {
         cell: (r) => r.timeLabel,
       },
       {
+        key: 'run',
+        header: 'Run',
+        hideOnMobile: true,
+        className: 'w-32 text-muted-foreground',
+        cell: (r) => (
+          <span className="block truncate font-mono text-sm" title={r.runId || undefined}>
+            {r.runId ? shortId(r.runId) : '—'}
+          </span>
+        ),
+      },
+      {
         key: 'event',
         header: 'Event',
-        className: 'font-medium',
+        className: 'font-medium min-w-56',
         sort: (a, b) => a.event.localeCompare(b.event),
-        cell: (r) => <span className="text-foreground">{r.event}</span>,
+        cell: (r) => <EventCell row={r} />,
       },
       {
         key: 'lane',
@@ -227,14 +316,6 @@ export default function AgentAuditPage() {
             </span>
           );
         },
-      },
-      {
-        key: 'model',
-        header: 'Model',
-        hideOnMobile: true,
-        className: 'w-40 text-sm text-muted-foreground',
-        sort: (a, b) => a.model.localeCompare(b.model),
-        cell: (r) => <span className="truncate block">{r.model || '—'}</span>,
       },
       {
         key: 'status',
@@ -255,7 +336,24 @@ export default function AgentAuditPage() {
     [],
   );
 
-  const hasActiveFilters = !!search || !!eventFilter || !!laneFilter || !!selection;
+  const activeCorrelationFilters = Object.entries(correlationFilters).filter(
+    (entry): entry is [CorrelationFilterKey, string] => Boolean(entry[1]),
+  );
+  const hasActiveFilters =
+    !!search || !!eventFilter || !!laneFilter || !!selection || activeCorrelationFilters.length > 0;
+
+  const setCorrelationFilter = useCallback((key: CorrelationFilterKey, value: string) => {
+    setCorrelationFilters((current) => ({ ...current, [key]: value }));
+    setSelection(null);
+  }, []);
+
+  const clearCorrelationFilter = useCallback((key: CorrelationFilterKey) => {
+    setCorrelationFilters((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }, []);
 
   return (
     <ManagePane
@@ -349,6 +447,19 @@ export default function AgentAuditPage() {
               options={lanes}
               width="w-[140px]"
             />
+            {activeCorrelationFilters.map(([key, value]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => clearCorrelationFilter(key)}
+                title={`${CORRELATION_LABELS[key]}: ${value}`}
+                className="inline-flex h-8 max-w-48 items-center gap-1.5 rounded-lg border border-border/60 bg-muted px-2 text-sm text-foreground hover:bg-muted/80"
+              >
+                <span className="text-muted-foreground">{CORRELATION_LABELS[key]}</span>
+                <span className="truncate font-mono">{shortId(value)}</span>
+                <X size={12} className="shrink-0 text-muted-foreground" />
+              </button>
+            ))}
             <label className="inline-flex items-center gap-1.5 px-2 h-8 text-sm text-muted-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -368,6 +479,7 @@ export default function AgentAuditPage() {
                   setEventFilter('');
                   setLaneFilter('');
                   setSelection(null);
+                  setCorrelationFilters({});
                 }}
               >
                 <X size={14} /> Clear
@@ -392,7 +504,7 @@ export default function AgentAuditPage() {
               setSortDir(dir);
             }}
             loading={loading}
-            expandedContent={(r) => <AuditDetail row={r} />}
+            expandedContent={(r) => <AuditDetail row={r} onFilter={setCorrelationFilter} />}
             emptyText={
               loading
                 ? 'Loading events…'
@@ -404,6 +516,34 @@ export default function AgentAuditPage() {
         </ManageCard>
       </ManageSection>
     </ManagePane>
+  );
+}
+
+function shortId(value: string): string {
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}...`;
+}
+
+function EventCell({ row }: { row: AuditRow }) {
+  const context = getEventContext(row);
+  const tone = getEventTone(row);
+  return (
+    <div
+      className={cn(
+        'inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1',
+        tone === 'mcp' &&
+          'border-sky-500/25 bg-sky-500/10 text-sky-900 dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100',
+        tone === 'tool' &&
+          'border-emerald-500/25 bg-emerald-500/10 text-emerald-900 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-100',
+        tone === 'default' && 'border-transparent text-foreground',
+      )}
+      title={context ? `${row.event} (${context})` : row.event}
+    >
+      <span className="shrink-0 truncate">{row.event}</span>
+      {context && (
+        <span className="min-w-0 truncate font-mono text-sm opacity-80">({context})</span>
+      )}
+    </div>
   );
 }
 
@@ -444,20 +584,44 @@ function FilterSelect({
   );
 }
 
-function AuditDetail({ row }: { row: AuditRow }) {
+function AuditDetail({
+  row,
+  onFilter,
+}: {
+  row: AuditRow;
+  onFilter: (key: CorrelationFilterKey, value: string) => void;
+}) {
   const ev = row.raw;
-  const fields: { label: string; value: string | undefined }[] = [
-    { label: 'Run', value: (ev.run_id as string) ?? (ev.runId as string) },
+  const allFields: AuditDetailField[] = [
+    { label: 'Run', value: getEventString(ev, 'run_id', 'runId') },
+    { label: 'Trace', value: getEventString(ev, 'trace_id', 'traceId'), filterKey: 'traceId' },
+    { label: 'Turn', value: getEventString(ev, 'turn_id', 'turnId'), filterKey: 'turnId' },
+    {
+      label: 'Parent Run',
+      value: getEventString(ev, 'parent_run_id', 'parentRunId'),
+      filterKey: 'parentRunId',
+    },
     {
       label: 'Session',
-      value: (ev.session_key as string) ?? (ev.sessionKey as string),
+      value: getEventString(ev, 'session_key', 'sessionKey'),
     },
-    { label: 'Tool', value: ev.name as string | undefined },
+    { label: 'Tool', value: getToolName(ev) },
+    { label: 'MCP Server', value: getMcpServerName(getToolName(ev) ?? '') },
+    {
+      label: 'Tool Type',
+      value: getToolName(ev) ? (isMcpToolName(getToolName(ev)!) ? 'MCP' : 'Tool') : undefined,
+    },
     { label: 'Model', value: ev.model as string | undefined },
     { label: 'Status', value: ev.status as string | undefined },
     { label: 'Channel', value: ev.channel as string | undefined },
+    {
+      label: 'Channel ID',
+      value: getEventString(ev, 'channel_id', 'channelId'),
+      filterKey: 'channelId',
+    },
     { label: 'Origin', value: ev.origin as string | undefined },
-  ].filter((f) => !!f.value);
+  ];
+  const fields = allFields.filter((field) => !!field.value);
 
   let json = '';
   try {
@@ -473,8 +637,19 @@ function AuditDetail({ row }: { row: AuditRow }) {
           {fields.map((f) => (
             <div key={f.label} className="min-w-0">
               <dt className="text-muted-foreground">{f.label}</dt>
-              <dd className="truncate font-mono text-foreground" title={f.value}>
-                {f.value}
+              <dd className="flex min-w-0 items-center gap-2" title={f.value}>
+                <span className="truncate font-mono text-foreground">{f.value}</span>
+                {f.filterKey && f.value && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (f.filterKey && f.value) onFilter(f.filterKey, f.value);
+                    }}
+                    className="shrink-0 text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Filter
+                  </button>
+                )}
               </dd>
             </div>
           ))}

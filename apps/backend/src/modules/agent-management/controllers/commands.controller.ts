@@ -66,9 +66,9 @@ export class ManageCommandsController {
     });
   }
 
-  @Post('dream')
-  @ApiOperation({ summary: 'Execute /dream on a session' })
-  dream(
+  @Post('reflect')
+  @ApiOperation({ summary: 'Execute /reflect on a session' })
+  reflect(
     @Req() req: RequestWithUser,
     @Param('agentId') agentId: string,
     @Body() body: { sessionKey?: string } = {},
@@ -77,7 +77,7 @@ export class ManageCommandsController {
       agentId,
       ownerId: req.user.id,
       method: 'POST',
-      path: 'commands/dream',
+      path: 'commands/reflect',
       body,
     });
   }
