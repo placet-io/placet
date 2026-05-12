@@ -146,6 +146,7 @@ const ADVANCED_NUM_FIELDS: Array<{ key: string; label: string; hint?: string }> 
   { key: 'max_tokens', label: 'Max tokens' },
   { key: 'context_window_tokens', label: 'Context window tokens' },
   { key: 'max_tool_iterations', label: 'Max tool iterations' },
+  { key: 'max_goal_turns', label: 'Max goal turns', hint: '0 = unlimited' },
   { key: 'max_tool_result_chars', label: 'Max tool result chars' },
   { key: 'max_concurrent_requests', label: 'Max concurrent requests' },
   { key: 'max_concurrent_cron_jobs', label: 'Max concurrent cron jobs' },

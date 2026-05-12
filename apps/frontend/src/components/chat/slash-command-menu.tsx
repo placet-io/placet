@@ -107,7 +107,7 @@ export const SlashCommandMenu = memo(function SlashCommandMenu({
         >
           <span className="font-mono font-medium text-primary shrink-0">{cmd.command}</span>
           <span className="text-muted-foreground truncate">{cmd.description}</span>
-          {cmd.acceptsArgs && cmd.argHint && (
+          {cmd.argHint && (
             <span className="ml-auto text-xs text-muted-foreground/60 shrink-0">{cmd.argHint}</span>
           )}
         </button>

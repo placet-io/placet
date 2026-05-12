@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.5] — 2026-05-12
+
+### Added
+
+- **Goal turn budget setting** — the Management Dashboard advanced settings now expose `max_goal_turns`, including the `0 = unlimited` hint used by Facio goal mode.
+
+### Fixed
+
+- **Slash command selection** — commands that do not need input are sent immediately, commands with argument hints remain editable, and the command menu now shows hints whenever the backend provides them.
+
 ## [0.11.4] — 2026-05-11
 
 ### Changed
