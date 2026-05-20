@@ -97,4 +97,20 @@ export class ManageCommandsController {
       query,
     });
   }
+
+  @Get('version')
+  @ApiOperation({ summary: 'Get agent runtime version via /version' })
+  version(
+    @Req() req: RequestWithUser,
+    @Param('agentId') agentId: string,
+    @Query() query: Record<string, string | string[] | undefined>,
+  ) {
+    return this.client.request({
+      agentId,
+      ownerId: req.user.id,
+      method: 'GET',
+      path: 'commands/version',
+      query,
+    });
+  }
 }

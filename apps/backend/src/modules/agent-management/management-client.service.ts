@@ -40,6 +40,7 @@ export class ManagementClient {
     maxRequestBytes?: number;
     /** Optional override for response body size cap. */
     maxResponseBytes?: number;
+    responseType?: 'json' | 'text';
   }): Promise<T> {
     const creds = await this.agents.getManagementCredentials(
       params.agentId,
@@ -71,7 +72,10 @@ export class ManagementClient {
       method: params.method,
       headers: {
         Authorization: `Bearer ${creds.apiKey}`,
-        Accept: 'application/json',
+        Accept:
+          params.responseType === 'text'
+            ? 'text/plain, text/markdown, text/x-diff, */*'
+            : 'application/json',
       },
       // Never auto-follow: a 302 to http://169.254.169.254/... would carry the
       // bearer token. Controllers surface 3xx as upstream errors instead.
@@ -141,6 +145,10 @@ export class ManagementClient {
         },
         upstream.status,
       );
+    }
+
+    if (params.responseType === 'text') {
+      return text as T;
     }
 
     return (parsed as T) ?? (undefined as unknown as T);
