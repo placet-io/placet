@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { api, apiText } from '@/lib/api';
 
 /**
  * Thin wrapper around `api()` that targets the Placet backend's agent
@@ -13,6 +13,15 @@ export function manageApi<T = unknown>(
 ): Promise<T> {
   const clean = path.startsWith('/') ? path.slice(1) : path;
   return api<T>(`/api/agents/${agentId}/manage/${clean}`, opts);
+}
+
+export async function manageApiText(
+  agentId: string,
+  path: string,
+  opts: RequestInit = {},
+): Promise<string> {
+  const clean = path.startsWith('/') ? path.slice(1) : path;
+  return apiText(`/api/agents/${agentId}/manage/${clean}`, opts);
 }
 
 /**

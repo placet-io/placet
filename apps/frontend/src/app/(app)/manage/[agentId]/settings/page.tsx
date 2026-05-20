@@ -8,14 +8,15 @@ import {
   Save,
   Settings as SettingsIcon,
   AlertTriangle,
-  KeyRound,
   Sliders,
+  Sparkles,
   Cpu,
   Globe,
 } from 'lucide-react';
 import { ManagePane } from '@/components/manage/manage-pane';
 import { ManageCard, ManageSection, ManageEmptyState } from '@/components/manage/manage-ui';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -31,13 +32,6 @@ import { cn } from '@/lib/utils';
 interface ProviderOption {
   value: string;
   label: string;
-}
-
-interface ApiKeyEntry {
-  key: string;
-  label: string;
-  description: string;
-  has_value: boolean;
 }
 
 interface BrowserSettings {
@@ -60,16 +54,32 @@ interface BrowserSettings {
   stealth: { advertise_stealth: boolean; block_trackers: boolean };
 }
 
+interface SelfImprovementSettings {
+  enabled: boolean;
+  model_override: string | null;
+  provider_override: string | null;
+  mode: string;
+  auto_triggers: string[];
+  interval_h: number;
+  max_iterations: number;
+  scopes: string[];
+  validation_level: string;
+}
+
 interface SettingsResponse {
   basic: Record<string, string | null>;
   advanced: Record<string, number | string | boolean>;
-  api_keys: ApiKeyEntry[];
   browser?: BrowserSettings;
+  self_improvement?: SelfImprovementSettings;
   options: {
     providers: ProviderOption[];
     reasoning_effort: string[];
     provider_retry_mode: string[];
     browser_backends?: string[];
+    self_improvement_modes?: string[];
+    self_improvement_triggers?: string[];
+    self_improvement_scopes?: string[];
+    self_improvement_validation_levels?: string[];
   };
   changes?: string[];
   restart_needed?: boolean;
@@ -77,15 +87,6 @@ interface SettingsResponse {
 
 type Basic = Record<string, string>;
 type Advanced = Record<string, number | string | boolean>;
-type ApiKeyDraft = Record<string, string>;
-/**
- * Per-key intent for the API-keys section. The previous implementation
- * encoded "user wants this slot cleared" as the literal value `'__CLEAR__'`
- * in the same map as the in-progress draft secret, which made it possible
- * to confuse a real secret with the sentinel and forced extra branching
- * everywhere a draft was read. The intent is now tracked separately.
- */
-type ApiKeyIntent = 'unchanged' | 'clear';
 
 const BASIC_GROUPS: Array<{
   title: string;
@@ -146,6 +147,7 @@ const ADVANCED_NUM_FIELDS: Array<{ key: string; label: string; hint?: string }> 
   { key: 'max_tokens', label: 'Max tokens' },
   { key: 'context_window_tokens', label: 'Context window tokens' },
   { key: 'max_tool_iterations', label: 'Max tool iterations' },
+  { key: 'max_goal_turns', label: 'Max goal turns', hint: '0 = unlimited' },
   { key: 'max_tool_result_chars', label: 'Max tool result chars' },
   { key: 'max_concurrent_requests', label: 'Max concurrent requests' },
   { key: 'max_concurrent_cron_jobs', label: 'Max concurrent cron jobs' },
@@ -165,11 +167,10 @@ export default function AgentSettingsPage() {
 
   const [basic, setBasic] = useState<Basic>({});
   const [advanced, setAdvanced] = useState<Advanced>({});
-  const [apiKeyDrafts, setApiKeyDrafts] = useState<ApiKeyDraft>({});
-  const [apiKeyIntents, setApiKeyIntents] = useState<Record<string, ApiKeyIntent>>({});
   const [browser, setBrowser] = useState<BrowserSettings | null>(null);
   const [browserProxyDraft, setBrowserProxyDraft] = useState<string>('');
   const [browserProxyClear, setBrowserProxyClear] = useState<boolean>(false);
+  const [selfImprovement, setSelfImprovement] = useState<SelfImprovementSettings | null>(null);
 
   const hydrate = useCallback((resp: SettingsResponse) => {
     const b: Basic = {};
@@ -178,9 +179,8 @@ export default function AgentSettingsPage() {
     });
     setBasic(b);
     setAdvanced({ ...resp.advanced });
-    setApiKeyDrafts({});
-    setApiKeyIntents({});
     setBrowser(resp.browser ? { ...resp.browser } : null);
+    setSelfImprovement(resp.self_improvement ? { ...resp.self_improvement } : null);
     setBrowserProxyDraft('');
     setBrowserProxyClear(false);
   }, []);
@@ -214,12 +214,6 @@ export default function AgentSettingsPage() {
     for (const [k, v] of Object.entries(advanced)) {
       if (data.advanced[k] !== v) return true;
     }
-    for (const [, v] of Object.entries(apiKeyDrafts)) {
-      if (v !== '') return true;
-    }
-    for (const [, intent] of Object.entries(apiKeyIntents)) {
-      if (intent === 'clear') return true;
-    }
     if (browser && data.browser) {
       const orig = data.browser;
       const keys: (keyof BrowserSettings)[] = [
@@ -245,17 +239,11 @@ export default function AgentSettingsPage() {
       if (browser.stealth.block_trackers !== orig.stealth.block_trackers) return true;
       if (browserProxyDraft !== '' || browserProxyClear) return true;
     }
+    if (selfImprovement && data.self_improvement) {
+      if (JSON.stringify(selfImprovement) !== JSON.stringify(data.self_improvement)) return true;
+    }
     return false;
-  }, [
-    data,
-    basic,
-    advanced,
-    apiKeyDrafts,
-    apiKeyIntents,
-    browser,
-    browserProxyDraft,
-    browserProxyClear,
-  ]);
+  }, [data, basic, advanced, browser, browserProxyDraft, browserProxyClear, selfImprovement]);
 
   const save = async () => {
     if (!data || saving) return;
@@ -273,19 +261,6 @@ export default function AgentSettingsPage() {
       }
       for (const [k, v] of Object.entries(advanced)) {
         if (data.advanced[k] !== v) body[k] = v;
-      }
-      const apiKeysToSend: Record<string, string | null> = {};
-      for (const [k, intent] of Object.entries(apiKeyIntents)) {
-        if (intent === 'clear') apiKeysToSend[k] = null;
-      }
-      for (const [k, v] of Object.entries(apiKeyDrafts)) {
-        if (v === '') continue;
-        // A draft secret overrides a pending clear — typing a new value
-        // implicitly cancels the clear request.
-        apiKeysToSend[k] = v;
-      }
-      if (Object.keys(apiKeysToSend).length) {
-        body.api_keys = apiKeysToSend;
       }
       if (browser && data.browser) {
         const orig = data.browser;
@@ -329,6 +304,29 @@ export default function AgentSettingsPage() {
         else if (browserProxyDraft) bdiff.proxy = browserProxyDraft;
         if (Object.keys(bdiff).length) body.browser = bdiff;
       }
+      if (selfImprovement && data.self_improvement) {
+        const orig = data.self_improvement;
+        const sidiff: Record<string, unknown> = {};
+        const keys: Array<keyof SelfImprovementSettings> = [
+          'enabled',
+          'model_override',
+          'provider_override',
+          'mode',
+          'interval_h',
+          'max_iterations',
+          'validation_level',
+        ];
+        for (const k of keys) {
+          if (selfImprovement[k] !== orig[k]) sidiff[k] = selfImprovement[k];
+        }
+        if (selfImprovement.auto_triggers.join('\n') !== orig.auto_triggers.join('\n')) {
+          sidiff.auto_triggers = selfImprovement.auto_triggers;
+        }
+        if (selfImprovement.scopes.join('\n') !== orig.scopes.join('\n')) {
+          sidiff.scopes = selfImprovement.scopes;
+        }
+        if (Object.keys(sidiff).length) body.self_improvement = sidiff;
+      }
       const resp = await manageApi<SettingsResponse>(agentId, 'settings', {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -352,6 +350,26 @@ export default function AgentSettingsPage() {
   const reasoningOpts = data?.options.reasoning_effort ?? [];
   const retryOpts = data?.options.provider_retry_mode ?? [];
   const providers = data?.options.providers ?? [];
+  const improvementModes = data?.options.self_improvement_modes ?? ['off', 'review', 'auto_apply'];
+  const improvementTriggers = data?.options.self_improvement_triggers ?? [
+    'goal_done',
+    'repeated_tool_error',
+    'user_correction',
+    'scheduled',
+  ];
+  const improvementScopes = data?.options.self_improvement_scopes ?? [
+    'memory',
+    'skills',
+    'scripts',
+    'instructions',
+    'policy',
+    'runtime',
+  ];
+  const validationLevels = data?.options.self_improvement_validation_levels ?? [
+    'off',
+    'standard',
+    'strict',
+  ];
 
   const providerSelect = (key: string, value: string, onChange: (v: string) => void) => (
     <Select value={value || undefined} onValueChange={(v) => onChange(v ?? '')}>
@@ -378,7 +396,7 @@ export default function AgentSettingsPage() {
     <ManagePane
       title="Settings"
       backHref="/manage"
-      subtitle="Defaults applied to every agent run. Secrets are write-only and never returned."
+      subtitle="Defaults applied to every agent run. Credential secrets are managed separately."
       actions={
         <div className="flex items-center gap-1">
           {flash && (
@@ -619,9 +637,236 @@ export default function AgentSettingsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-3 h-9">
+                    <span
+                      className="text-sm"
+                      title="Register scheduled Reflection runs that write memory changes and create agent versions"
+                    >
+                      Auto-apply Reflection
+                    </span>
+                    <Switch
+                      checked={Boolean(advanced.reflection_auto_apply ?? true)}
+                      onCheckedChange={(v) =>
+                        setAdvanced((a) => ({ ...a, reflection_auto_apply: Boolean(v) }))
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </ManageCard>
           </ManageSection>
+
+          {selfImprovement && data.self_improvement && (
+            <ManageSection
+              title="Self-improvement"
+              description="Background reviews, apply mode, trigger cadence, and editable agent-owned scopes."
+            >
+              <ManageCard
+                title={
+                  <span className="flex items-center gap-2 text-base font-semibold">
+                    <Sparkles size={16} className="text-muted-foreground" /> Improvement runner
+                  </span>
+                }
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="flex items-end gap-2">
+                    <div className="flex h-9 flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-3">
+                      <span className="text-sm">Enabled</span>
+                      <Switch
+                        checked={selfImprovement.enabled}
+                        onCheckedChange={(v) =>
+                          setSelfImprovement((s) => (s ? { ...s, enabled: Boolean(v) } : s))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-muted-foreground">Mode</label>
+                    <Select
+                      value={selfImprovement.mode}
+                      onValueChange={(v) =>
+                        setSelfImprovement((s) => (s ? { ...s, mode: v ?? s.mode } : s))
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-full rounded-lg text-sm">
+                        <SelectValue placeholder="Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {improvementModes.map((mode) => (
+                          <SelectItem key={mode} value={mode}>
+                            {mode}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Scheduled interval (h)
+                    </label>
+                    <Input
+                      type="number"
+                      value={String(selfImprovement.interval_h)}
+                      onChange={(e) =>
+                        setSelfImprovement((s) =>
+                          s ? { ...s, interval_h: Number.parseInt(e.target.value || '1', 10) } : s,
+                        )
+                      }
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Model override
+                    </label>
+                    <Input
+                      value={selfImprovement.model_override ?? ''}
+                      onChange={(e) =>
+                        setSelfImprovement((s) =>
+                          s ? { ...s, model_override: e.target.value || null } : s,
+                        )
+                      }
+                      placeholder="Use agent default"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Provider override
+                    </label>
+                    <Select
+                      value={selfImprovement.provider_override ?? '__default__'}
+                      onValueChange={(v) =>
+                        setSelfImprovement((s) =>
+                          s ? { ...s, provider_override: v === '__default__' ? null : v } : s,
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-full rounded-lg text-sm">
+                        <SelectValue placeholder="Use agent default" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__default__">Use agent default</SelectItem>
+                        {providers
+                          .filter((provider) => provider.value !== 'auto')
+                          .map((provider) => (
+                            <SelectItem
+                              key={`improvement:${provider.value}`}
+                              value={provider.value}
+                            >
+                              {provider.label}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Scopes
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {improvementScopes.map((scope) => {
+                        const checked = selfImprovement.scopes.includes(scope);
+                        return (
+                          <label
+                            key={scope}
+                            className="flex h-9 items-center gap-2 rounded-md border border-border/60 bg-background px-3 text-sm"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) =>
+                                setSelfImprovement((s) => {
+                                  if (!s) return s;
+                                  const next = new Set(s.scopes);
+                                  if (v) next.add(scope);
+                                  else next.delete(scope);
+                                  return { ...s, scopes: Array.from(next) };
+                                })
+                              }
+                            />
+                            <span className="truncate">{scope}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Max iterations
+                    </label>
+                    <Input
+                      type="number"
+                      value={String(selfImprovement.max_iterations)}
+                      onChange={(e) =>
+                        setSelfImprovement((s) =>
+                          s
+                            ? { ...s, max_iterations: Number.parseInt(e.target.value || '1', 10) }
+                            : s,
+                        )
+                      }
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Validation level
+                    </label>
+                    <Select
+                      value={selfImprovement.validation_level}
+                      onValueChange={(v) =>
+                        setSelfImprovement((s) =>
+                          s ? { ...s, validation_level: v ?? s.validation_level } : s,
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-full rounded-lg text-sm">
+                        <SelectValue placeholder="Validation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {validationLevels.map((level) => (
+                          <SelectItem key={level} value={level}>
+                            {level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block text-sm font-medium text-muted-foreground">
+                      Automatic triggers
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      {improvementTriggers.map((trigger) => {
+                        const checked = selfImprovement.auto_triggers.includes(trigger);
+                        return (
+                          <label
+                            key={trigger}
+                            className="flex h-9 items-center gap-2 rounded-md border border-border/60 bg-background px-3 text-sm"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) =>
+                                setSelfImprovement((s) => {
+                                  if (!s) return s;
+                                  const next = new Set(s.auto_triggers);
+                                  if (v) next.add(trigger);
+                                  else next.delete(trigger);
+                                  return { ...s, auto_triggers: Array.from(next) };
+                                })
+                              }
+                            />
+                            <span className="truncate">{trigger}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </ManageCard>
+            </ManageSection>
+          )}
 
           {browser && data.browser && (
             <ManageSection
@@ -949,92 +1194,6 @@ export default function AgentSettingsPage() {
               </ManageCard>
             </ManageSection>
           )}
-
-          <ManageSection
-            title="API keys"
-            description="Values are write-only. The stored secrets are never returned by the server."
-          >
-            <ManageCard
-              title={
-                <span className="flex items-center gap-2 text-base font-semibold">
-                  <KeyRound size={16} className="text-muted-foreground" /> Provider credentials
-                </span>
-              }
-            >
-              {data.api_keys.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No API-key slots are registered for this agent.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {data.api_keys.map((k) => {
-                    const draft = apiKeyDrafts[k.key] ?? '';
-                    const willClear = apiKeyIntents[k.key] === 'clear';
-                    return (
-                      <div key={k.key} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm">{k.key}</span>
-                              {k.has_value && !willClear && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-success-muted px-2 py-0.5 text-sm font-medium text-success-foreground">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                                  Set
-                                </span>
-                              )}
-                              {willClear && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-error-muted px-2 py-0.5 text-sm font-medium text-error-foreground">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-error" />
-                                  Will clear
-                                </span>
-                              )}
-                            </div>
-                            {k.description && (
-                              <p className="text-sm text-muted-foreground/90">{k.description}</p>
-                            )}
-                          </div>
-                          {k.has_value && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={cn('h-7 text-sm', willClear && 'text-destructive')}
-                              onClick={() => {
-                                setApiKeyIntents((m) => ({
-                                  ...m,
-                                  [k.key]: willClear ? 'unchanged' : 'clear',
-                                }));
-                                if (!willClear) {
-                                  // Drop any in-progress draft when arming a clear
-                                  setApiKeyDrafts((d) => ({ ...d, [k.key]: '' }));
-                                }
-                              }}
-                            >
-                              {willClear ? 'Undo clear' : 'Clear'}
-                            </Button>
-                          )}
-                        </div>
-                        <Input
-                          type="password"
-                          value={willClear ? '' : draft}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setApiKeyDrafts((d) => ({ ...d, [k.key]: next }));
-                            // Typing a value cancels any pending clear.
-                            if (next && willClear) {
-                              setApiKeyIntents((m) => ({ ...m, [k.key]: 'unchanged' }));
-                            }
-                          }}
-                          placeholder={k.has_value ? '•••••• (leave blank to keep)' : k.label}
-                          className="h-9 text-sm font-mono"
-                          disabled={willClear}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </ManageCard>
-          </ManageSection>
         </>
       )}
     </ManagePane>

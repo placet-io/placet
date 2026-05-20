@@ -104,3 +104,28 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+export async function apiText(path: string, opts: RequestInit = {}): Promise<string> {
+  let res = await rawFetch(path, opts);
+
+  if (res.status === 401) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      res = await rawFetch(path, opts);
+    }
+  }
+
+  if (res.status === 401) {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+    throw new ApiError(401, 'Unauthorized');
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(res.status, extractErrorMessage(body, res.statusText));
+  }
+
+  return res.text();
+}

@@ -15,6 +15,9 @@ export interface QuotedMessage {
 
 const MAX_FILES = 10;
 
+const commandNeedsInput = (command: AgentCommand) =>
+  command.acceptsArgs === true || !!command.argHint?.trim();
+
 interface MessageInputProps {
   onSend: (text: string) => void;
   onUploadFiles?: (files: File[], text?: string) => Promise<void>;
@@ -55,17 +58,18 @@ export const MessageInput = memo(function MessageInput({
     setShowCommands(slashQuery !== null && commands.length > 0);
   }, [slashQuery, commands.length]);
 
-  // Matched command for syntax highlighting (e.g. "/reflection-log some-sha")
-  const matchedCommand = useMemo(() => {
-    if (!text.startsWith('/') || commands.length === 0) return null;
-    return commands.find((c) => text === c.command || text.startsWith(c.command + ' ')) ?? null;
-  }, [text, commands]);
-
   const handleCommandSelect = useCallback(
     (cmd: AgentCommand) => {
-      const newText = cmd.acceptsArgs ? cmd.command + ' ' : cmd.command;
-      setText(newText);
       setShowCommands(false);
+
+      if (!commandNeedsInput(cmd)) {
+        onSend(cmd.command);
+        setText('');
+        return;
+      }
+
+      const newText = cmd.command + ' ';
+      setText(newText);
       // Move cursor to end after React re-renders with the new value
       requestAnimationFrame(() => {
         const el = textareaRef.current;
@@ -74,11 +78,6 @@ export const MessageInput = memo(function MessageInput({
           el.setSelectionRange(newText.length, newText.length);
         }
       });
-      // If command doesn't accept args, send immediately
-      if (!cmd.acceptsArgs) {
-        onSend(cmd.command);
-        setText('');
-      }
     },
     [onSend],
   );
@@ -416,19 +415,6 @@ export const MessageInput = memo(function MessageInput({
             />
 
             <div className="relative order-2 flex-1 min-w-0 px-2 md:order-1 md:basis-full md:flex-none md:w-full md:px-3">
-              {/* Syntax highlight overlay for matched commands */}
-              {matchedCommand && (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 text-base whitespace-pre-wrap break-words py-1"
-                >
-                  <span className="text-primary font-medium">{matchedCommand.command}</span>
-                  <span className="text-foreground">
-                    {text.slice(matchedCommand.command.length)}
-                  </span>
-                </div>
-              )}
-
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -446,8 +432,8 @@ export const MessageInput = memo(function MessageInput({
                 className={cn(
                   // Mobile: taller min-height + symmetric py so the text
                   // visually centers alongside the icon buttons in the row.
-                  'w-full min-h-9 py-2 bg-transparent border-none outline-none text-base placeholder:text-muted-foreground resize-none scrollbar-hide md:min-h-[28px] md:py-1 leading-6',
-                  matchedCommand ? 'text-transparent caret-foreground' : 'text-foreground',
+                  'w-full min-h-9 py-2 bg-transparent border-none outline-none text-base placeholder:text-muted-foreground resize-none scrollbar-hide md:min-h-7 md:py-1 leading-6',
+                  'text-foreground',
                 )}
               />
             </div>

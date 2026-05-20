@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Activity,
   History,
+  GitBranch,
   KeyRound,
   Clock,
   Boxes,
@@ -28,6 +29,7 @@ import { cn } from '@/lib/utils';
 const AGENT_SECTIONS = [
   { key: 'overview', label: 'Overview', icon: Activity },
   { key: 'audit', label: 'Audit Log', icon: History },
+  { key: 'versions', label: 'Versions', icon: GitBranch },
   { key: 'credentials', label: 'Credentials', icon: KeyRound },
   { key: 'cron', label: 'Cron', icon: Clock },
   { key: 'mcp', label: 'MCP', icon: Boxes },

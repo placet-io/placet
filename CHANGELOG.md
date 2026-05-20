@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.5] — 2026-05-20
+
+### Added
+
+- **Agent versions and self-improvement management** — the Management Dashboard now has a central `Versions` section for each agent, including central version history, manual checkpoints, rollbacks, self-improvement runs, apply-mode indicators, and no-change handling without irrelevant approval actions.
+- **Versioning and command proxies** — the backend now proxies Facio's central versioning, self-improvement run APIs, and `/version` command through authenticated management endpoints, with a legacy improvement-route alias for existing links.
+- **Self-improvement settings controls** — the agent settings page now exposes upstream self-improvement options including enablement, apply mode, automatic triggers, scheduled interval, editable scopes, model/provider overrides, validation level, and the separate Reflection auto-apply switch.
+- **Goal turn budget setting** — the Management Dashboard advanced settings now expose `max_goal_turns`, including the `0 = unlimited` hint used by Facio goal mode.
+
+### Changed
+
+- **Management navigation** — the former Improvements entry is now named `Versions` to reflect that the page covers the central agent versioning system, not only self-improvement proposals.
+
+### Fixed
+
+- **Slash command selection** — commands that do not need input are sent immediately, commands with argument hints remain editable, and the command menu now shows hints whenever the backend provides them.
+
 ## [0.11.4] — 2026-05-11
 
 ### Changed
