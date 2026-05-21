@@ -103,14 +103,14 @@ export const StatusBadge = memo(function StatusBadge({
   //   - Mobile: no pill background, muted small text with colored dot.
   //   - sm+:    coloured pill badge (original look).
   const badgeBase =
-    'inline-flex items-center gap-1.5 shrink-0 text-[11px] sm:text-xs text-muted-foreground sm:font-medium sm:rounded-full sm:px-2 sm:py-0.5';
+    'inline-flex items-center gap-2 shrink-0 text-sm sm:text-xs text-muted-foreground sm:font-medium sm:rounded-full sm:px-2 sm:py-0.5';
 
   // Server render: emit a stable, time-independent label to prevent
   // hydration mismatches. After mount we swap to the stale/recent variant.
   if (!mounted) {
     return (
       <span suppressHydrationWarning className={cn(badgeBase, styles.pill, className)}>
-        <span className={cn('h-1.5 w-1.5 rounded-full', styles.dot)} />
+        <span className={cn('h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5', styles.dot)} />
         {styles.label}
       </span>
     );
@@ -126,7 +126,7 @@ export const StatusBadge = memo(function StatusBadge({
         className={cn(badgeBase, 'sm:bg-muted sm:text-muted-foreground', className)}
         title={`Last seen ${new Date(statusSince).toLocaleString()}`}
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+        <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/60 sm:h-1.5 sm:w-1.5" />
         Last seen {formatAgo(diffMs)}
       </span>
     );
@@ -134,7 +134,7 @@ export const StatusBadge = memo(function StatusBadge({
 
   return (
     <span suppressHydrationWarning className={cn(badgeBase, styles.pill, className)}>
-      <span className={cn('h-1.5 w-1.5 rounded-full', styles.dot)} />
+      <span className={cn('h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5', styles.dot)} />
       {styles.label}
     </span>
   );

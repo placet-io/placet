@@ -142,7 +142,10 @@ export const MobileNavDrawer = memo(function MobileNavDrawer() {
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map(({ href, icon: Icon, label }) => {
-            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+            const isActive =
+              href === '/manage'
+                ? pathname === href
+                : pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
                 key={href}
@@ -162,7 +165,7 @@ export const MobileNavDrawer = memo(function MobileNavDrawer() {
           })}
         </nav>
 
-        <nav className="border-t border-border/50 p-3 space-y-1">
+        <nav className="border-t border-border/50 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-1">
           {BOTTOM_NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const isActive = pathname === href || pathname.startsWith(`${href}/`);
             return (
