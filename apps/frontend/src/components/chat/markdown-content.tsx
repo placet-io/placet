@@ -92,6 +92,7 @@ export const MarkdownContent = memo(function MarkdownContent({
               );
             }
             // Inline code
+            const displayText = formatInlineCodeText(str);
             return (
               <code
                 className={cn(
@@ -102,7 +103,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 )}
                 {...props}
               >
-                {children}
+                {displayText}
               </code>
             );
           },
@@ -273,6 +274,16 @@ function formatLanguageLabel(lang: string | undefined): string | null {
   if (!lang) return null;
   const lower = lang.toLowerCase();
   return LANGUAGE_LABELS[lower] ?? lang;
+}
+
+function formatInlineCodeText(value: string): string {
+  const escapedDelimiterMatch = /^\\`([\s\S]+)\\`$/.exec(value);
+  if (escapedDelimiterMatch?.[1]?.trim()) return escapedDelimiterMatch[1];
+
+  const delimiterMatch = /^(`+)([\s\S]+)\1$/.exec(value);
+  if (delimiterMatch?.[2]?.trim()) return delimiterMatch[2];
+
+  return value;
 }
 
 /** Recursively flattens a React node tree into its plain text content. */

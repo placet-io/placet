@@ -25,9 +25,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="hidden lg:flex">
               <IconBar merged={merged} />
             </div>
-            <div className="flex flex-1 min-h-0 min-w-0 lg:gap-4 pb-[env(safe-area-inset-bottom)] lg:pb-0">
-              {children}
-            </div>
+            <div className="flex flex-1 min-h-0 min-w-0 lg:gap-4">{children}</div>
           </div>
         </div>
       </PhonePortraitGuard>

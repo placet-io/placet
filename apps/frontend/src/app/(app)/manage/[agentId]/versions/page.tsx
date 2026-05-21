@@ -81,6 +81,8 @@ interface DiffTarget {
   description: string;
 }
 
+const PAGE_SIZE = 5;
+
 const RUN_STATUS_TONE: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   proposed: 'default',
   approval_requested: 'default',
@@ -105,6 +107,15 @@ function formatTime(value: string): string {
 
 function countStatus(runs: ImprovementRun[], status: string): number {
   return runs.filter((run) => run.status === status).length;
+}
+
+function getPageItems<T>(items: T[], page: number): T[] {
+  const start = (page - 1) * PAGE_SIZE;
+  return items.slice(start, start + PAGE_SIZE);
+}
+
+function getPageCount(total: number): number {
+  return Math.max(1, Math.ceil(total / PAGE_SIZE));
 }
 
 function normalizeDiffPath(value: string): string {
@@ -187,6 +198,8 @@ export default function AgentVersionsPage() {
   const [activeDiffPath, setActiveDiffPath] = useState<string | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+  const [versionsPage, setVersionsPage] = useState(1);
+  const [runsPage, setRunsPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -211,6 +224,19 @@ export default function AgentVersionsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const versionsPageCount = getPageCount(versions.length);
+  const runsPageCount = getPageCount(runs.length);
+  const pagedVersions = getPageItems(versions, versionsPage);
+  const pagedRuns = getPageItems(runs, runsPage);
+
+  useEffect(() => {
+    setVersionsPage((page) => Math.min(page, versionsPageCount));
+  }, [versionsPageCount]);
+
+  useEffect(() => {
+    setRunsPage((page) => Math.min(page, runsPageCount));
+  }, [runsPageCount]);
 
   const stats = useMemo(
     () => ({
@@ -411,7 +437,7 @@ export default function AgentVersionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
-                    {versions.map((version) => {
+                    {pagedVersions.map((version) => {
                       const busy = busyKey === `version:${version.sha}`;
                       const hasFiles = version.files.length > 0;
                       return (
@@ -464,6 +490,12 @@ export default function AgentVersionsPage() {
                     })}
                   </tbody>
                 </table>
+                <TablePagination
+                  page={versionsPage}
+                  pageCount={versionsPageCount}
+                  total={versions.length}
+                  onPageChange={setVersionsPage}
+                />
               </div>
             )}
           </ManageCard>
@@ -492,7 +524,7 @@ export default function AgentVersionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
-                    {runs.map((run) => {
+                    {pagedRuns.map((run) => {
                       const busy = busyKey === `run:${run.id}`;
                       const hasDiffs = run.diff_artifacts.length > 0;
                       const canApprove =
@@ -521,11 +553,6 @@ export default function AgentVersionsPage() {
                             <Badge variant={RUN_STATUS_TONE[run.status] ?? 'outline'}>
                               {run.status}
                             </Badge>
-                            {run.approval_state && run.approval_state !== 'none' && (
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                {run.approval_state}
-                              </div>
-                            )}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">
                             <div>{run.trigger}</div>
@@ -594,6 +621,12 @@ export default function AgentVersionsPage() {
                     })}
                   </tbody>
                 </table>
+                <TablePagination
+                  page={runsPage}
+                  pageCount={runsPageCount}
+                  total={runs.length}
+                  onPageChange={setRunsPage}
+                />
               </div>
             )}
           </ManageCard>
@@ -670,5 +703,51 @@ export default function AgentVersionsPage() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function TablePagination({
+  page,
+  pageCount,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (total <= PAGE_SIZE) return null;
+
+  const start = (page - 1) * PAGE_SIZE + 1;
+  const end = Math.min(page * PAGE_SIZE, total);
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border/50 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <span>
+        Showing {start}-{end} of {total}
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+        >
+          Previous
+        </Button>
+        <span className="min-w-14 text-center">
+          {page} / {pageCount}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= pageCount}
+          onClick={() => onPageChange(Math.min(pageCount, page + 1))}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
   );
 }

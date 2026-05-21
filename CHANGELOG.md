@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.6] — 2026-05-21
+
+### Fixed
+
+- **Management Versions tables** — the Central Agent Versions and Self-Improvement Runs tables now show the latest five entries by default with local pagination controls, keeping long histories scannable on desktop and mobile.
+- **Self-improvement run statuses** — the run status column now shows one clean status badge instead of duplicating approval state below `applied` or other final states.
+- **Mobile PWA layout** — the app shell no longer adds duplicate bottom safe-area padding, removing the stray bottom strip in menus and reducing the chat input gap above the mobile keyboard.
+- **Mobile management navigation** — the mobile drawer only marks the global Manage entry active on `/manage`, so the Dashboard link remains reachable from agent management subsections.
+- **Mobile chat polish** — the chat header status indicator is larger and easier to read on mobile, and inline code chips hide stray wrapping backticks while preserving the original message text for copy actions.
+
 ## [0.11.5] — 2026-05-20
 
 ### Added
