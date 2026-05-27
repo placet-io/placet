@@ -54,6 +54,11 @@ interface BrowserSettings {
   stealth: { advertise_stealth: boolean; block_trackers: boolean };
 }
 
+interface GlobalSettings {
+  proxy: string | null;
+  proxy_set: boolean;
+}
+
 interface SelfImprovementSettings {
   enabled: boolean;
   model_override: string | null;
@@ -70,6 +75,7 @@ interface SettingsResponse {
   basic: Record<string, string | null>;
   advanced: Record<string, number | string | boolean>;
   browser?: BrowserSettings;
+  global?: GlobalSettings;
   self_improvement?: SelfImprovementSettings;
   options: {
     providers: ProviderOption[];
@@ -167,9 +173,10 @@ export default function AgentSettingsPage() {
 
   const [basic, setBasic] = useState<Basic>({});
   const [advanced, setAdvanced] = useState<Advanced>({});
+  const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(null);
+  const [globalProxyDraft, setGlobalProxyDraft] = useState<string>('');
+  const [globalProxyClear, setGlobalProxyClear] = useState<boolean>(false);
   const [browser, setBrowser] = useState<BrowserSettings | null>(null);
-  const [browserProxyDraft, setBrowserProxyDraft] = useState<string>('');
-  const [browserProxyClear, setBrowserProxyClear] = useState<boolean>(false);
   const [selfImprovement, setSelfImprovement] = useState<SelfImprovementSettings | null>(null);
 
   const hydrate = useCallback((resp: SettingsResponse) => {
@@ -179,10 +186,11 @@ export default function AgentSettingsPage() {
     });
     setBasic(b);
     setAdvanced({ ...resp.advanced });
+    setGlobalSettings(resp.global ? { ...resp.global } : null);
     setBrowser(resp.browser ? { ...resp.browser } : null);
     setSelfImprovement(resp.self_improvement ? { ...resp.self_improvement } : null);
-    setBrowserProxyDraft('');
-    setBrowserProxyClear(false);
+    setGlobalProxyDraft('');
+    setGlobalProxyClear(false);
   }, []);
 
   const load = useCallback(async () => {
@@ -214,6 +222,9 @@ export default function AgentSettingsPage() {
     for (const [k, v] of Object.entries(advanced)) {
       if (data.advanced[k] !== v) return true;
     }
+    if (globalSettings && data.global) {
+      if (globalProxyDraft !== '' || globalProxyClear) return true;
+    }
     if (browser && data.browser) {
       const orig = data.browser;
       const keys: (keyof BrowserSettings)[] = [
@@ -237,13 +248,21 @@ export default function AgentSettingsPage() {
       if (browser.playwright.headless !== orig.playwright.headless) return true;
       if (browser.stealth.advertise_stealth !== orig.stealth.advertise_stealth) return true;
       if (browser.stealth.block_trackers !== orig.stealth.block_trackers) return true;
-      if (browserProxyDraft !== '' || browserProxyClear) return true;
     }
     if (selfImprovement && data.self_improvement) {
       if (JSON.stringify(selfImprovement) !== JSON.stringify(data.self_improvement)) return true;
     }
     return false;
-  }, [data, basic, advanced, browser, browserProxyDraft, browserProxyClear, selfImprovement]);
+  }, [
+    data,
+    basic,
+    advanced,
+    globalSettings,
+    globalProxyDraft,
+    globalProxyClear,
+    browser,
+    selfImprovement,
+  ]);
 
   const save = async () => {
     if (!data || saving) return;
@@ -261,6 +280,12 @@ export default function AgentSettingsPage() {
       }
       for (const [k, v] of Object.entries(advanced)) {
         if (data.advanced[k] !== v) body[k] = v;
+      }
+      if (globalSettings && data.global) {
+        const gdiff: Record<string, unknown> = {};
+        if (globalProxyClear) gdiff.proxy = null;
+        else if (globalProxyDraft) gdiff.proxy = globalProxyDraft;
+        if (Object.keys(gdiff).length) body.global = gdiff;
       }
       if (browser && data.browser) {
         const orig = data.browser;
@@ -300,8 +325,6 @@ export default function AgentSettingsPage() {
         if (browser.stealth.block_trackers !== orig.stealth.block_trackers)
           st.block_trackers = browser.stealth.block_trackers;
         if (Object.keys(st).length) bdiff.stealth = st;
-        if (browserProxyClear) bdiff.proxy = null;
-        else if (browserProxyDraft) bdiff.proxy = browserProxyDraft;
         if (Object.keys(bdiff).length) body.browser = bdiff;
       }
       if (selfImprovement && data.self_improvement) {
@@ -533,6 +556,69 @@ export default function AgentSettingsPage() {
             </ManageCard>
           </ManageSection>
 
+          {globalSettings && data.global && (
+            <ManageSection
+              title="Global"
+              description="Runtime-wide network settings applied to tools and browser sessions."
+            >
+              <ManageCard
+                title={
+                  <span className="flex items-center gap-2 text-base font-semibold">
+                    <Globe size={16} className="text-muted-foreground" /> Outbound network
+                  </span>
+                }
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-muted-foreground">
+                        Proxy URL
+                        {globalSettings.proxy_set && (
+                          <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-success-muted px-2 py-0.5 text-sm font-medium text-success-foreground">
+                            <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                            Set
+                          </span>
+                        )}
+                      </label>
+                      {globalSettings.proxy_set && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn('h-7 text-sm', globalProxyClear && 'text-destructive')}
+                          onClick={() => {
+                            setGlobalProxyClear((c) => !c);
+                            if (!globalProxyClear) setGlobalProxyDraft('');
+                          }}
+                        >
+                          {globalProxyClear ? 'Undo clear' : 'Clear'}
+                        </Button>
+                      )}
+                    </div>
+                    <Input
+                      type="password"
+                      value={globalProxyClear ? '' : globalProxyDraft}
+                      onChange={(e) => {
+                        setGlobalProxyDraft(e.target.value);
+                        if (e.target.value && globalProxyClear) setGlobalProxyClear(false);
+                      }}
+                      placeholder={
+                        globalSettings.proxy_set
+                          ? `${globalSettings.proxy ?? '•••••'} (leave blank to keep)`
+                          : 'http://user:pass@host:port'
+                      }
+                      className="h-9 text-sm font-mono"
+                      disabled={globalProxyClear}
+                    />
+                    <p className="text-sm text-muted-foreground/80">
+                      Applies immediately to web fetch, browser launches, exec subprocesses, and
+                      standard container proxy env vars.
+                    </p>
+                  </div>
+                </div>
+              </ManageCard>
+            </ManageSection>
+          )}
+
           <ManageSection
             title="Advanced"
             description="Generation, session, and concurrency limits."
@@ -737,10 +823,10 @@ export default function AgentSettingsPage() {
                       Provider override
                     </label>
                     <Select
-                      value={selfImprovement.provider_override ?? '__default__'}
+                      value={selfImprovement.provider_override ?? 'default'}
                       onValueChange={(v) =>
                         setSelfImprovement((s) =>
-                          s ? { ...s, provider_override: v === '__default__' ? null : v } : s,
+                          s ? { ...s, provider_override: v === 'default' ? null : v } : s,
                         )
                       }
                     >
@@ -748,7 +834,7 @@ export default function AgentSettingsPage() {
                         <SelectValue placeholder="Use agent default" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__default__">Use agent default</SelectItem>
+                        <SelectItem value="default">default</SelectItem>
                         {providers
                           .filter((provider) => provider.value !== 'auto')
                           .map((provider) => (
@@ -1025,50 +1111,6 @@ export default function AgentSettingsPage() {
                       placeholder="(default)"
                       className="h-9 text-sm"
                     />
-                  </div>
-                  <div className="space-y-1.5 md:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-medium text-muted-foreground">
-                        Proxy URL
-                        {browser.proxy_set && (
-                          <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-success-muted px-2 py-0.5 text-sm font-medium text-success-foreground">
-                            <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                            Set
-                          </span>
-                        )}
-                      </label>
-                      {browser.proxy_set && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn('h-7 text-sm', browserProxyClear && 'text-destructive')}
-                          onClick={() => {
-                            setBrowserProxyClear((c) => !c);
-                            if (!browserProxyClear) setBrowserProxyDraft('');
-                          }}
-                        >
-                          {browserProxyClear ? 'Undo clear' : 'Clear'}
-                        </Button>
-                      )}
-                    </div>
-                    <Input
-                      type="password"
-                      value={browserProxyClear ? '' : browserProxyDraft}
-                      onChange={(e) => {
-                        setBrowserProxyDraft(e.target.value);
-                        if (e.target.value && browserProxyClear) setBrowserProxyClear(false);
-                      }}
-                      placeholder={
-                        browser.proxy_set
-                          ? `${browser.proxy ?? '•••••'} (leave blank to keep)`
-                          : 'http://user:pass@host:port'
-                      }
-                      className="h-9 text-sm font-mono"
-                      disabled={browserProxyClear}
-                    />
-                    <p className="text-sm text-muted-foreground/80">
-                      Applied container-wide (HTTP_PROXY/HTTPS_PROXY) when set.
-                    </p>
                   </div>
                   <div className="flex items-end gap-2">
                     <div className="flex flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-3 h-9">
