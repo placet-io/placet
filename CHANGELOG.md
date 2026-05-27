@@ -5,13 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.11.8] — 2026-05-27
+## [0.11.7] — 2026-05-27
 
 ### Fixed
 
 - **AIO agent API routing** — the single-container nginx gateway now proxies `/api/*` directly to the backend instead of relying on the frontend runtime rewrite. This fixes `502 Bad Gateway` failures for Facio agent endpoints such as `POST /api/v1/messages`, `POST /api/v1/agents/setManagement`, `setSubagent`, and `setTag` in quickstart/bundled deployments where Socket.IO could connect but REST calls still failed.
-
-## [0.11.7] — 2026-05-22
 
 ### Changed
 
