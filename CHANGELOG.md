@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.8] — 2026-05-27
+
+### Fixed
+
+- **Management settings provider selection** — the Image generation and Video generation provider pickers now only show the media providers actually supported by Facio instead of every general LLM provider.
+- **Management settings timezone input** — the timezone field now uses a curated dropdown of common timezones while still preserving an existing custom value.
+- **Management settings labels** — user-facing option values such as provider ids, reasoning effort, retry modes, self-improvement scopes, validation levels, and automatic triggers are now rendered with readable labels instead of raw underscore-separated config keys.
+
 ## [0.11.7] — 2026-05-27
 
 ### Fixed

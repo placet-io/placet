@@ -148,6 +148,92 @@ const BASIC_GROUPS: Array<{
   },
 ];
 
+const MEDIA_IMAGE_PROVIDER_OPTIONS: ProviderOption[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'google', label: 'Google' },
+  { value: 'replicate', label: 'Replicate' },
+  { value: 'fal', label: 'fal.ai' },
+];
+
+const MEDIA_VIDEO_PROVIDER_OPTIONS: ProviderOption[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'google', label: 'Google' },
+  { value: 'replicate', label: 'Replicate' },
+  { value: 'fal', label: 'fal.ai' },
+];
+
+const COMMON_TIMEZONES = [
+  'UTC',
+  'Europe/Berlin',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Zurich',
+  'Europe/Vienna',
+  'Europe/Amsterdam',
+  'Europe/Moscow',
+  'Europe/Istanbul',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Toronto',
+  'America/Sao_Paulo',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Singapore',
+  'Asia/Kolkata',
+  'Asia/Dubai',
+  'Asia/Seoul',
+  'Asia/Hong_Kong',
+  'Australia/Sydney',
+  'Australia/Melbourne',
+  'Pacific/Auckland',
+  'Africa/Cairo',
+  'Africa/Johannesburg',
+];
+
+const OPTION_LABEL_OVERRIDES: Record<string, string> = {
+  api_url: 'API URL',
+  auto: 'Auto',
+  azure_openai: 'Azure OpenAI',
+  byteplus_coding_plan: 'BytePlus Coding Plan',
+  fal: 'fal.ai',
+  gemini: 'Gemini',
+  github_copilot: 'GitHub Copilot',
+  google: 'Google',
+  google_vertex: 'Google Vertex',
+  huggingface: 'Hugging Face',
+  openai: 'OpenAI',
+  openai_codex: 'OpenAI Codex',
+  opencode_go: 'OpenCode Go',
+  openrouter: 'OpenRouter',
+  zhipu: 'Zhipu AI',
+};
+
+function formatOptionLabel(value: string): string {
+  if (!value) return '';
+  const override = OPTION_LABEL_OVERRIDES[value];
+  if (override) return override;
+  return value
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function withCurrentOption(options: ProviderOption[], current: string): ProviderOption[] {
+  if (!current || options.some((option) => option.value === current)) return options;
+  return [{ value: current, label: formatOptionLabel(current) }, ...options];
+}
+
+function optionLabel(option: ProviderOption): string {
+  return option.label && option.label !== option.value
+    ? option.label
+    : formatOptionLabel(option.value);
+}
+
 const ADVANCED_NUM_FIELDS: Array<{ key: string; label: string; hint?: string }> = [
   { key: 'temperature', label: 'Temperature', hint: '0 – 2' },
   { key: 'max_tokens', label: 'Max tokens' },
@@ -372,7 +458,7 @@ export default function AgentSettingsPage() {
 
   const reasoningOpts = data?.options.reasoning_effort ?? [];
   const retryOpts = data?.options.provider_retry_mode ?? [];
-  const providers = data?.options.providers ?? [];
+  const providers = useMemo(() => data?.options.providers ?? [], [data?.options.providers]);
   const improvementModes = data?.options.self_improvement_modes ?? ['off', 'review', 'auto_apply'];
   const improvementTriggers = data?.options.self_improvement_triggers ?? [
     'goal_done',
@@ -394,20 +480,35 @@ export default function AgentSettingsPage() {
     'strict',
   ];
 
+  const timezoneOptions = useMemo(() => {
+    const current = basic.timezone;
+    if (current && !COMMON_TIMEZONES.includes(current)) return [current, ...COMMON_TIMEZONES];
+    return COMMON_TIMEZONES;
+  }, [basic.timezone]);
+
+  const providerOptionsForKey = useCallback(
+    (key: string, current: string) => {
+      if (key === 'image_provider') return withCurrentOption(MEDIA_IMAGE_PROVIDER_OPTIONS, current);
+      if (key === 'video_provider') return withCurrentOption(MEDIA_VIDEO_PROVIDER_OPTIONS, current);
+      return withCurrentOption(providers, current);
+    },
+    [providers],
+  );
+
   const providerSelect = (key: string, value: string, onChange: (v: string) => void) => (
     <Select value={value || undefined} onValueChange={(v) => onChange(v ?? '')}>
       <SelectTrigger className="h-9 w-full rounded-lg text-sm">
         <SelectValue placeholder="Provider" />
       </SelectTrigger>
       <SelectContent>
-        {providers.length === 0 ? (
+        {providerOptionsForKey(key, value).length === 0 ? (
           <SelectItem value="__none__" disabled>
             —
           </SelectItem>
         ) : (
-          providers.map((p) => (
+          providerOptionsForKey(key, value).map((p) => (
             <SelectItem key={`${key}:${p.value}`} value={p.value}>
-              {p.label}
+              {optionLabel(p)}
             </SelectItem>
           ))
         )}
@@ -526,7 +627,7 @@ export default function AgentSettingsPage() {
                       <SelectTrigger className="h-9 w-full rounded-lg text-sm">
                         <SelectValue placeholder="(default)">
                           {(val: string | null) =>
-                            !val || val === '__default__' ? '(default)' : val
+                            !val || val === '__default__' ? '(default)' : formatOptionLabel(val)
                           }
                         </SelectValue>
                       </SelectTrigger>
@@ -534,7 +635,7 @@ export default function AgentSettingsPage() {
                         <SelectItem value="__default__">(default)</SelectItem>
                         {reasoningOpts.map((opt) => (
                           <SelectItem key={opt} value={opt}>
-                            {opt}
+                            {formatOptionLabel(opt)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -544,12 +645,21 @@ export default function AgentSettingsPage() {
                     <label className="block text-sm font-medium text-muted-foreground">
                       Timezone
                     </label>
-                    <Input
-                      value={basic.timezone ?? ''}
-                      onChange={(e) => setBasic((b) => ({ ...b, timezone: e.target.value }))}
-                      placeholder="Europe/Berlin"
-                      className="h-9 text-sm"
-                    />
+                    <Select
+                      value={basic.timezone || 'UTC'}
+                      onValueChange={(v) => setBasic((b) => ({ ...b, timezone: v ?? 'UTC' }))}
+                    >
+                      <SelectTrigger className="h-9 w-full rounded-lg text-sm">
+                        <SelectValue placeholder="Timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {timezoneOptions.map((timezone) => (
+                          <SelectItem key={timezone} value={timezone}>
+                            {timezone}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -671,7 +781,7 @@ export default function AgentSettingsPage() {
                     <SelectContent>
                       {retryOpts.map((opt) => (
                         <SelectItem key={opt} value={opt}>
-                          {opt}
+                          {formatOptionLabel(opt)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -782,7 +892,7 @@ export default function AgentSettingsPage() {
                       <SelectContent>
                         {improvementModes.map((mode) => (
                           <SelectItem key={mode} value={mode}>
-                            {mode}
+                            {formatOptionLabel(mode)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -842,7 +952,7 @@ export default function AgentSettingsPage() {
                               key={`improvement:${provider.value}`}
                               value={provider.value}
                             >
-                              {provider.label}
+                              {optionLabel(provider)}
                             </SelectItem>
                           ))}
                       </SelectContent>
@@ -872,7 +982,7 @@ export default function AgentSettingsPage() {
                                 })
                               }
                             />
-                            <span className="truncate">{scope}</span>
+                            <span className="truncate">{formatOptionLabel(scope)}</span>
                           </label>
                         );
                       })}
@@ -913,7 +1023,7 @@ export default function AgentSettingsPage() {
                       <SelectContent>
                         {validationLevels.map((level) => (
                           <SelectItem key={level} value={level}>
-                            {level}
+                            {formatOptionLabel(level)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -943,7 +1053,7 @@ export default function AgentSettingsPage() {
                                 })
                               }
                             />
-                            <span className="truncate">{trigger}</span>
+                            <span className="truncate">{formatOptionLabel(trigger)}</span>
                           </label>
                         );
                       })}
@@ -995,7 +1105,7 @@ export default function AgentSettingsPage() {
                         {(data.options.browser_backends ?? ['auto', 'camoufox', 'playwright']).map(
                           (opt) => (
                             <SelectItem key={opt} value={opt}>
-                              {opt}
+                              {formatOptionLabel(opt)}
                             </SelectItem>
                           ),
                         )}
