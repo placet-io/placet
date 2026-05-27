@@ -253,7 +253,16 @@ export default function AgentSettingsPage() {
       if (JSON.stringify(selfImprovement) !== JSON.stringify(data.self_improvement)) return true;
     }
     return false;
-  }, [data, basic, advanced, globalSettings, globalProxyDraft, globalProxyClear, browser, selfImprovement]);
+  }, [
+    data,
+    basic,
+    advanced,
+    globalSettings,
+    globalProxyDraft,
+    globalProxyClear,
+    browser,
+    selfImprovement,
+  ]);
 
   const save = async () => {
     if (!data || saving) return;
@@ -601,7 +610,8 @@ export default function AgentSettingsPage() {
                       disabled={globalProxyClear}
                     />
                     <p className="text-sm text-muted-foreground/80">
-                      Applies immediately to web fetch, browser launches, exec subprocesses, and standard container proxy env vars.
+                      Applies immediately to web fetch, browser launches, exec subprocesses, and
+                      standard container proxy env vars.
                     </p>
                   </div>
                 </div>
