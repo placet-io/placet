@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Copy,
   Download,
   X,
   ChevronLeft,
@@ -12,6 +13,7 @@ import {
   ArrowLeftRight,
   Check,
   Circle,
+  FileCode,
   XCircle,
 } from 'lucide-react';
 import { useAnnotations } from '@/lib/hooks/use-annotations';
@@ -31,7 +33,7 @@ import { MarkdownContent } from './markdown-content';
 import { FilePreview } from '@/components/files/file-preview';
 import { CanvasOverlay } from './canvas-overlay';
 import { PluginRenderer } from '@/components/plugins/plugin-renderer';
-import { formatFileSize, getFileTypeLabel } from '@/lib/file-utils';
+import { formatFileSize, getFileTypeLabel, getPreviewType } from '@/lib/file-utils';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Attachment, Message, Review } from '@placet/shared';
@@ -65,6 +67,11 @@ function useFileText(fileId: string | null): string | null {
     };
   }, [fileId]);
   return fileId && result?.id === fileId ? result.text : null;
+}
+
+function isSourceToggleable(mimeType: string, filename: string): boolean {
+  const previewType = getPreviewType(mimeType, filename);
+  return previewType === 'html' || previewType === 'markdown';
 }
 
 interface FilePreviewModalProps {
@@ -125,6 +132,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   const [annoSaving, setAnnoSaving] = useState(false);
   const [sendingAsMsg, setSendingAsMsg] = useState(false);
   const [viewingAnnotated, setViewingAnnotated] = useState(false);
+  const [sourceMode, setSourceMode] = useState(false);
   const canvasRef = useRef<CanvasOverlayHandle>(null);
 
   // Iteration chain state
@@ -211,6 +219,13 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   const current = effectiveAttachments[currentIndex] ?? attachment;
   const annotation = current ? annotations[current.id] : undefined;
   const isPluginOnly = !!plugin && !current;
+  const canViewSource =
+    !isPluginOnly && current ? isSourceToggleable(current.mimeType, current.filename) : false;
+  const sourceText = useFileText(sourceMode && canViewSource && current ? current.id : null);
+
+  useEffect(() => {
+    setSourceMode(false);
+  }, [current?.id]);
 
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < effectiveAttachments.length - 1;
@@ -473,6 +488,17 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                       {sendingAsMsg ? 'Sending…' : 'Send as message'}
                     </Button>
                   )}
+                  {canViewSource && !annotating && !isComparing && (
+                    <Button
+                      variant={sourceMode ? 'outline' : 'ghost'}
+                      size="sm"
+                      className="hidden md:inline-flex gap-1.5 text-xs rounded-lg"
+                      onClick={() => setSourceMode((v) => !v)}
+                    >
+                      <FileCode size={12} />
+                      {sourceMode ? 'Preview' : 'Source'}
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon-sm" onClick={handleDownload}>
                     <Download size={16} />
                   </Button>
@@ -484,7 +510,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
             <div
               className={cn(
                 'flex-1 flex items-center justify-center relative overflow-auto bg-muted/20',
-                isPluginOnly ? '' : isComparing || isCompareLoading ? '' : 'p-4',
+                isPluginOnly || isComparing || isCompareLoading || sourceMode ? '' : 'p-4',
               )}
             >
               {isPluginOnly ? (
@@ -544,6 +570,8 @@ export const FilePreviewModal = memo(function FilePreviewModal({
                   <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                   Loading comparison…
                 </div>
+              ) : sourceMode && canViewSource ? (
+                <SourcePreview content={sourceText} filename={current!.filename} />
               ) : annotating && isImage ? (
                 <CanvasOverlay ref={canvasRef} imageSrc={`/api/files/${current!.id}/download`} />
               ) : (
@@ -765,3 +793,53 @@ export const FilePreviewModal = memo(function FilePreviewModal({
     </Dialog>
   );
 });
+
+function SourcePreview({
+  content,
+  filename,
+}: {
+  content: string | null;
+  filename: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (content == null) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard may be unavailable in insecure contexts.
+    }
+  }, [content]);
+
+  if (content == null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+        Loading source…
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full flex flex-col overflow-hidden bg-[#0d1117] text-[#c9d1d9]">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2 shrink-0">
+        <span className="min-w-0 truncate text-xs font-medium text-[#8b949e]">{filename}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 rounded-lg text-xs text-[#8b949e] hover:bg-[#21262d] hover:text-[#c9d1d9]"
+          onClick={handleCopy}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+      <pre className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed whitespace-pre-wrap break-words">
+        <code>{content}</code>
+      </pre>
+    </div>
+  );
+}

@@ -28,6 +28,17 @@
       <h1>Connect to Placet</h1>
       <p class="subtitle">Enter the URL of your Placet server to get started.</p>
 
+      <section id="saved-server" class="saved-server" hidden aria-live="polite">
+        <div>
+          <p class="eyebrow">Saved server</p>
+          <p id="saved-server-url" class="saved-url"></p>
+        </div>
+        <div class="saved-actions">
+          <button id="retry-saved" type="button" class="secondary">Retry</button>
+          <button id="change-server" type="button" class="ghost">Change</button>
+        </div>
+      </section>
+
       <form id="connect-form" novalidate>
         <p id="error" class="error" hidden></p>
 
