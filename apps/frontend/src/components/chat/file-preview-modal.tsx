@@ -794,13 +794,7 @@ export const FilePreviewModal = memo(function FilePreviewModal({
   );
 });
 
-function SourcePreview({
-  content,
-  filename,
-}: {
-  content: string | null;
-  filename: string;
-}) {
+function SourcePreview({ content, filename }: { content: string | null; filename: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
