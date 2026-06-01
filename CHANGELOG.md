@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Desktop saved server recovery** — the Tauri desktop app now opens the bundled connect screen first, validates any saved Placet server before navigating, and shows a clean reconnect panel with retry/change actions when an old or API-only host URL cannot be opened.
+- **Desktop cross-platform builds** — Windows and Linux desktop builds no longer lose the shared URL-validation timeout import behind the macOS-only notification code path.
 
 ## [0.11.8] — 2026-05-27
 

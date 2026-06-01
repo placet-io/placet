@@ -1,11 +1,12 @@
 use serde::Serialize;
+use std::time::Duration;
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "macos")]
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
-use std::{ptr::NonNull, sync::mpsc, time::Duration};
+use std::{ptr::NonNull, sync::mpsc};
 #[cfg(not(target_os = "macos"))]
 use tauri_plugin_notification::PermissionState;
 
