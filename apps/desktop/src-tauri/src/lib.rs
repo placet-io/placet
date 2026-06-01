@@ -1,10 +1,12 @@
+use serde::Serialize;
+use std::time::Duration;
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "macos")]
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
-use std::{ptr::NonNull, sync::mpsc, time::Duration};
+use std::{ptr::NonNull, sync::mpsc};
 #[cfg(not(target_os = "macos"))]
 use tauri_plugin_notification::PermissionState;
 
@@ -20,6 +22,79 @@ const DESKTOP_INIT_SCRIPT: &str = "try{document.documentElement.dataset.placetDe
 const DESKTOP_INIT_SCRIPT: &str = "try{document.documentElement.dataset.placetDesktop='true';document.documentElement.dataset.placetDesktopOs='windows';window.__placetDesktop=true;}catch(e){}";
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const DESKTOP_INIT_SCRIPT: &str = "try{document.documentElement.dataset.placetDesktop='true';document.documentElement.dataset.placetDesktopOs='linux';window.__placetDesktop=true;}catch(e){}";
+
+#[derive(Serialize)]
+struct ServerValidation {
+    base_url: String,
+    api_url: Option<String>,
+}
+
+fn normalize_url(raw_url: &str) -> Result<String, String> {
+    let trimmed = raw_url.trim().trim_end_matches('/');
+    let parsed = reqwest::Url::parse(trimmed).map_err(|_| "Enter a valid URL.".to_string())?;
+    match parsed.scheme() {
+        "http" | "https" => Ok(trimmed.to_string()),
+        _ => Err("URL must start with http:// or https://.".to_string()),
+    }
+}
+
+async fn validate_frontend_url(client: &reqwest::Client, base_url: &str) -> Result<(), String> {
+    let response = client
+        .get(base_url)
+        .header(reqwest::header::ACCEPT, "text/html,application/xhtml+xml")
+        .send()
+        .await
+        .map_err(|err| format!("Could not reach {base_url}: {err}"))?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let body = response
+        .text()
+        .await
+        .map_err(|err| format!("Could not read the response from {base_url}: {err}"))?;
+    let body_start = body.trim_start().to_ascii_lowercase();
+    let looks_like_html = content_type.contains("text/html")
+        || body_start.starts_with("<!doctype html")
+        || body_start.starts_with("<html")
+        || body_start.contains("<head")
+        || body_start.contains("<body");
+
+    if !looks_like_html {
+        if body_start.starts_with('{') || content_type.contains("application/json") {
+            return Err(format!(
+                "{base_url} responded like an API endpoint, not the Placet web app. Use the public Placet frontend URL as Server URL."
+            ));
+        }
+        return Err(format!(
+            "{base_url} is reachable, but it does not look like the Placet web app."
+        ));
+    }
+    if status.is_server_error() {
+        return Err(format!("{base_url} is returning {status}."));
+    }
+    Ok(())
+}
+
+async fn validate_api_url(client: &reqwest::Client, api_url: &str) -> Result<(), String> {
+    let auth_url = format!("{api_url}/api/auth/me");
+    let response = client
+        .get(&auth_url)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await
+        .map_err(|err| format!("Could not reach {api_url}: {err}"))?;
+    let status = response.status();
+    if status.is_server_error() || status == reqwest::StatusCode::NOT_FOUND {
+        return Err(format!(
+            "{api_url} does not look like a Placet API origin ({status})."
+        ));
+    }
+    Ok(())
+}
 
 fn save_base_url_and_navigate(app: &tauri::AppHandle, url: &str) {
     use tauri_plugin_store::StoreExt;
@@ -40,6 +115,7 @@ fn clear_base_url_and_show_connect(app: &tauri::AppHandle) {
     use tauri_plugin_store::StoreExt;
     if let Ok(store) = app.store("placet.json") {
         store.delete("baseUrl");
+        let _ = store.delete("apiUrl");
         let _ = store.save();
     }
     if let Some(window) = app.get_webview_window("main") {
@@ -67,7 +143,9 @@ fn request_notification_permission(app: &tauri::AppHandle, nonce: &str) {
 }
 
 #[cfg(target_os = "macos")]
-fn macos_notification_status_is_granted(status: objc2_user_notifications::UNAuthorizationStatus) -> bool {
+fn macos_notification_status_is_granted(
+    status: objc2_user_notifications::UNAuthorizationStatus,
+) -> bool {
     matches!(
         status,
         objc2_user_notifications::UNAuthorizationStatus::Authorized
@@ -84,7 +162,9 @@ fn macos_notification_permission_granted() -> Result<bool, String> {
     let center = UNUserNotificationCenter::currentNotificationCenter();
     let (sender, receiver) = mpsc::channel();
     let completion = RcBlock::new(move |settings: NonNull<UNNotificationSettings>| {
-        let granted = unsafe { macos_notification_status_is_granted(settings.as_ref().authorizationStatus()) };
+        let granted = unsafe {
+            macos_notification_status_is_granted(settings.as_ref().authorizationStatus())
+        };
         let _ = sender.send(granted);
     });
 
@@ -192,6 +272,33 @@ async fn set_server_url(app: tauri::AppHandle, url: String) -> Result<(), String
     Ok(())
 }
 
+/// Validate that the server URL points to the Placet web frontend before navigating.
+#[tauri::command]
+async fn validate_server_url(
+    base_url: String,
+    api_url: Option<String>,
+) -> Result<ServerValidation, String> {
+    let base_url = normalize_url(&base_url)?;
+    let api_url = api_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(normalize_url)
+        .transpose()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::limited(8))
+        .build()
+        .map_err(|err| err.to_string())?;
+
+    validate_frontend_url(&client, &base_url).await?;
+    if let Some(api_url) = api_url.as_deref() {
+        validate_api_url(&client, api_url).await?;
+    }
+
+    Ok(ServerValidation { base_url, api_url })
+}
+
 /// Open the OS notification settings pane, when supported.
 #[tauri::command]
 async fn open_system_notification_settings(app: tauri::AppHandle) -> Result<(), String> {
@@ -230,6 +337,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             disconnect,
             set_server_url,
+            validate_server_url,
             open_system_notification_settings,
             request_system_notification_permission,
             is_system_notification_permission_granted
@@ -237,13 +345,11 @@ pub fn run() {
         .setup(|app| {
             use tauri_plugin_store::StoreExt;
 
-            // Decide initial URL: stored baseUrl if present, else the
-            // bundled connect screen.
-            let store = app.store("placet.json")?;
-            let initial_url = match store.get("baseUrl") {
-                Some(serde_json::Value::String(url)) => WebviewUrl::External(url.parse()?),
-                _ => WebviewUrl::App("index.html".into()),
-            };
+            // Always start in the bundled connect shell. It validates any
+            // saved server URL before navigating, so stale or API-only URLs
+            // never leave the user stuck on a raw backend error page.
+            let _store = app.store("placet.json")?;
+            let initial_url = WebviewUrl::App("index.html".into());
 
             // Build the main window in Rust so we can attach
             // `initialization_script_for_all_frames` — config-defined
@@ -311,7 +417,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             let builder = {
                 use tauri::TitleBarStyle;
-                builder.title_bar_style(TitleBarStyle::Overlay).hidden_title(true)
+                builder
+                    .title_bar_style(TitleBarStyle::Overlay)
+                    .hidden_title(true)
             };
 
             let _window = builder.build()?;

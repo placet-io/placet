@@ -8,6 +8,8 @@
   --input-bg: #ffffff;
   --primary: #7c9cb5;
   --primary-fg: #ffffff;
+  --info-bg: rgba(124, 156, 181, 0.12);
+  --info-fg: #45687f;
   --error-bg: rgba(180, 35, 24, 0.1);
   --error-fg: #b42318;
 }
@@ -22,6 +24,8 @@
     --input-bg: #1a1a19;
     --primary: #8faec8;
     --primary-fg: #1a1a19;
+    --info-bg: rgba(143, 174, 200, 0.14);
+    --info-fg: #a9c7df;
     --error-bg: rgba(249, 112, 102, 0.12);
     --error-fg: #f97066;
   }
@@ -90,6 +94,48 @@ h1 {
   margin: 0 0 24px;
   line-height: 1.5;
   text-align: center;
+}
+
+.saved-server {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 0.875rem;
+  background: var(--info-bg);
+}
+
+.saved-server[data-state='error'] {
+  border-color: color-mix(in srgb, var(--error-fg) 35%, var(--border));
+  background: var(--error-bg);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--info-fg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.saved-server[data-state='error'] .eyebrow {
+  color: var(--error-fg);
+}
+
+.saved-url {
+  margin: 0;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.saved-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 form {
@@ -186,6 +232,26 @@ button:hover:not(:disabled) {
 button:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+button.secondary,
+button.ghost {
+  height: 36px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+}
+
+button.secondary:hover:not(:disabled),
+button.ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  opacity: 1;
 }
 
 .error {
